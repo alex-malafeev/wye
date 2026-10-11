@@ -58,7 +58,7 @@ export function cardKeys(block: string): Record<string, string> {
 // decision it settles — or, before one exists, the requirement, constraint or rule the choice belongs to
 // (decision:waterfall.decides-names-a-decision-or-what-it-decides-for). null when it says all three.
 export const QUESTION_FIELDS = { why: 'what is blocked or waiting on the answer', 'answer-changes': 'what each likely answer changes, naming the blocks or work', decides: 'the id of the decision the answer settles or changes (or, before one exists, the req / constraint / rule it decides for)' } as const;
-const DECIDES_KINDS = new Set(['decision', 'req', 'constraint', 'rule']);
+const DECIDES_KINDS = new Set(['decision', 'req', 'constraint', 'rule', 'fact']);
 export function questionProblem(block: string, kindOf: (id: string) => string | undefined): string | null {
   const k = cardKeys(block);
   const missing = Object.entries(QUESTION_FIELDS).filter(([f]) => !k[f]?.replace(/[[\]\s]/g, ''));
@@ -66,7 +66,7 @@ export function questionProblem(block: string, kindOf: (id: string) => string | 
   for (const id of k.decides.replace(/[[\]]/g, '').split(/[,\s]+/).filter(Boolean)) {
     const kind = kindOf(id);
     if (!kind) return `decides: ${id} is not in the vault — name the decision the answer settles, or the req / constraint / rule it decides for`;
-    if (!DECIDES_KINDS.has(kind)) return `decides: ${id} is a ${kind} — name a decision, or the req / constraint / rule the choice belongs to`;
+    if (!DECIDES_KINDS.has(kind)) return `decides: ${id} is a ${kind} — name a decision, or the req / constraint / rule / fact the choice belongs to`;
   }
   return null;
 }
