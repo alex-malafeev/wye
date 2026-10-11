@@ -576,7 +576,7 @@ const commands = {
     try { opened = await api('POST', '/api/products/open', { folder: v.dir }); } catch (e) { why = e.cause ? 'the app is not running' : e.message; }
     if (flags.json) return out({ existing: v.existing, folder: v.folder, dir: v.dir, slug: v.slug, product: opened ? opened.slug : null, parent: v.parent || null, children: v.children || [], linked: v.linked || [], written: v.made ? v.made.written : [], skipped: v.made ? v.made.skipped : [] });
     const there = opened ? `${WF_URL}/${opened.slug}` : `not opened in the app (${why}) — wye open ${v.folder}`;
-    if (v.existing) { const w = v.made.written.map(f => path.relative(v.folder, f)); console.log(`this folder already has its knowledge: ${v.dir}  (vault ${v.slug}) — ${w.length ? `the note to agents brought up to date in ${w.join(', ')}` : 'nothing was written'}\n${there}`); return; }
+    if (v.existing) { const w = v.made.written.map(f => path.relative(v.folder, f)); console.log(`this folder already has its knowledge: ${v.dir}  (vault ${v.slug}) — ${w.length ? `brought up to date: ${w.join(', ')}` : 'nothing was written'}\n${there}`); return; }
     const relTo = f => path.relative(v.folder, f) || '.';
     console.log(`vault ${v.slug} → ${v.dir}`);
     console.log(`${v.made.written.length} file(s) written${v.made.skipped.length ? ` (${v.made.skipped.length} existed and were kept)` : ''}; scanned ${v.made.counts.files} files: ${v.areas.length} modules, ${v.made.counts.pages} pages, ${v.made.counts.components} components, ${v.made.counts.ops} operations, ${v.made.counts.tests} tests`);

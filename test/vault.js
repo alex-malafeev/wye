@@ -24,7 +24,8 @@ const dir = F('services/payments/.wye');
 for (const f of ['_product.md', '_agent.md', '.gitignore', 'inbox', 'projects/payments/_project.md', 'projects/payments/docs/payments.md', 'projects/payments/docs/plan.md']) assert(fs.existsSync(path.join(dir, f)), `${f} is written`);
 const meta = fs.readFileSync(path.join(dir, '_product.md'), 'utf8');
 assert(/^slug: payments$/m.test(meta) && !/^repo:/m.test(meta) && !meta.includes(tmp), 'the vault names its slug and no path of this machine');
-assert(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8').includes('_build/'), 'the built graph stays out of git');
+const ignore = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8').split('\n');
+for (const c of ['_build/', '_sessions/', '_changes/', '_hooks/', '_impact/', '_ea/']) assert(ignore.includes(c), `${c} stays out of git`);
 const docs = path.join(dir, 'projects/payments/docs');
 assert(!fs.readdirSync(docs).some(f => fs.readFileSync(path.join(docs, f), 'utf8').includes(tmp)), 'no page holds an absolute path');
 const g = new Graph(parseFiles(fs.readdirSync(docs).filter(f => f.endsWith('.md')).map(f => path.join(docs, f)).sort()));
@@ -38,6 +39,13 @@ assert(claude.startsWith('# Payments\n\nRun the tests with make.\n') && claude.i
 assert(fs.readFileSync(F('services/payments/AGENTS.md'), 'utf8').includes('<!-- wye:vault -->'), 'AGENTS.md is written');
 
 // again: nothing is written, the person is told where it is
+// an older vault's .gitignore gains the cache folders it lacks; the person's own lines are kept
+fs.writeFileSync(path.join(dir, '.gitignore'), '_build/\nsecrets.txt');
+initVault({ folder: F('services/payments') });
+const topped = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+assert(topped.startsWith('_build/\nsecrets.txt\n') && topped.includes('_ea/\n') && topped.split('_build/').length === 2, 'missing cache folders are appended once');
+initVault({ folder: F('services/payments') });
+assert.strictEqual(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8'), topped, 'a second init changes nothing');
 const before = fs.readFileSync(F('services/payments/CLAUDE.md'), 'utf8');
 const again = initVault({ folder: F('services/payments') });
 assert(again.existing && again.dir === dir && again.slug === 'payments' && fs.readFileSync(F('services/payments/CLAUDE.md'), 'utf8') === before, 'an existing vault is kept');

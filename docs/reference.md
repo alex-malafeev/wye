@@ -160,7 +160,8 @@ card, until all nine are done or it is dismissed; Help (`?`, ⌘/) opens it agai
 
 A vault is this same folder as `<repo>/.wye/` — plus `_agent.md` (the folder's instructions to agents), `parent:`
 and `vaults:` in `_product.md` (the links to the vaults above and below), `_changes/` (the change history) and a
-`.gitignore` for `_build/`, `_sessions/`, `_changes/`, `_hooks/`, `_impact/`.
+`.gitignore` for the cache folders `_build/`, `_sessions/`, `_changes/`, `_hooks/`, `_impact/`, `_ea/` — `wye init` on an
+existing vault appends the ones its `.gitignore` lacks.
 
 ```
 data/products/<product>/_product.md                       title, icon, description

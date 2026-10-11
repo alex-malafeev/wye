@@ -52,7 +52,7 @@ package. The same layout as any product, next to the code, in the same Git histo
 │   ├── _project.md
 │   └── docs/*.md            the documents — the definition read from the code, then everything written since
 ├── inbox/                   what was said, as it was said (wye remember), and raw notes for later filing
-├── .gitignore               _build/ _sessions/ _changes/ _hooks/ _impact/ — generated and local, never committed
+├── .gitignore               _build/ _sessions/ _changes/ _hooks/ _impact/ _ea/ — generated and local, never committed
 ├── _build/graph.json        generated: the graph, rebuilt after every save
 ├── _sessions/               agent sessions: instruction, log, result (this machine)
 └── _changes/, _hooks/       the change history and what hooks fired (this machine)
