@@ -1190,6 +1190,17 @@ HTTP operations this module serves (`op:` cards); the wf CLI and the UI call the
     tab, and a failure is kept for the same time rather than retried.
   status: proposed
   part-of: module:app-storage
+- id: lib:build-watch
+  file: packages/web/src/lib/build-watch.ts
+  side: server
+  purpose: >
+    A production server whose build is replaced under it (`next build` while `next start` runs — `npm run
+    desktop:prod` beside a running `wye app`) keeps the old build's manifests and serves the new build's files
+    wrong: the stylesheets come back as pages and the app shows unstyled. It notices the new BUILD_ID and restarts
+    the way the memory cap does (lib/memory-guard): its agents ended, exit 77, which `wye app` and the desktop app
+    start again on.
+  status: proposed
+  part-of: module:app-storage
 ```
 
 <!-- /list:lib -->
