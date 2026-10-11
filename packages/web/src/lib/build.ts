@@ -61,8 +61,10 @@ function keep(s: State, productDir: string, graph: GraphData, stamp: string): Ca
   s.graphs.set(productDir, c);
   const steps = s.steps.get(productDir) ?? []; s.steps.set(productDir, steps);
   steps[steps.length - 1]?.delta();
-  let known: GraphDelta | null = before ? null : EVERYTHING; let from: GraphData | null = before;
-  steps.push({ rev, delta: () => { if (!known) { known = graphDelta(from!, graph); from = null; } return known; } });
+  // the closure lets go of both graphs once the delta is known — it held `graph` for the step's whole life, and with
+  // STEPS steps per product that was the last forty graphs of every product in memory (found by a heap profile 2026-10-11)
+  let known: GraphDelta | null = before ? null : EVERYTHING; let from: GraphData | null = before; let to: GraphData | null = graph;
+  steps.push({ rev, delta: () => { if (!known) known = graphDelta(from!, to!); from = null; to = null; return known; } });
   if (steps.length > STEPS) steps.splice(0, steps.length - STEPS);
   return c;
 }
