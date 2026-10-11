@@ -497,6 +497,13 @@ opens a window on it.
 If a server is already running on port 3456 (`npm run dev`, another window), the app attaches to it instead of
 starting its own. `WYE_PORT` changes the port.
 
+The server watches its own memory: past `WYE_MAX_MEMORY_GB` (default 40) it ends the agents it hosts, leaves their
+sessions `done` with the agent's session id, and restarts — `wye app`, the desktop shell and `next dev` start it
+again; Resume continues each session with the same context. An agent process ends when its work does: a hook's run,
+a task's worker and a `wye remember` digest a few seconds after their turn; a conversation after `WF_AGENT_IDLE_MIN`
+minutes without a message (default 5, `0` keeps it). A question an unattended session asks is denied after a minute
+with the reason, and the agent writes it as an open `question:` block instead.
+
 ### From the source tree
 
 `npm run desktop` opens the app on the dev server (hot reload, `WYE_DEV=1`); `npm run desktop:prod` builds the web

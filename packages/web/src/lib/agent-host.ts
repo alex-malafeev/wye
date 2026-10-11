@@ -8,7 +8,7 @@ import { claudeLaunchArgs, codexLaunchArgs, launchLine, resolveModel, type Agent
 import { cardValue } from './hooks';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { queueView, type ChatEvent, type QueueItem, type QueueView, type Session, type TurnUsage } from './session-types';
+import { queueView, unattended, type ChatEvent, type QueueItem, type QueueView, type Session, type TurnUsage } from './session-types';
 import { loadScope } from './scope';
 import { resolveLink, renderResolved } from './resolve';
 import { REPO_ROOT } from './products';
@@ -24,8 +24,10 @@ import './hooks-run';     // registers the session-end events of the hooks engin
 
 // `turn`: the queue items handed to the open turn — stamped done / failed when it ends (decision:wf2.queue-item-state);
 // `product` / `wfUrl` let the pump build a first message when a fresh item comes up (rule:clean-slate); `stopped`: the
-// person ended the process, so its exit must not rewrite the recorded status.
-type Live = { ownConfig?: boolean; /** how this session's agent is launched, resolved when its process starts (decision:wf2.agent-launch) */ launch?: AgentLaunch; launchModel?: string; id: string; productDir: string; product: string; wfUrl: string; agent: string; role?: string; cwd: string; proc: ChildProcess | null; subs: Set<(e: ChatEvent) => void>; pending: ChatEvent[]; flush: ReturnType<typeof setTimeout> | null; agentSessionId?: string; turnBusy: boolean; pumping: boolean; codexThread?: string; known: Set<string>; model?: string; codexError?: string; codexUsage?: TurnUsage; idle?: ReturnType<typeof setTimeout>; turn: string[]; stopped?: boolean };
+// person ended the process, so its exit must not rewrite the recorded status. `unattended`: nobody sits at this
+// session (session-types), so its process ends with its turn and its questions are denied after a grace; `asks`:
+// the deny timers of its open permission requests.
+type Live = { unattended?: boolean; asks?: Map<string, ReturnType<typeof setTimeout>>; ownConfig?: boolean; /** how this session's agent is launched, resolved when its process starts (decision:wf2.agent-launch) */ launch?: AgentLaunch; launchModel?: string; id: string; productDir: string; product: string; wfUrl: string; agent: string; role?: string; cwd: string; proc: ChildProcess | null; subs: Set<(e: ChatEvent) => void>; pending: ChatEvent[]; flush: ReturnType<typeof setTimeout> | null; agentSessionId?: string; turnBusy: boolean; pumping: boolean; codexThread?: string; known: Set<string>; model?: string; codexError?: string; codexUsage?: TurnUsage; idle?: ReturnType<typeof setTimeout>; turn: string[]; stopped?: boolean };
 const g = globalThis as unknown as { __wfAgentHost?: Map<string, Live> };
 const live = () => (g.__wfAgentHost ??= new Map<string, Live>());
 
@@ -148,7 +150,7 @@ export async function buildPrompt(product: string, s: Session, wfUrl: string, pr
   if (s.role === 'librarian') {
     // the librarian (decision:exec.wye-is-a-role): its request page, its protocol, its reads — no code, no folder;
     // a Remember conversation has no request page: the remember skill under Skills is its whole brief
-    if (!s.prDoc && s.skills?.includes('skill:remember')) parts.push(`\n## This conversation\nThe person pasted the instruction above for Wye to remember. Follow the skill **Remember what the person pasted** under Skills: file it as knowledge — the right blocks in their home documents, linked to what exists, updates and supersessions instead of duplicates — everything proposed for the person to review. There is no request page; never approve, never build, never edit code.`);
+    if (!s.prDoc && s.skills?.includes('skill:remember')) parts.push(`\n## This conversation\nThe person pasted the instruction above for Wye to remember. Follow the skill **Remember what the person pasted** under Skills: file it as knowledge — the right blocks in their home documents, linked to what exists, updates and supersessions instead of duplicates — everything proposed for the person to review. There is no request page; never approve, never build, never edit code. Nobody sits at this session: never use AskUserQuestion — what you would ask becomes a question: block (status: open) with wye propose, and you finish.`);
     else parts.push(refiningNote(s.prDoc), librarianProtocol());
     parts.push(`\n## How to work\n- The Wye CLI is \`wye\` (WYE_URL=${wfUrl}, WYE_PRODUCT=${product}). Read: \`wye packet --for "<text>"\`, \`wye context "<text>"\`, \`wye resolve <link|id>\`, \`wye node <id>\`, \`wye doc <product/project/doc>\`, \`wye work list\`, \`wye impact <id> --after "<text>"\`. Propose: \`wye propose <product/project/doc>${s.prDoc ? ` --pr ${s.prDoc}` : ''}\` with a yaml card on stdin (\`--file f\` works too). Report: \`wye session log ${s.id} "<line>"\`, \`wye verdicts <id …>\`${s.prDoc ? `, \`wye pr ${s.prDoc}\`` : ''}; end with \`wye session done ${s.id} "<summary>"\`.\n- The person replies here; their answers to your questions are decisions — each goes into the one \`decision:\` block for that choice (by: the person, evidence: session:${s.id}): refine it in place when it exists, \`wye propose\` it only when it does not.`);
     return parts.join('\n');
@@ -200,7 +202,7 @@ export async function startChat(productDir: string, product: string, id: string,
   }
   const cwd = s.cwd || REPO_ROOT;
   const l: Live = live().get(id) ?? { id, productDir, product, wfUrl: opts.wfUrl, agent: s.agent, cwd, proc: null, subs: new Set(), pending: [], flush: null, turnBusy: false, pumping: false, known: new Set(), turn: [] };
-  Object.assign(l, { ownConfig: !!s.ownConfig, product, wfUrl: opts.wfUrl, agent: s.agent, role: s.role, cwd, proc: null, stopped: false, agentSessionId: s.agentSessionId, turnBusy: false, pumping: false, codexThread: s.agent === 'codex' ? s.agentSessionId : undefined, model: undefined, known: new Set([...(s.artifacts?.docs ?? []), ...(s.artifacts?.nodes ?? []), ...(s.artifacts?.blocks ?? []).flatMap(b => [b.id, `${b.id}@${b.at}`])]) });
+  Object.assign(l, { unattended: unattended(s), ownConfig: !!s.ownConfig, product, wfUrl: opts.wfUrl, agent: s.agent, role: s.role, cwd, proc: null, stopped: false, agentSessionId: s.agentSessionId, turnBusy: false, pumping: false, codexThread: s.agent === 'codex' ? s.agentSessionId : undefined, model: undefined, known: new Set([...(s.artifacts?.docs ?? []), ...(s.artifacts?.nodes ?? []), ...(s.artifacts?.blocks ?? []).flatMap(b => [b.id, `${b.id}@${b.at}`])]) });
   live().set(id, l);
   return startProcess(l, s, product, opts);
 }
@@ -262,7 +264,7 @@ async function startProcess(l: Live, s: Session, product: string, opts: { wfUrl:
   // a process replaced by restartFresh may still write its last lines: they are not this conversation's any more
   proc.stdout.on('data', d => { if (l.proc !== proc) return; buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); if (line.trim()) onClaudeLine(l, line); } });
   proc.stderr.on('data', d => { if (l.proc !== proc) return; const t = String(d).trim(); if (t) emit(l, { kind: 'stderr', text: t.slice(0, 2000) }); });
-  proc.on('close', code => { if (l.proc !== proc) return; clearIdle(l); reportKnowledge(l, 0); emit(l, { kind: 'exit', code: code ?? -1, text: `claude exited (${code})` }); l.proc = null; endTurn(l, l.turnBusy ? { error: `agent exited with ${code} during the turn` } : undefined); l.turnBusy = false; if (l.stopped) return; getSession(productDir, id).then(cur => { if (cur?.status === 'cancelled') return; return updateSession(productDir, id, { status: code === 0 ? 'done' : 'failed', line: `agent exited with ${code}` }); }).catch(() => {}); });
+  proc.on('close', code => { if (l.proc !== proc) return; clearIdle(l); clearAsks(l); reportKnowledge(l, 0); emit(l, { kind: 'exit', code: code ?? -1, text: `claude exited (${code})` }); l.proc = null; endTurn(l, l.turnBusy ? { error: `agent exited with ${code} during the turn` } : undefined); l.turnBusy = false; if (l.stopped) return; getSession(productDir, id).then(cur => { if (cur?.status === 'cancelled') return; return updateSession(productDir, id, { status: code === 0 ? 'done' : 'failed', line: `agent exited with ${code}` }); }).catch(() => {}); });
   proc.stdin.on('error', () => {});
   proc.on('error', spawnFailed(l, 'claude'));
   if (first) { emit(l, userEvent(shown)!); writeUser(l, first, imgs); } else setTimeout(() => pump(l), 500); // a resumed agent takes what waited in the queue
@@ -326,6 +328,7 @@ function onClaudeLine(l: Live, line: string) {
     emit(l, { kind: 'permission', requestId: String(j.request_id), name: String(req.tool_name ?? req.subtype ?? 'tool'), input: req.input, text: String(req.description ?? req.subtype ?? '') });
     // the agent's questions go on the PR page too (decision:wf2.pr-questions-on-the-page)
     if (req.tool_name === 'AskUserQuestion') void runAskHooks('ask', l.productDir, l.product, l.id, String(j.request_id), (req.input ?? {}) as AskInput);
+    if (l.unattended) armDeny(l, String(j.request_id), String(req.tool_name ?? req.subtype ?? 'tool'));
     return;
   }
   // rate limits, hooks and the rest are noise for the console
@@ -381,9 +384,10 @@ function reportKnowledge(l: Live, delay = 1200) {
   }, delay);
 }
 export function pumpSession(id: string) { const l = live().get(id); if (l) pump(l); }
-export function answerPermission(id: string, requestId: string, allow: boolean, input?: unknown): boolean {
+export function answerPermission(id: string, requestId: string, allow: boolean, input?: unknown, message = 'denied by the user in Wye'): boolean {
   const l = live().get(id); if (!l?.proc) return false;
-  const response = allow ? { behavior: 'allow', updatedInput: input ?? {} } : { behavior: 'deny', message: 'denied by the user in Wye' };
+  const t = l.asks?.get(requestId); if (t) { clearTimeout(t); l.asks!.delete(requestId); }
+  const response = allow ? { behavior: 'allow', updatedInput: input ?? {} } : { behavior: 'deny', message };
   l.proc.stdin!.write(JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: requestId, response } }) + '\n');
   emit(l, { kind: 'note', text: `${allow ? 'allowed' : 'denied'} ${requestId}`, requestId, answered: allow ? 'allow' : 'deny', input: allow ? input : undefined });
   const asked = (input as AskInput | undefined)?.answers;
@@ -420,24 +424,58 @@ function endTurn(l: Live, fail?: { error: string }) {
   const ids = l.turn ?? []; l.turn = []; if (!ids.length) return; // an entry from before this shipped has no turn
   markTurnEnd(l.productDir, l.id, ids, fail).then(() => notifyQueue(l.productDir, l.id)).catch(() => {});
 }
-// Idle stop (rule:idle-stop): a live claude process with no open turn and no queued message for WF_AGENT_IDLE_MIN
-// minutes (default 30, 0 disables) is ended — `--resume` brings its context back with the next message or Resume.
-export const IDLE_MIN = (() => { const n = Number(process.env.WF_AGENT_IDLE_MIN ?? '30'); return Number.isFinite(n) && n >= 0 ? n : 30; })();
+// Idle stop (rule:idle-stop, decision:waterfall.agent-process-ends-when-done): a live claude process with no open
+// turn and no queued message is ended — `--resume` brings its context back with the next message or Resume. An
+// unattended session's process ends a few seconds after its turn; a conversation's after WF_AGENT_IDLE_MIN minutes
+// (default 5 — the API's prompt cache is gone by then, so the process holds memory and saves nothing; 0 disables).
+export const IDLE_MIN = (() => { const n = Number(process.env.WF_AGENT_IDLE_MIN ?? '5'); return Number.isFinite(n) && n >= 0 ? n : 5; })();
+const UNATTENDED_GRACE_MS = 5_000;
 function clearIdle(l: Live) { if (l.idle) { clearTimeout(l.idle); l.idle = undefined; } }
 function armIdleStop(l: Live) {
   clearIdle(l);
-  if (!IDLE_MIN || l.agent === 'codex') return;
+  if (l.agent === 'codex') return;
+  if (!IDLE_MIN && !l.unattended) return;
+  const after = l.unattended ? UNATTENDED_GRACE_MS : IDLE_MIN * 60_000;
+  const why = l.unattended ? 'finished — the process ended; Resume or a message continues with the same context' : `idle for ${IDLE_MIN} min — stopped; Resume or a message continues with the same context`;
   l.idle = setTimeout(() => {
     l.idle = undefined;
     if (!l.proc || l.turnBusy) return;
+    if (l.pumping) { armIdleStop(l); return; } // a message is on its way to the agent
     getSession(l.productDir, l.id).then(s => {
       if ((s?.queue ?? []).some(q => !q.sentAt)) { pump(l); return; } // something waits after all
-      emit(l, { kind: 'note', text: `idle for ${IDLE_MIN} min — stopped; Resume or a message continues with the same context` });
-      updateSession(l.productDir, l.id, { status: 'done', line: `idle for ${IDLE_MIN} min — stopped; Resume or a message continues with the same context` }).catch(() => {});
+      emit(l, { kind: 'note', text: why });
+      if (s?.status === 'running' || s?.status === 'queued') updateSession(l.productDir, l.id, { status: 'done', line: why }).catch(() => {});
+      l.stopped = true; // the status is recorded here; the exit must not rewrite it
       l.proc?.stdin?.end(); const p = l.proc; setTimeout(() => p?.kill(), 1500);
     }).catch(() => {});
-  }, IDLE_MIN * 60_000);
+  }, after);
   l.idle.unref?.();
+}
+// A question nobody will answer (decision:waterfall.unattended-session-asks-no-one): an unattended session's
+// permission request — an AskUserQuestion, a tool outside its set — is denied after a grace, with the reason, so the
+// turn goes on: the agent is told to write what it wanted to ask as an open question block and finish.
+const ASK_GRACE_MS = 60_000;
+function clearAsks(l: Live) { for (const t of l.asks?.values() ?? []) clearTimeout(t); l.asks?.clear(); }
+function armDeny(l: Live, requestId: string, name: string) {
+  (l.asks ??= new Map()).set(requestId, setTimeout(() => {
+    l.asks?.delete(requestId);
+    if (!l.proc) return;
+    const message = name === 'AskUserQuestion'
+      ? 'No one is here to answer: this session runs unattended. Do not ask again — write what you wanted to ask as a question: block (status: open, about: the blocks it concerns) with wye propose, say what you assumed, and finish.'
+      : `No one is here to allow ${name}: this session runs unattended. Do without it — say what you could not do — and finish.`;
+    emit(l, { kind: 'note', text: `${name} waited ${ASK_GRACE_MS / 1000} s for an answer no one is here to give — denied; the agent is told to write the question as a block` });
+    answerPermission(l.id, requestId, false, undefined, message);
+  }, ASK_GRACE_MS));
+}
+// The server is restarting (lib/memory-guard): every live process is ended, its session left done with the agent
+// session id kept — Resume continues each with the same context.
+export async function stopAllForRestart(reason: string): Promise<void> {
+  const ids = [...live().values()].filter(l => l.proc && !l.stopped).map(l => l.id);
+  for (const id of ids) {
+    const l = live().get(id)!;
+    stopChat(id, reason, true);
+    await updateSession(l.productDir, id, { status: 'done', line: reason }).catch(() => {});
+  }
 }
 // Stop ends the process; the recorded status is the caller's business (Stop: done, the context comes back with
 // Resume; Close: cancelled — req:wf2.sessions.stop-from-list), so the exit handler leaves it alone.
@@ -446,7 +484,7 @@ function armIdleStop(l: Live) {
 export function stopChat(id: string, note = 'stopped by the user — Resume or a message continues with the same context', hard = false): boolean {
   const qi = waiting().findIndex(w => w.id === id); if (qi >= 0) waiting().splice(qi, 1);
   const l = live().get(id); if (!l) return false;
-  clearIdle(l); l.stopped = true;
+  clearIdle(l); clearAsks(l); l.stopped = true;
   if (l.proc) { l.proc.stdin?.end(); const p = l.proc; setTimeout(() => { p.kill(); if (hard) setTimeout(() => { try { p.kill('SIGKILL'); } catch { /* gone */ } }, 3000); }, 1500); }
   emit(l, { kind: 'note', text: note });
   return true;

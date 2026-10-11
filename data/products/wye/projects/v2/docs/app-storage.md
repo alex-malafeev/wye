@@ -1167,6 +1167,16 @@ HTTP operations this module serves (`op:` cards); the wf CLI and the UI call the
     planOf); the writes go through editNode and addInstance like every other edit.
   status: proposed
   part-of: module:app-storage
+- id: lib:memory-guard
+  file: packages/web/src/lib/memory-guard.ts
+  side: server
+  purpose: >
+    The memory cap (decision&#58;waterfall.app-restarts-over-memory-cap): the server watches its own size and, past
+    the cap, ends the agents it hosts and exits with the code its parent restarts on — `next dev` restarts its
+    worker on 77 (RESTART_EXIT_CODE in next/dist/server/lib/utils), and `wye app` does the same for `next start`. A
+    session whose process was ended this way is left `done` with its agent session id; Resume continues it.
+  status: proposed
+  part-of: module:app-storage
 ```
 
 <!-- /list:lib -->

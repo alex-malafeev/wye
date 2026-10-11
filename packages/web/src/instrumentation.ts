@@ -8,6 +8,9 @@ export async function register() {
   // the tunnels to remote agents that were on when the app stopped (lib/remote)
   const { startRemotes } = await import('./lib/remote');
   await startRemotes().catch(e => console.error(`wye: remote tunnels: ${(e as Error).message}`));
+  // the memory cap (lib/memory-guard): past WYE_MAX_MEMORY_GB the server ends its agents and restarts
+  const { startMemoryGuard } = await import('./lib/memory-guard');
+  startMemoryGuard();
   if (process.env.WF_HOOKS === '0') return;
   const { startClock } = await import('./lib/hooks-clock');
   startClock();

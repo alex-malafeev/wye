@@ -103,7 +103,8 @@ async function startServer() {
   server = spawn('npm', args, { cwd: ROOT, env: { ...process.env, PORT: String(PORT), BROWSER: 'none' }, stdio: ['ignore', log, log], detached: true });
   server.on('error', e => { server = null; if (!quitting) dialog.showErrorBox('Wye', `Could not start npm in ${ROOT}: ${e.message}. Is Node.js installed and on the PATH of your login shell?`); });
   let exited = null;
-  server.on('exit', code => { server = null; exited = code; });
+  // exit 77: the server ended itself past its memory cap (packages/web/src/lib/memory-guard, WYE_MAX_MEMORY_GB) — start it again
+  server.on('exit', code => { server = null; exited = code; if (code === 77 && !quitting) { dlog('[desktop] the server restarts — it went over its memory cap (WYE_MAX_MEMORY_GB)'); startServer(); } });
   for (let i = 0; i < 240; i++) {
     if (await ping()) return;
     if (exited !== null) {

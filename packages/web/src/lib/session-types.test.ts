@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { queueState, queueSummary, nextTake, queueView } from './session-types';
+import { queueState, queueSummary, nextTake, queueView, unattended } from './session-types';
 
 // decision:wf2.queue-item-state — the state of a queue item is derived from its stamps
 describe('queueState', () => {
@@ -35,4 +35,19 @@ describe('nextTake', () => {
     expect(nextTake([q('d', { fresh: true }), q('e')], 'one').map(x => x.id)).toEqual(['d']);
   });
   it('nothing pending → nothing', () => { expect(nextTake([q('a', { sentAt: 't' })], 'all')).toEqual([]); });
+});
+
+// decision:waterfall.agent-process-ends-when-done — which sessions nobody sits at
+describe('unattended', () => {
+  it('a hook run, a task worker and a remember digest are unattended', () => {
+    expect(unattended({ hook: { id: 'hook:x', firing: 'f' } })).toBe(true);
+    expect(unattended({ task: 'task:x' })).toBe(true);
+    expect(unattended({ role: 'librarian', skills: ['skill:remember'] })).toBe(true);
+  });
+  it('a conversation is not: a request refined or built, an ad-hoc chat, a lane with a system brief', () => {
+    expect(unattended({ role: 'librarian', prDoc: 'p/j/pr-1', skills: ['skill:remember'] })).toBe(false);
+    expect(unattended({ role: 'librarian' })).toBe(false);
+    expect(unattended({ prDoc: 'p/j/pr-1' })).toBe(false);
+    expect(unattended({})).toBe(false);
+  });
 });

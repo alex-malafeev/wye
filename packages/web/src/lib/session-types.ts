@@ -53,6 +53,13 @@ export type ChatEvent = { t: string; kind: 'init' | 'user' | 'assistant' | 'thin
 // A runner is a process that executes sessions for one agent (wf agent listen); it heartbeats every few seconds.
 export interface Runner { name: string; agent: string; host: string; pid: number; cwd: string; startedAt: string; seenAt: string; busy?: string }
 
+// A session nobody sits at (decision:waterfall.agent-process-ends-when-done): a hook's run, a task's worker, a
+// `wye remember` digest. Its process ends as soon as its turn does, and a question it asks waits for no one — the
+// person it would ask is not there; it is told to write the question as a block instead. A conversation (a request
+// being refined or built, an ad-hoc chat, an import lane driving its turns) is kept through the idle window.
+export function unattended(s: Pick<Session, 'hook' | 'task' | 'prDoc' | 'role' | 'skills'>): boolean {
+  return !!s.hook || !!s.task || (s.role === 'librarian' && !s.prDoc && !!s.skills?.includes('skill:remember'));
+}
 export const AGENTS = [
   { id: 'claude-code', label: 'Claude Code' },
   { id: 'codex', label: 'Codex' },

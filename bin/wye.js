@@ -264,7 +264,8 @@ const commands = {
     const up = await fetch(`${url}/api/products`, { signal: AbortSignal.timeout(1500) }).then(() => true, () => false);
     console.log(`Wye on ${url} — home ${dir}  (${up ? 'already running' : electron ? 'close the window or Ctrl+C to stop it' : 'Ctrl+C stops it'})`);
     if (!electron && !flags.browser && !flags['no-open']) console.log('no Electron in this install — opening your browser instead (reinstall with: npm install -g @emlab/wye --include=optional --allow-scripts=electron)');
-    const child = up ? null : spawn(process.execPath, [next, 'start', '-p', port, '-H', '127.0.0.1'], { cwd: h.prepareApp(web, dir), stdio: 'inherit', env: { ...process.env, WYE_HOME: dir, WYE_URL: url } });
+    const start = () => spawn(process.execPath, [next, 'start', '-p', port, '-H', '127.0.0.1'], { cwd: h.prepareApp(web, dir), stdio: 'inherit', env: { ...process.env, WYE_HOME: dir, WYE_URL: url } });
+    let child = up ? null : start();
     // wye app <folder>: that folder is the workspace (decision:wf2.workspace-is-the-top) — asked of the app once it answers
     if (pos[1]) {
       const folder = path.resolve(pos[1].replace(/^~(?=$|\/)/, os.homedir()));
@@ -290,7 +291,15 @@ const commands = {
       shell.on('exit', code => { if (!shell) return; if (code && Date.now() - started < 8000) return fallback(`Electron exit ${code}`); shell = null; stop('SIGTERM'); });
     } else if (!flags['no-open']) setTimeout(browser, up ? 0 : 2500);
     if (!child) { if (!electron) return; await new Promise(() => {}); }
-    await new Promise(res => child.on('exit', code => { if (shell) shell.kill(); process.exitCode = done ? 0 : code ?? 0; res(); }));
+    // the server ends itself past its memory cap (packages/web/src/lib/memory-guard, WYE_MAX_MEMORY_GB) with exit 77,
+    // the code `next dev` restarts on — here it is started again; the sessions it hosted resume with their context
+    await new Promise(res => {
+      const onExit = code => {
+        if (code === 77 && !done) { console.log('Wye restarts — the server went over its memory cap (WYE_MAX_MEMORY_GB)'); child = start(); child.on('exit', onExit); return; }
+        if (shell) shell.kill(); process.exitCode = done ? 0 : code ?? 0; res();
+      };
+      child.on('exit', onExit);
+    });
   },
   // the benchmarks (eval/cli.js): runs here, reads the documents, asks the app for hits and packets; exit 2 when the gate fails
   async eval() { const code = await require('../eval/cli.js').main(pos.slice(1), flags); if (code) process.exit(code); },
