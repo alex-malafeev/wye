@@ -507,8 +507,10 @@ restarts — `wye app`, the desktop shell and `next dev` start it again.
 
 ### From the source tree
 
-`npm run desktop` opens the app on the dev server (hot reload, `WYE_DEV=1`); `npm run desktop:prod` builds the web
-app first and serves the production build. Agents started from the app run as child processes of that server:
+`npm run build` makes the production build and `npm run start` serves it the way users get it (`wye app --no-open`:
+`next start` on 3456 or `WYE_PORT`, no window — stop `npm run dev` first or set another port). `npm run desktop`
+opens the app on the dev server (hot reload, `WYE_DEV=1`); `npm run desktop:prod` builds the web app first and
+serves the production build. Agents started from the app run as child processes of that server:
 Claude Code over its streaming JSON protocol, Codex through `codex exec --json`; the column shows the conversation
 live and you reply from there.
 
