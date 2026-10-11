@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCard, placeCard, cardKeys, questionProblem } from './propose-card';
+import { parseCard, placeCard, cardKeys, questionProblem, duplicateOf } from './propose-card';
 
 describe('parseCard', () => {
   it('takes one card and returns its id and the block as a list item', () => {
@@ -58,5 +58,25 @@ describe('questionProblem', () => {
   it('refuses decides that names nothing in the vault, or a block that is not a decision, requirement, constraint or rule', () => {
     expect(questionProblem(q(full.replace('decision:x', 'decision:nope')), kindOf)).toMatch(/decision:nope.*not in the vault/);
     expect(questionProblem(q(full.replace('decision:x', 'task:z')), kindOf)).toMatch(/task:z is a task/);
+  });
+});
+
+// req:waterfall.card-quality.no-duplicates
+describe('duplicateOf', () => {
+  const hits = [{ id: 'decision:a', score: 0.8 }, { id: 'task:t', score: 0.9 }, { id: 'req:b', score: 0.66 }, { id: 'fact:c', score: 0.4 }];
+  it('names a knowledge card at the refuse score as the copy, and the close ones as near', () => {
+    expect(duplicateOf('decision:new', {}, hits)).toEqual({ copy: { id: 'decision:a', score: 0.8 }, near: [{ id: 'req:b', score: 0.66 }] });
+  });
+  it('lets a card through that supersedes, refines or resolves the one it is close to', () => {
+    expect(duplicateOf('decision:new', { supersedes: '[decision:a]' }, hits).copy).toBeUndefined();
+    expect(duplicateOf('decision:new', { refines: 'decision:a' }, hits).copy).toBeUndefined();
+  });
+  it('never holds a decision against the question it answers, but a question against a question', () => {
+    const q = [{ id: 'question:q', score: 0.93 }];
+    expect(duplicateOf('decision:new', {}, q)).toEqual({ near: [] });
+    expect(duplicateOf('question:new', {}, q).copy).toEqual({ id: 'question:q', score: 0.93 });
+  });
+  it('never counts a task, the card itself or a distant card', () => {
+    expect(duplicateOf('decision:a', {}, hits)).toEqual({ near: [{ id: 'req:b', score: 0.66 }] });
   });
 });

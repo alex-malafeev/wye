@@ -70,3 +70,20 @@ export function questionProblem(block: string, kindOf: (id: string) => string | 
   }
   return null;
 }
+
+// A card that says what one in the vault already says (req:waterfall.card-quality.no-duplicates): ranked against the
+// closest knowledge cards by the vault's semantic + keyword search, it is refused at DUP_REFUSE — the copies found in
+// the waterfall vault scored 0.76–0.86, distinct cards on the same topic below 0.55 — and named as close from DUP_NEAR,
+// where a copy and a neighbour both fall. A card that supersedes, refines or resolves the hit is a change, not a copy.
+export const DUP_REFUSE = 0.75, DUP_NEAR = 0.62;
+const KNOWLEDGE = new Set(['req', 'decision', 'constraint', 'rule', 'fact', 'question', 'goal', 'lesson']);
+export const isKnowledgeCard = (id: string) => KNOWLEDGE.has(id.split(':')[0]);
+export const cardQuery = (k: Record<string, string>) => [k.title, k.q, k.statement, k.text].filter(Boolean).join(' — ').slice(0, 1200);
+export function duplicateOf(id: string, keys: Record<string, string>, hits: { id: string; score: number }[]): { copy?: { id: string; score: number }; near: { id: string; score: number }[] } {
+  const named = new Set(['supersedes', 'refines', 'resolves'].flatMap(f => (keys[f] ?? '').replace(/[[\]]/g, '').split(/[,\s]+/)).filter(Boolean));
+  // a question and the decision that answers it share their words: a question only counts against a new question
+  const asks = id.startsWith('question:');
+  const same = hits.filter(h => h.id !== id && isKnowledgeCard(h.id) && (asks || !h.id.startsWith('question:')) && !named.has(h.id) && h.score >= DUP_NEAR).map(h => ({ id: h.id, score: Math.round(h.score * 100) / 100 }));
+  const copy = same.find(h => h.score >= DUP_REFUSE);
+  return { ...(copy ? { copy } : {}), near: same.filter(h => h !== copy).slice(0, 3) };
+}

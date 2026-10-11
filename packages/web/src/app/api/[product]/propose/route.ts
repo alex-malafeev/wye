@@ -8,7 +8,8 @@ import { writeAtomic, withFileLock, rebuild } from '@/lib/write';
 import { embedInDefinition, readPrDoc } from '@/lib/pr-docs';
 import { claimWrite } from '@/lib/changes';
 import { recordArtifact } from '@/lib/artifacts';
-import { parseCard, placeCard, questionProblem } from '@/lib/propose-card';
+import { parseCard, placeCard, questionProblem, cardKeys, cardQuery, duplicateOf, isKnowledgeCard } from '@/lib/propose-card';
+import { search } from '@/lib/semantic';
 
 // op:api.propose (req:exec.wye-proposes, decision:exec.definition-home-fallback) — POST { card, pr, doc? } → one
 // proposed block (a yaml card with `- id: kind:slug`, checked by parseCard) added to the document where that kind lives,
@@ -28,6 +29,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ product
     if (problem) return NextResponse.json({ error: 'invalid', message: problem }, { status: 422 });
   }
   if (scope.idx.byId.get(id)?.defined) return NextResponse.json({ error: 'conflict', message: `${id} already exists — refine it with wf node set, do not add a second one` }, { status: 409 });
+  // one choice, one card (req:waterfall.card-quality.no-duplicates): a copy of a card the vault has is refused, a close
+  // one named in the answer; a vault whose search index cannot be read is not held up by it
+  let near: { id: string; score: number }[] = [];
+  if (isKnowledgeCard(id)) {
+    const keys = cardKeys(block);
+    const hits = await search(scope.product.dir, scope.graph, cardQuery(keys), { limit: 6 }).catch(() => []);
+    const d = duplicateOf(id, keys, hits);
+    if (d.copy) return NextResponse.json({ error: 'duplicate', message: `already known as ${d.copy.id} (${d.copy.score}) — refine it (wye node content / wye node set) or propose a card that supersedes: it`, duplicate: d.copy }, { status: 409 });
+    near = d.near;
+  }
   const session = req.headers.get('x-wf-session') ?? undefined;
   const pr = body.pr ? await readPrDoc(product, body.pr) : null;
   if (body.pr && !pr) return NextResponse.json({ error: 'not_found', message: `request ${body.pr} not found` }, { status: 404 });
@@ -48,5 +59,5 @@ export async function POST(req: Request, { params }: { params: Promise<{ product
     await rebuild(scope.product.dir);
   } else return NextResponse.json({ error: 'invalid', message: 'doc or pr required' }, { status: 422 });
   if (session) recordArtifact(scope.product.dir, session, { node: id }).catch(() => {});
-  return NextResponse.json({ ok: true, id, file: path.relative(REPO_ROOT, file), pr: body.pr ?? null }, { status: 201 });
+  return NextResponse.json({ ok: true, id, file: path.relative(REPO_ROOT, file), pr: body.pr ?? null, ...(near.length ? { near } : {}) }, { status: 201 });
 }

@@ -549,7 +549,7 @@ const commands = {
     if (!doc && !prRef) die('--pr <product/project/pr-x> is required when no document is given');
     const body = { card, pr: prRef || undefined, doc: doc ? (() => { const d = docRef(doc); return `${d.product}/${d.project}/${d.doc}`; })() : undefined };
     const j = await api('POST', `/api/${p}/propose`, body);
-    return out(flags.json ? j : `${j.id} proposed in ${j.file}${j.pr ? ` — embedded on ${j.pr}'s Definition` : ''}${doc ? '' : ' (no home document yet: on the plan under Definition)'}`);
+    return out(flags.json ? j : `${j.id} proposed in ${j.file}${j.pr ? ` — embedded on ${j.pr}'s Definition` : ''}${doc ? '' : ' (no home document yet: on the plan under Definition)'}${j.near?.length ? `\nclose to ${j.near.map(n => `${n.id} (${n.score})`).join(', ')} — if it says the same, reject this one and refine that` : ''}`);
   },
   // wye init: a product's (or a feature's) definition from its code, shallow, with the describe tasks (lib/init.js)
   async init() {
