@@ -4,7 +4,7 @@
 // whose process was ended this way is left `done` with its agent session id; Resume continues it.
 type Usage = Pick<NodeJS.MemoryUsage, 'rss' | 'heapUsed' | 'external'>;
 export const RESTART_EXIT_CODE = 77;
-export const CAP_GB = (() => { const n = Number(process.env.WYE_MAX_MEMORY_GB ?? '40'); return Number.isFinite(n) && n > 0 ? n : 40; })();
+export const CAP_GB = (() => { const n = Number(process.env.WYE_MAX_MEMORY_GB ?? '4'); return Number.isFinite(n) && n > 0 ? n : 4; })();
 
 // What the process holds: the resident set, or the heap when the OS has compressed or swapped most of it out
 // (macOS reports a small rss for a process whose heap is many GB).

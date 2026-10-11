@@ -25,8 +25,8 @@ import './hooks-run';     // registers the session-end events of the hooks engin
 // `turn`: the queue items handed to the open turn — stamped done / failed when it ends (decision:wf2.queue-item-state);
 // `product` / `wfUrl` let the pump build a first message when a fresh item comes up (rule:clean-slate); `stopped`: the
 // person ended the process, so its exit must not rewrite the recorded status. `unattended`: nobody sits at this
-// session (session-types), so its process ends with its turn and its questions are denied after a grace; `asks`:
-// the deny timers of its open permission requests.
+// session (session-types), so its process ends with its turn; `asks`: its open permission requests, each with the
+// timer after which the process steps aside and waits for the answer without a process (stepAside).
 type Live = { unattended?: boolean; asks?: Map<string, ReturnType<typeof setTimeout>>; ownConfig?: boolean; /** how this session's agent is launched, resolved when its process starts (decision:wf2.agent-launch) */ launch?: AgentLaunch; launchModel?: string; id: string; productDir: string; product: string; wfUrl: string; agent: string; role?: string; cwd: string; proc: ChildProcess | null; subs: Set<(e: ChatEvent) => void>; pending: ChatEvent[]; flush: ReturnType<typeof setTimeout> | null; agentSessionId?: string; turnBusy: boolean; pumping: boolean; codexThread?: string; known: Set<string>; model?: string; codexError?: string; codexUsage?: TurnUsage; idle?: ReturnType<typeof setTimeout>; turn: string[]; stopped?: boolean };
 const g = globalThis as unknown as { __wfAgentHost?: Map<string, Live> };
 const live = () => (g.__wfAgentHost ??= new Map<string, Live>());
@@ -150,7 +150,7 @@ export async function buildPrompt(product: string, s: Session, wfUrl: string, pr
   if (s.role === 'librarian') {
     // the librarian (decision:exec.wye-is-a-role): its request page, its protocol, its reads — no code, no folder;
     // a Remember conversation has no request page: the remember skill under Skills is its whole brief
-    if (!s.prDoc && s.skills?.includes('skill:remember')) parts.push(`\n## This conversation\nThe person pasted the instruction above for Wye to remember. Follow the skill **Remember what the person pasted** under Skills: file it as knowledge — the right blocks in their home documents, linked to what exists, updates and supersessions instead of duplicates — everything proposed for the person to review. There is no request page; never approve, never build, never edit code. Nobody sits at this session: never use AskUserQuestion — what you would ask becomes a question: block (status: open) with wye propose, and you finish.`);
+    if (!s.prDoc && s.skills?.includes('skill:remember')) parts.push(`\n## This conversation\nThe person pasted the instruction above for Wye to remember. Follow the skill **Remember what the person pasted** under Skills: file it as knowledge — the right blocks in their home documents, linked to what exists, updates and supersessions instead of duplicates — everything proposed for the person to review. There is no request page; never approve, never build, never edit code.`);
     else parts.push(refiningNote(s.prDoc), librarianProtocol());
     parts.push(`\n## How to work\n- The Wye CLI is \`wye\` (WYE_URL=${wfUrl}, WYE_PRODUCT=${product}). Read: \`wye packet --for "<text>"\`, \`wye context "<text>"\`, \`wye resolve <link|id>\`, \`wye node <id>\`, \`wye doc <product/project/doc>\`, \`wye work list\`, \`wye impact <id> --after "<text>"\`. Propose: \`wye propose <product/project/doc>${s.prDoc ? ` --pr ${s.prDoc}` : ''}\` with a yaml card on stdin (\`--file f\` works too). Report: \`wye session log ${s.id} "<line>"\`, \`wye verdicts <id …>\`${s.prDoc ? `, \`wye pr ${s.prDoc}\`` : ''}; end with \`wye session done ${s.id} "<summary>"\`.\n- The person replies here; their answers to your questions are decisions — each goes into the one \`decision:\` block for that choice (by: the person, evidence: session:${s.id}): refine it in place when it exists, \`wye propose\` it only when it does not.`);
     return parts.join('\n');
@@ -328,7 +328,7 @@ function onClaudeLine(l: Live, line: string) {
     emit(l, { kind: 'permission', requestId: String(j.request_id), name: String(req.tool_name ?? req.subtype ?? 'tool'), input: req.input, text: String(req.description ?? req.subtype ?? '') });
     // the agent's questions go on the PR page too (decision:wf2.pr-questions-on-the-page)
     if (req.tool_name === 'AskUserQuestion') void runAskHooks('ask', l.productDir, l.product, l.id, String(j.request_id), (req.input ?? {}) as AskInput);
-    if (l.unattended) armDeny(l, String(j.request_id), String(req.tool_name ?? req.subtype ?? 'tool'));
+    armStepAside(l, String(j.request_id));
     return;
   }
   // rate limits, hooks and the rest are noise for the console
@@ -451,21 +451,47 @@ function armIdleStop(l: Live) {
   }, after);
   l.idle.unref?.();
 }
-// A question nobody will answer (decision:waterfall.unattended-session-asks-no-one): an unattended session's
-// permission request — an AskUserQuestion, a tool outside its set — is denied after a grace, with the reason, so the
-// turn goes on: the agent is told to write what it wanted to ask as an open question block and finish.
-const ASK_GRACE_MS = 60_000;
+// A question waits for the person, however long (decision:waterfall.question-waits-for-the-person): a permission
+// request — an AskUserQuestion, a tool outside the session's set — is never answered by the app. The process only
+// holds its memory for the idle window; then it steps aside: the session is `waiting`, the request stays on the
+// console and the rail ("waiting for you"), and the answer, whenever it comes, resumes the agent with it
+// (resumeWithAnswer). `--resume` carries the conversation back with the question still open; the answer arrives as
+// the next message, in words.
 function clearAsks(l: Live) { for (const t of l.asks?.values() ?? []) clearTimeout(t); l.asks?.clear(); }
-function armDeny(l: Live, requestId: string, name: string) {
+function armStepAside(l: Live, requestId: string) {
+  if (!IDLE_MIN) return;
   (l.asks ??= new Map()).set(requestId, setTimeout(() => {
     l.asks?.delete(requestId);
-    if (!l.proc) return;
-    const message = name === 'AskUserQuestion'
-      ? 'No one is here to answer: this session runs unattended. Do not ask again — write what you wanted to ask as a question: block (status: open, about: the blocks it concerns) with wye propose, say what you assumed, and finish.'
-      : `No one is here to allow ${name}: this session runs unattended. Do without it — say what you could not do — and finish.`;
-    emit(l, { kind: 'note', text: `${name} waited ${ASK_GRACE_MS / 1000} s for an answer no one is here to give — denied; the agent is told to write the question as a block` });
-    answerPermission(l.id, requestId, false, undefined, message);
-  }, ASK_GRACE_MS));
+    if (!l.proc || l.stopped) return;
+    const why = `waiting for your answer — the process stepped aside after ${IDLE_MIN} min; your answer resumes it with the same context`;
+    emit(l, { kind: 'note', text: why });
+    clearAsks(l); l.stopped = true; l.turnBusy = false;
+    updateSession(l.productDir, l.id, { status: 'waiting', line: why }).catch(() => {});
+    l.proc.stdin?.end(); const p = l.proc; setTimeout(() => p?.kill(), 1500);
+  }, IDLE_MIN * 60_000));
+  l.asks.get(requestId)!.unref?.();
+}
+// The answer to a request whose process is gone: the session is resumed and the answer is its next message, in
+// words — the questions with their answers, or that the tool was allowed (run it again) or denied. The console's
+// row is marked answered the same way as a live answer, and the PR page hears the answers (pr-questions).
+export async function resumeWithAnswer(productDir: string, product: string, id: string, requestId: string, allow: boolean, input: unknown, wfUrl: string): Promise<boolean> {
+  const s = await getSession(productDir, id); if (!s || s.status === 'cancelled') return false;
+  const ev = (s.transcript ?? []).find(e => e.kind === 'permission' && e.requestId === requestId);
+  if (!ev) return false;
+  if ((s.transcript ?? []).some(e => e.kind === 'note' && e.requestId === requestId)) return false; // answered already
+  const asked = input as AskInput | undefined;
+  const answers = asked?.answers ?? {};
+  const text = ev.name === 'AskUserQuestion' && allow && Object.keys(answers).length
+    ? `The person answered your question${Object.keys(answers).length > 1 ? 's' : ''}:\n${Object.entries(answers).map(([q, a]) => `- ${q}\n  → ${a}`).join('\n')}\n\nGo on from the answer; do not ask it again.`
+    : allow ? `The person allowed ${ev.name}${ev.text ? ` (${ev.text.slice(0, 300)})` : ''} — do it now.` : `The person denied ${ev.name}${ev.text ? ` (${ev.text.slice(0, 300)})` : ''} — do without it.`;
+  const l = live().get(id) ?? { id, productDir, product, wfUrl, agent: s.agent, cwd: s.cwd || REPO_ROOT, proc: null, subs: new Set<(e: ChatEvent) => void>(), pending: [], flush: null, turnBusy: false, pumping: false, known: new Set<string>(), turn: [] };
+  live().set(id, l);
+  emit(l, { kind: 'note', text: `${allow ? 'allowed' : 'denied'} ${requestId} — the agent resumes with the answer`, requestId, answered: allow ? 'allow' : 'deny', input: allow ? input : undefined });
+  if (allow && asked?.answers) void runAskHooks('answered', productDir, product, id, requestId, asked);
+  await enqueue(productDir, id, { text });
+  await notifyQueue(productDir, id);
+  await startChat(productDir, product, id, { wfUrl, resume: !!s.agentSessionId });
+  return true;
 }
 // The server is restarting (lib/memory-guard): every live process is ended, its session left done with the agent
 // session id kept — Resume continues each with the same context.
@@ -473,8 +499,9 @@ export async function stopAllForRestart(reason: string): Promise<void> {
   const ids = [...live().values()].filter(l => l.proc && !l.stopped).map(l => l.id);
   for (const id of ids) {
     const l = live().get(id)!;
+    const asking = !!l.asks?.size; // a question of its is open: the session waits for the answer, which resumes it
     stopChat(id, reason, true);
-    await updateSession(l.productDir, id, { status: 'done', line: reason }).catch(() => {});
+    await updateSession(l.productDir, id, { status: asking ? 'waiting' : 'done', line: reason }).catch(() => {});
   }
 }
 // Stop ends the process; the recorded status is the caller's business (Stop: done, the context comes back with

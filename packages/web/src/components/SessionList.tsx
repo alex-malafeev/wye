@@ -17,7 +17,7 @@ import { docTitles, plainAppLinks } from '@/lib/app-link';
 // (live rows: the process ends, the context survives) and Close (active rows: cancelled, waiting items dropped), and
 // the header "Stop idle (n)" ends every live conversation with no open turn and nothing waiting
 // (req:wf2.sessions.stop-from-list). A row opens the conversation as a page of its own (a tab), not in the column.
-export const isActive = (s: Session) => s.status === 'queued' || s.status === 'running' || !!s.live;
+export const isActive = (s: Session) => s.status === 'queued' || s.status === 'running' || s.status === 'waiting' || !!s.live;
 // the pill a conversation shows: what its process is doing when it has one, its recorded status otherwise
 export const shownStatus = (s: Session) => s.busy ? 'working' : s.live ? 'live' : s.status;
 // live, no open turn, nothing waiting: what "Stop idle" ends

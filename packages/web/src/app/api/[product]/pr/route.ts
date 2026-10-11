@@ -3,7 +3,7 @@ import { loadScope } from '@/lib/scope';
 import { readPrDoc, prDefinition, prReadiness, approvePr, cancelPr, reopenPr, refreshStaleScopes, setRefining } from '@/lib/pr-docs';
 import { stopRefining } from '@/lib/pr-sessions';
 import { questionsOf, answerOnPage } from '@/lib/pr-questions';
-import { answerPermission, isLive, liveState, sendMessage, startChat } from '@/lib/agent-host';
+import { answerPermission, resumeWithAnswer, isLive, liveState, sendMessage, startChat } from '@/lib/agent-host';
 import { getSession, listSessions, createSession, setPrDoc, updateSession } from '@/lib/sessions';
 import { assignTask } from '@/lib/work-io';
 import { AGENT_IDS, agentSettings, readSettings } from '@/lib/settings';
@@ -92,7 +92,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ produc
       // the tool's input is the permission event's, with the answers filled in — the shape Claude Code reads
       const s = await getSession(scope.product.dir, r.settled.sessionId);
       const ev = (s?.transcript ?? []).find(e => e.kind === 'permission' && e.requestId === r.settled!.requestId) as { input?: unknown } | undefined;
-      if (isLive(r.settled.sessionId)) continued = answerPermission(r.settled.sessionId, r.settled.requestId, true, { ...(ev?.input as object ?? {}), answers: r.settled.answers });
+      const filled = { ...(ev?.input as object ?? {}), answers: r.settled.answers };
+      // the process stepped aside while the question waited (status waiting): the answer resumes it
+      continued = answerPermission(r.settled.sessionId, r.settled.requestId, true, filled) || await resumeWithAnswer(scope.product.dir, product, r.settled.sessionId, r.settled.requestId, true, filled, new URL(req.url).origin);
     }
     // a question the librarian wrote into the Definition (no tool waiting on it): the answer is on the card, and the
     // PR's conversation is told — resumed when it has stopped — so it goes on from the answer, not from the card alone

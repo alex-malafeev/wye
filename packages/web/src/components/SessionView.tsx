@@ -41,7 +41,7 @@ export function SessionView({ id }: { id: string }) {
   const patch = async (body: object) => { const r = await fetch(`/api/${product}/sessions/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); if (r.ok) setS(await r.json()); };
   if (s === undefined) return <p className="muted">Loading session…</p>;
   if (!s) return <p className="notice">Session {id} not found.</p>;
-  const active = s.status === 'queued' || s.status === 'running';
+  const active = s.status === 'queued' || s.status === 'running' || s.status === 'waiting';
   const knowledge = [...new Set([...(s.artifacts?.docs ?? []), ...(s.artifacts?.nodes ?? []), ...known])];
   // the blocks the session changed (block attribution): counts in the strip, the list in a fold under it
   const blocks = s.artifacts?.blocks ?? [];

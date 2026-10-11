@@ -36,7 +36,7 @@ Only one `wye` should be on the PATH: `which -a wye` lists them.
 
 Environment: `WYE_HOME` (the home), `WYE_PORT` (the app's port, default 3456), `WYE_URL` (where the CLI finds the
 app, default `http://localhost:3456`), `WYE_PRODUCT` (the product when there is no vault to find, see below),
-`WYE_MAX_MEMORY_GB` (the app restarts past this much memory, default 40 — the sessions it hosted resume with
+`WYE_MAX_MEMORY_GB` (the app restarts past this much memory, default 4 — the sessions it hosted resume with
 their context), `WF_AGENT_IDLE_MIN` (a conversation's agent process ends after this many idle minutes, default 5).
 
 ## A vault: `wye init`

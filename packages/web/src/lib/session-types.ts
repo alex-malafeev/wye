@@ -1,5 +1,6 @@
 // Shared (browser-safe) session types and the agents that can be chosen.
-export type SessionStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled';
+// `waiting`: a question of the agent's is open and its process stepped aside (lib/agent-host) — the answer resumes it
+export type SessionStatus = 'queued' | 'running' | 'waiting' | 'done' | 'failed' | 'cancelled';
 export interface SessionSource { project?: string; doc?: string; blockId?: string; text?: string; link?: string }
 // mode 'run': a runner executes the instruction once and streams its output to the log.
 // mode 'chat': the app itself hosts the agent process and the session is a live conversation (transcript of events).

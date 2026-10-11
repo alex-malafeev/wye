@@ -27,7 +27,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ produc
     const s = live ? await getSession(p.dir, id) : await updateSession(p.dir, id, { line: `opened ${path} (no live console)` }); if (!s) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     return NextResponse.json({ ok: true, path, live });
   }
-  const ok: SessionStatus[] = ['queued', 'running', 'done', 'failed', 'cancelled'];
+  const ok: SessionStatus[] = ['queued', 'running', 'waiting', 'done', 'failed', 'cancelled'];
   if (body.status && !ok.includes(body.status)) return NextResponse.json({ error: 'invalid', message: 'bad status' }, { status: 422 });
   // a terminal status ends the hosted process too (rule:agent-slots): cancelled or failed from the page or the CLI
   // must not leave a claude running in the repo, and the slot it held goes to the next queued session
