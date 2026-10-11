@@ -149,6 +149,7 @@ export function ReviewList({ product, items }: { product: string; items: ReviewI
                       <KindPill kind={it.kind} /><span className="review-title">{clipped ? d.description.slice(0, 400) : t}</span><StatusPill status={it.status} />
                     </div>
                     {!clipped && d.description && d.description !== t && <p className="review-text">{d.description.slice(0, 700)}</p>}
+                    {it.kind === 'question' && <QuestionWhy fields={it.fields} />}
                     {v.open.map((x, i) => <p key={i} className={`verdict v-${x.kind} open`}><b>{x.kind}</b> <SmartTag id={x.other} />{x.conflict && <small className="muted"> {x.conflict}</small>} <span>{plain(x.reason)}</span></p>)}
                     {it.kind === 'contradiction' && it.sides && (
                       <div className="cx-sides" onClick={e => e.stopPropagation()}>
@@ -239,6 +240,20 @@ export function ReviewList({ product, items }: { product: string; items: ReviewI
           </ul>
         </section>
       ))}
+    </div>
+  );
+}
+
+// Why a question is asked, what its answer changes and the decision it settles, above everything else on its card
+// (req:waterfall.card-quality.question-explains); a question written before these fields says so instead of nothing.
+export function QuestionWhy({ fields }: { fields: Record<string, string> }) {
+  const ids = (v: string) => v.replace(/^\[|\]$/g, '').split(/[,\s]+/).filter(Boolean);
+  if (!fields.why && !fields['answer-changes']) return <p className="q-why muted">It does not say why it is asked or what the answer changes.</p>;
+  return (
+    <div className="q-why" onClick={e => e.stopPropagation()}>
+      {fields.why && <p><b>Why it is asked</b> {plain(fields.why)}</p>}
+      {fields['answer-changes'] && <p><b>What the answer changes</b> {plain(fields['answer-changes'])}</p>}
+      {fields.decides && <p><b>Decides</b> {ids(fields.decides).map(id => <SmartTag key={id} id={id} />)}</p>}
     </div>
   );
 }

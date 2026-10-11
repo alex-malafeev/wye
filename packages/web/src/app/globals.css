@@ -1733,3 +1733,7 @@ button.slack-open { cursor: pointer; } button.slack-open:disabled { opacity: .6;
 /* the answer while its text streams in: a caret blinks at the end of the last line (the person asked for movement while it is written, 2026-10-11) */
 .ask-answer.writing > :last-child:not(ul):not(ol)::after, .ask-answer.writing > :is(ul, ol):last-child > li:last-child::after { content: ''; display: inline-block; width: 7px; height: 1.05em; margin-left: 3px; vertical-align: -2px; background: var(--accent); border-radius: 1px; animation: ask-caret 1s steps(2, start) infinite; }
 @keyframes ask-caret { to { visibility: hidden; } }
+/* a question's why and what its answer changes, on its review card (req:waterfall.card-quality.question-explains) */
+.q-why { margin: 6px 0 4px; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--sunk); border-radius: 4px; font-size: 13px; line-height: 1.45; }
+.q-why p { margin: 2px 0; } .q-why b { font-weight: 600; margin-right: 6px; }
+p.q-why.muted { border-left-color: var(--line); font-style: italic; }

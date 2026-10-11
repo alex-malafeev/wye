@@ -34,7 +34,7 @@ export function reviewQueue(product: string, g: GraphData, idx: GraphIndex): Rev
     const r = docRoute(n.file);
     const text = get('q') || get('text') || get('statement') || get('reason') || get('choice') || get('description') || get('scenario') || get('purpose') || get('then') || '';
     const fields: Record<string, string> = {};
-    for (const k of ['context', 'choice', 'alternatives', 'consequences', 'when', 'then', 'unless', 'source', 'date', 'supersedes', 'evidence', 'by', 'conflict', 'between', 'asked', 'resolution']) if (get(k)) fields[k] = get(k);
+    for (const k of ['why', 'answer-changes', 'decides', 'context', 'choice', 'alternatives', 'consequences', 'when', 'then', 'unless', 'source', 'date', 'supersedes', 'evidence', 'by', 'conflict', 'between', 'asked', 'resolution']) if (get(k)) fields[k] = get(k);
     // a contradiction is reviewed with its two sides and the decisions behind them in view (decision:waterfall.contradiction-resolves-into-a-decision)
     const sides = n.kind === 'contradiction' ? sidesOf(idx, n) : undefined;
     return { id: n.id, kind: n.kind, title: get('title') || n.title, text, status: n.kind === 'question' && !n.status ? 'open' : n.status, ...(sides !== undefined ? { sides } : {}), file: n.file, project: r?.project ?? '', doc: r?.doc ?? '', href: r ? `/${product}/${r.project}/d/${r.doc}#n-${encodeURIComponent(n.id)}` : '', line: n.line, refs: [...new Set((idx.out.get(n.id) ?? []).filter(e => e.verb !== 'mentions').map(e => e.to))].slice(0, 8), session: get('session') || undefined, form: n.form, fields };
