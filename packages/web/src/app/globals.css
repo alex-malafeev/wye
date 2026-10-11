@@ -1723,3 +1723,5 @@ button.slack-open { cursor: pointer; } button.slack-open:disabled { opacity: .6;
 .sb-row { padding: 9px 0; border-top: 1px solid var(--line); } .sb-row-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; } .sb-row-head b { font-size: 14px; } .sb-row-head .muted { font: 11px var(--font-m); } .sb-plan { font: 10px var(--font-m); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
 .sb-windows { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font: 12px var(--font-m); } .sb-windows .sb-bar { width: 56px; } .sb-windows .muted { font-size: 11px; }
 .sb-foot { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 2px; font: 11px var(--font-m); line-height: 1.5; }
+.sb-row.compact { padding: 7px 0; } .sb-row.compact .sb-row-head { margin: 0; gap: 10px; flex-wrap: wrap; } .sb-row.compact .sb-row-head .sb-item { font: 12px var(--font-m); } .sb-row.compact .sb-row-head > .muted:last-child { margin-left: auto; }
+.sb-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }

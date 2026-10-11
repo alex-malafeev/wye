@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from 'react';
 // weekly window, a per-model one when the plan has it — with the time to the next reset. Polled every minute; the
 // server fetches the vendors at most once every few minutes for every tab together (lib/usage). A click opens the
 // usage popover (decision:waterfall.status-bar-popover): one row per agent with its plan and the next reset, the
-// memory in full, a refresh, and Detailed / Compact for how much the bar itself says.
+// memory in full, a refresh, and Detailed / Compact: detailed is bars with labels and resets, in the popover and on the
+// bar; compact is one line per agent in the popover and percents only on the bar.
 type Window = { label: string; percent: number; resetsAt?: string };
 type Agent = { agent: 'claude' | 'codex'; plan?: string; windows: Window[]; error?: string; at: string };
 type Status = { memory: { used: number; rss: number; heapUsed: number; external: number; capGb: number; pid: number; uptime: number }; agents: Agent[]; pollMs: number };
@@ -73,17 +74,19 @@ export function StatusBar() {
           {s.agents.map(a => {
             const reset = untilReset(nextReset(a, now), now);
             return (
-              <div key={a.agent} className="sb-row">
-                <div className="sb-row-head"><b>{NAMES[a.agent]}</b>{a.plan && <span className="sb-plan">{a.plan}</span>}<span className="muted">{a.error ? a.error : reset ? `Resets in ${reset}` : ''}</span></div>
-                {!a.error && <div className="sb-windows">{a.windows.length === 0 ? <span className="muted">no limits reported</span> : a.windows.map(w => <span key={w.label} className={`sb-item ${tone(w.percent)}`}><span className="muted">{w.label}</span><Bar percent={w.percent} />{w.percent}%</span>)}</div>}
+              <div key={a.agent} className={`sb-row ${compact ? 'compact' : ''}`}>
+                <div className="sb-row-head"><b>{NAMES[a.agent]}</b>{a.plan && <span className="sb-plan">{a.plan}</span>}
+                  {compact && !a.error && a.windows.map(w => <span key={w.label} className={`sb-item ${tone(w.percent)}`}>{w.percent}% <span className="muted">{w.label}</span></span>)}
+                  <span className="muted">{a.error ? a.error : reset ? `Resets in ${reset}` : ''}</span></div>
+                {!compact && !a.error && <div className="sb-windows">{a.windows.length === 0 ? <span className="muted">no limits reported</span> : a.windows.map(w => <span key={w.label} className={`sb-item ${tone(w.percent)}`}><span className="muted">{w.label}</span><Bar percent={w.percent} />{w.percent}%</span>)}</div>}
               </div>
             );
           })}
-          <div className="sb-row">
-            <div className="sb-row-head"><b>Memory</b><span className="muted">this server, pid {mem.pid}, up {uptime(mem.uptime)}</span></div>
-            <div className="sb-windows"><span className={`sb-item ${tone(pct)}`}><span className="muted">used</span><Bar percent={pct} />{gb(mem.used)}</span><span className="muted">heap {gb(mem.heapUsed)} · resident {gb(mem.rss)} · restarts past {mem.capGb} GB (WYE_MAX_MEMORY_GB), every session resumable</span></div>
+          <div className={`sb-row ${compact ? 'compact' : ''}`}>
+            <div className="sb-row-head"><b>Memory</b>{compact && <span className={`sb-item ${tone(pct)}`}>{gb(mem.used)} <span className="muted">of {mem.capGb} GB</span></span>}<span className="muted">this server, pid {mem.pid}, up {uptime(mem.uptime)}</span></div>
+            {!compact && <div className="sb-windows"><span className={`sb-item ${tone(pct)}`}><span className="muted">used</span><Bar percent={pct} />{gb(mem.used)}</span><span className="muted">heap {gb(mem.heapUsed)} · resident {gb(mem.rss)} · restarts past {mem.capGb} GB (WYE_MAX_MEMORY_GB), every session resumable</span></div>}
           </div>
-          <div className="sb-foot muted">Read from the same endpoints as <code>claude /usage</code> and <code>codex /status</code>, with this machine's logins; fetched {untilReset(new Date(Date.parse(s.agents[0]?.at ?? '') + s.pollMs).toISOString(), now) ? 'under' : 'over'} {Math.round(s.pollMs / 60000)} min ago.</div>
+          {!compact && <div className="sb-foot muted">Read from the same endpoints as <code>claude /usage</code> and <code>codex /status</code>, with this machine's logins; fetched {untilReset(new Date(Date.parse(s.agents[0]?.at ?? '') + s.pollMs).toISOString(), now) ? 'under' : 'over'} {Math.round(s.pollMs / 60000)} min ago.</div>}
         </div>
       )}
     </div>
