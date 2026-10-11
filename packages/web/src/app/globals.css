@@ -1730,3 +1730,6 @@ button.slack-open { cursor: pointer; } button.slack-open:disabled { opacity: .6;
 .ask-wait .ask-spin { margin: 0 8px 0 0; }
 .ask-dots::after { content: '…'; display: inline-block; width: 1.2em; text-align: left; animation: ask-dots 1.2s steps(3, end) infinite; overflow: hidden; vertical-align: bottom; white-space: nowrap; }
 @keyframes ask-dots { 0% { width: 0; } 100% { width: 1.2em; } }
+/* the answer while its text streams in: a caret blinks at the end of the last line (the person asked for movement while it is written, 2026-10-11) */
+.ask-answer.writing > :last-child:not(ul):not(ol)::after, .ask-answer.writing > :is(ul, ol):last-child > li:last-child::after { content: ''; display: inline-block; width: 7px; height: 1.05em; margin-left: 3px; vertical-align: -2px; background: var(--accent); border-radius: 1px; animation: ask-caret 1s steps(2, start) infinite; }
+@keyframes ask-caret { to { visibility: hidden; } }
