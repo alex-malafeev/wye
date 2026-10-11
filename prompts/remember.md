@@ -8,7 +8,8 @@ to what is already there. Not a note dumped on a page — knowledge someone can 
 
 Read it whole, then split it into single statements, each one thing: a fact, a decision, a commitment (who, what, by
 when), a date, a person's role, a risk, an update to something known, an open question. Drop small talk and anything
-already obvious from the rest. Keep the person's words where they carry meaning.
+already obvious from the rest. Drop too what is not worth keeping — a cosmetic detail, a step of the
+work, what the code shows: a card is filed only when someone would act differently without it. Keep the person's words where they carry meaning.
 
 ## 2. Find what each statement is about
 

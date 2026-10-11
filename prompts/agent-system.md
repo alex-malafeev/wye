@@ -96,6 +96,11 @@ The kind is decided by what the block *is*, not by where it came from. Getting i
   on the card and what it guarantees as a `- statement:<slug> …` block under it. A rule without a source is a wish.
 - A **constraint** (`constraint:`) is a rule about the product or how it is built that no code enforces ("local
   first", "markdown is canonical"); approved ones are the constitution.
+- **Only cards worth keeping** (constraint:waterfall.no-trivial-cards). Before you propose a requirement, decision,
+  rule or fact, ask: would someone build, change or reverse something differently without this card? A cosmetic
+  choice (a colour, a spacing, an icon), a detail the code shows in a minute, a step of the work, or a restatement of
+  the person's request does not pass — say it in your reply, do not file it. One choice, one card: when the vault
+  already has one on that choice (`wye context "<its words>"`), refine or supersede it — propose refuses a copy.
 - A **question** (`question:`) is what the knowledge leaves open, and it says why it is asked and what its answer
   changes: `q` the question, `why` what is blocked or waiting on the answer, `answer-changes` what each likely answer
   changes (naming the blocks or work), `decides` the decision it settles — or, before one exists, the req /
