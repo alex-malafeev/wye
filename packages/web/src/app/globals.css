@@ -1737,3 +1737,12 @@ button.slack-open { cursor: pointer; } button.slack-open:disabled { opacity: .6;
 .q-why { margin: 6px 0 4px; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--sunk); border-radius: 4px; font-size: 13px; line-height: 1.45; }
 .q-why p { margin: 2px 0; } .q-why b { font-weight: 600; margin-right: 6px; }
 p.q-why.muted { border-left-color: var(--line); font-style: italic; }
+/* the cleanup list (req:waterfall.card-quality.cleanup) */
+.cleanup-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0 14px; }
+.cleanup-list { list-style: none; padding: 0; margin: 0; }
+.cleanup-list li { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; background: var(--surface); }
+.cleanup-list li.on { border-color: var(--accent); }
+.cleanup-list label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.cleanup-list p { margin: 4px 0 0 24px; font-size: 13px; line-height: 1.45; }
+.cleanup-why { font: 10px var(--font-m); text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 4px; background: var(--sunk); }
+.cleanup-why.duplicate { color: var(--accent); }

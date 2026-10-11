@@ -1212,6 +1212,18 @@ HTTP operations this module serves (`op:` cards); the wf CLI and the UI call the
     decision when `decides:` names a requirement — then resolves the question.
   status: proposed
   part-of: module:app-storage
+- id: lib:cleanup
+  file: packages/web/src/lib/cleanup.ts
+  side: server
+  purpose: >
+    The cleanup list (req&#58;waterfall.card-quality.cleanup): the requirements and decisions a vault already holds
+    that are trivial (constraint&#58;waterfall.no-trivial-cards) or say what another card says, each with the
+    reason, for the person to drop together. Duplicates: the vault search finds the close pairs (lib/propose-card
+    DUP_NEAR) and the pair judge (lib/judge) confirms them; trivial: the worth judge applies the bar every prompt
+    carries. Both are cached by the judge, the list itself in _build/cleanup.json. Nothing is dropped until the
+    person ticks it.
+  status: proposed
+  part-of: module:app-storage
 ```
 
 <!-- /list:lib -->

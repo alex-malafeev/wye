@@ -473,6 +473,14 @@ Every page of the app by area: its route, what it shows, its actions. The table 
     names the file under the workspace's folder; the page is the code view and nothing else.
   status: proposed
   part-of: module:pages
+- id: page:web/cleanup
+  route: /<product>/cleanup
+  component: packages/web/src/app/[product]/cleanup/page.tsx
+  purpose: >
+    The cleanup list (req&#58;waterfall.card-quality.cleanup): requirements and decisions judged trivial or a copy
+    of another card, each with the reason, dropped together once the person ticks them.
+  status: proposed
+  part-of: module:pages
 ```
 
 <!-- /list:page -->

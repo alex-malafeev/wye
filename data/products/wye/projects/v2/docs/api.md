@@ -978,6 +978,15 @@ Every operation the UI, the wye CLI and agents call, by area; the CLI commands a
   source: packages/web/src/app/api/[product]/question/route.ts
   status: proposed
   part-of: module:api
+- id: op:api.cleanup
+  args: GET | POST /api/<product>/cleanup
+  does: >
+    GET → the last cleanup list; POST { action: 'scan' } → a new one (judge calls: up to a few minutes on a large
+    vault); POST { action: 'apply', ids } → the ticked cards dropped (req&#58;waterfall.card-quality.cleanup)
+  gate: none (local app)
+  source: packages/web/src/app/api/[product]/cleanup/route.ts
+  status: proposed
+  part-of: module:api
 ```
 
 <!-- /list:op -->

@@ -1220,6 +1220,14 @@ The editor's blocks and the components the pages are made of, by area.
     every minute; the server fetches the vendors at most once every few minutes for every tab together (lib/usage).
   status: proposed
   part-of: module:components
+- id: component:cleanup-list
+  file: packages/web/src/components/CleanupList.tsx
+  side: client
+  purpose: >
+    req&#58;waterfall.card-quality.cleanup — the scan, the list with each card's reason, and one Drop for the ticked
+    ones
+  status: proposed
+  part-of: module:components
 ```
 
 <!-- /list:component -->
