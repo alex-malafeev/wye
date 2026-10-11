@@ -47,7 +47,12 @@ export function ReviewList({ product, items }: { product: string; items: ReviewI
       const body = [String(at.content ?? '').trim(), text].filter(Boolean).join('\n\n');
       const w = await fetch(`/api/${product}/node/${encodeURIComponent(it.id)}/content`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content: body, ifMatch: at.bodyHash }) });
       if (!w.ok) throw new Error((await w.json().catch(() => ({}))).message ?? 'the answer could not be written');
-      await put(it.id, { status: 'resolved' });
+      // the librarian updates the decision the question settles and resolves it (req:waterfall.card-quality.answer-updates-decision);
+      // when none can start, the question is closed here as before
+      const l = await fetch(`/api/${product}/question`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: it.id, answer: text }) });
+      const lj = await l.json().catch(() => ({}));
+      if (l.ok) setMsg(`answered — the librarian is updating ${it.fields.decides ? it.fields.decides.replace(/^\[|\]$/g, '') : 'the decision'} (session ${lj.session})`);
+      else { await put(it.id, { status: 'resolved' }); setMsg(`answered and resolved — ${lj.message ?? 'no librarian started'}`); }
     } catch (e) { setMsg(e instanceof Error ? e.message : String(e)); setBusy(null); return; }
     setDraft(d => ({ ...d, [it.id]: '' }));
     setBusy(null); router.refresh();
@@ -215,10 +220,10 @@ export function ReviewList({ product, items }: { product: string; items: ReviewI
                 )}
                 {it.kind === 'question' && (
                   <div className="review-answer" onClick={e => e.stopPropagation()}>
-                    <textarea value={draft[it.id] ?? ''} placeholder="Answer it — this is written under the question and closes it" rows={(draft[it.id] ?? '').split('\n').length > 2 ? 4 : 2}
+                    <textarea value={draft[it.id] ?? ''} placeholder="Answer it — written under the question; the librarian updates its decision and closes it" rows={(draft[it.id] ?? '').split('\n').length > 2 ? 4 : 2}
                       onChange={e => setDraft(d => ({ ...d, [it.id]: e.target.value }))}
                       onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void answer(it); } }} />
-                    <button className="pri" disabled={busy === it.id || !(draft[it.id] ?? '').trim()} onClick={() => answer(it)} title="Write this under the question and resolve it (⌘↵)">{busy === it.id ? 'Answering…' : 'Answer'}</button>
+                    <button className="pri" disabled={busy === it.id || !(draft[it.id] ?? '').trim()} onClick={() => answer(it)} title="Write this under the question — the librarian updates the decision it settles and resolves it (⌘↵)">{busy === it.id ? 'Answering…' : 'Answer'}</button>
                   </div>
                 )}
                 <div className="sec-actions review-acts">
@@ -248,11 +253,12 @@ export function ReviewList({ product, items }: { product: string; items: ReviewI
 // (req:waterfall.card-quality.question-explains); a question written before these fields says so instead of nothing.
 export function QuestionWhy({ fields }: { fields: Record<string, string> }) {
   const ids = (v: string) => v.replace(/^\[|\]$/g, '').split(/[,\s]+/).filter(Boolean);
+  const unq = (v: string) => plain(v.replace(/^"([\s\S]*)"$/, '$1'));
   if (!fields.why && !fields['answer-changes']) return <p className="q-why muted">It does not say why it is asked or what the answer changes.</p>;
   return (
     <div className="q-why" onClick={e => e.stopPropagation()}>
-      {fields.why && <p><b>Why it is asked</b> {plain(fields.why)}</p>}
-      {fields['answer-changes'] && <p><b>What the answer changes</b> {plain(fields['answer-changes'])}</p>}
+      {fields.why && <p><b>Why it is asked</b> {unq(fields.why)}</p>}
+      {fields['answer-changes'] && <p><b>What the answer changes</b> {unq(fields['answer-changes'])}</p>}
       {fields.decides && <p><b>Decides</b> {ids(fields.decides).map(id => <SmartTag key={id} id={id} />)}</p>}
     </div>
   );

@@ -967,6 +967,17 @@ Every operation the UI, the wye CLI and agents call, by area; the CLI commands a
   source: packages/web/src/app/api/usage/route.ts
   status: proposed
   part-of: module:api
+- id: op:api.question
+  args: POST /api/<product>/question
+  does: >
+    POST { id, answer } — the answer is already written under the question (Review's Answer); a librarian takes it
+    and updates the decision the question settles, then resolves the question
+    (req&#58;waterfall.card-quality.answer-updates-decision). 503 when no librarian could start: the caller resolves
+    the question itself, as before.
+  gate: none (local app)
+  source: packages/web/src/app/api/[product]/question/route.ts
+  status: proposed
+  part-of: module:api
 ```
 
 <!-- /list:op -->

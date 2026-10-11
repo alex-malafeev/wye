@@ -1201,6 +1201,17 @@ HTTP operations this module serves (`op:` cards); the wf CLI and the UI call the
     start again on.
   status: proposed
   part-of: module:app-storage
+- id: lib:question-answer
+  file: packages/web/src/lib/question-answer.ts
+  side: server
+  purpose: >
+    An answered question updates its decision (decision&#58;waterfall.question-answer-updates-its-decision,
+    req&#58;waterfall.card-quality.answer-updates-decision): the answer is written under the question, and a
+    librarian takes the question, why it was asked, what it was said to change and the decision it settles, and
+    brings the knowledge in line — refines a proposed decision, supersedes an approved one, writes the first
+    decision when `decides:` names a requirement — then resolves the question.
+  status: proposed
+  part-of: module:app-storage
 ```
 
 <!-- /list:lib -->
