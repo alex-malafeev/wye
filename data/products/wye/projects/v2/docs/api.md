@@ -959,6 +959,14 @@ Every operation the UI, the wye CLI and agents call, by area; the CLI commands a
   source: packages/web/src/app/api/[product]/contradiction/[id]/route.ts
   status: proposed
   part-of: module:api
+- id: op:api.usage
+  args: GET /api/usage
+  does: >
+    (no header comment)
+  gate: none (local app)
+  source: packages/web/src/app/api/usage/route.ts
+  status: proposed
+  part-of: module:api
 ```
 
 <!-- /list:op -->

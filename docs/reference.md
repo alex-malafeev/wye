@@ -503,7 +503,10 @@ question the agent asks waits for you, however long: after the idle window its p
 is *waiting* — the question stays on the console and on the request page, and your answer, whenever it comes,
 resumes the agent with the same context and the answer as its next message. The server also watches its own
 memory: past `WYE_MAX_MEMORY_GB` (default 4) it ends the agents it hosts, leaves their sessions resumable, and
-restarts — `wye app`, the desktop shell and `next dev` start it again.
+restarts — `wye app`, the desktop shell and `next dev` start it again. The status bar under every page shows that
+memory against the cap, and next to it each agent's plan windows — Claude's and Codex's 5-hour, weekly and per-model
+limits with the time to reset, read from the same endpoints `claude /usage` and `codex /status` use, with this
+machine's own logins (the keychain or `~/.claude/.credentials.json`; `~/.codex/auth.json`), once every few minutes.
 
 ### From the source tree
 

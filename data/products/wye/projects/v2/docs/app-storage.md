@@ -1177,6 +1177,19 @@ HTTP operations this module serves (`op:` cards); the wf CLI and the UI call the
     session whose process was ended this way is left `done` with its agent session id; Resume continues it.
   status: proposed
   part-of: module:app-storage
+- id: lib:usage
+  file: packages/web/src/lib/usage.ts
+  side: server
+  purpose: >
+    The agents' plan limits for the status bar (decision&#58;waterfall.status-bar-memory-and-limits): what Claude
+    Code's /usage and Codex's /status show — the 5-hour and weekly windows, per-model ones when the plan has them —
+    read from the same endpoints with this machine's own logins. Claude: the OAuth token Claude Code keeps (the
+    macOS keychain, else ~/.claude/.credentials.json) against api.anthropic.com/api/oauth/usage; Codex:
+    ~/.codex/auth.json against chatgpt.com/backend-api/wham/usage. The Claude endpoint rate-limits hard (429 for
+    minutes under a wrong User-Agent or more than one call every ~3 min), so one fetch per POLL_MS serves every open
+    tab, and a failure is kept for the same time rather than retried.
+  status: proposed
+  part-of: module:app-storage
 ```
 
 <!-- /list:lib -->

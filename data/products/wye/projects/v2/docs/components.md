@@ -1210,6 +1210,16 @@ The editor's blocks and the components the pages are made of, by area.
     the cookie.
   status: proposed
   part-of: module:components
+- id: component:status-bar
+  file: packages/web/src/components/StatusBar.tsx
+  side: client
+  purpose: >
+    The bar at the bottom of every page (decision&#58;waterfall.status-bar-memory-and-limits): the server's memory
+    against its cap, and each agent's plan windows as Claude Code's /usage and Codex's /status show them — the
+    5-hour and the weekly window, a per-model one when the plan has it — with the time to the next reset. Polled
+    every minute; the server fetches the vendors at most once every few minutes for every tab together (lib/usage).
+  status: proposed
+  part-of: module:components
 ```
 
 <!-- /list:component -->

@@ -37,8 +37,8 @@ a { color: var(--accent); }
 code, pre { font-family: var(--font-m); }
 
 /* ===== shell ===== */
-.shell { display: grid; grid-template-columns: var(--rail-w, 300px) 1fr; height: 100dvh; position: relative; }
-.rail-resize { position: absolute; top: 0; bottom: 0; left: calc(var(--rail-w, 300px) - 3px); width: 6px; cursor: col-resize; z-index: 5; } .rail-resize:hover, body.resizing .rail-resize { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.shell { display: grid; grid-template-columns: var(--rail-w, 300px) 1fr; grid-template-rows: minmax(0, 1fr) auto; height: 100dvh; position: relative; }
+.rail-resize { position: absolute; top: 0; bottom: var(--statusbar-h, 24px); left: calc(var(--rail-w, 300px) - 3px); width: 6px; cursor: col-resize; z-index: 5; } .rail-resize:hover, body.resizing .rail-resize { background: color-mix(in srgb, var(--accent) 35%, transparent); }
 .content { min-width: 0; overflow-y: auto; }
 .page { padding: 20px 24px 80px; max-width: 900px; }
 .page h1 { font-size: 24px; margin: 0 0 4px; } .page .sub { font: 12px var(--font-m); color: var(--muted); margin: 0 0 16px; }
@@ -1705,3 +1705,11 @@ div.help-row { cursor: default; }
 .slack-meta { margin: 0 0 4px; font: 12px/1.4 var(--font-m); color: var(--muted); }
 .slack-summary { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
 button.slack-open { cursor: pointer; } button.slack-open:disabled { opacity: .6; cursor: default; }
+
+/* the status bar (decision:waterfall.status-bar-memory-and-limits): one line under everything — memory against the cap, the agents' plan windows */
+:root { --statusbar-h: 24px; }
+.statusbar { grid-column: 1 / -1; grid-row: 2; height: var(--statusbar-h); display: flex; align-items: center; gap: 18px; padding: 0 12px; border-top: 1px solid var(--line); background: var(--surface); font: 11px var(--font-m); color: var(--ink); white-space: nowrap; overflow: hidden; }
+.statusbar .sb-agent { display: inline-flex; align-items: center; gap: 10px; } .statusbar .sb-agent b { font-weight: 600; }
+.statusbar .sb-item { display: inline-flex; align-items: center; gap: 5px; } .statusbar .sb-item .muted { color: var(--muted); }
+.statusbar .sb-bar { display: inline-block; width: 44px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--muted) 25%, transparent); overflow: hidden; } .statusbar .sb-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.statusbar .sb-item.warn .sb-bar i { background: var(--warn); } .statusbar .sb-item.bad .sb-bar i { background: var(--bad); } .statusbar .sb-item.bad { color: var(--bad); }

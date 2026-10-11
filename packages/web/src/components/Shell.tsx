@@ -8,6 +8,7 @@ import { SearchPanel } from './SearchPanel';
 import { QuestionToasts } from './QuestionToasts';
 import { NewPageToasts } from './NewPageToasts';
 import { Help } from './Help';
+import { StatusBar } from './StatusBar';
 import type { QuickStartLinks } from '@/lib/quick-start-links';
 
 // The app frame: a collapsible rail, the content, and — while a node, context or session is open — the right
@@ -63,6 +64,7 @@ export function Shell({ children, links = {} }: { children: ReactNode; links?: Q
       <QuestionToasts />
       <NewPageToasts product={product} />
       {help && <Help product={product} links={links} onClose={closeHelp} />}
+      <StatusBar />
     </div>
   );
 }
