@@ -74,8 +74,8 @@ export function SearchPanel({ open, onClose }: { open: boolean; onClose: () => v
         {state && (
           <section className="ask-box" aria-live="polite">
             <div className="ask-head"><b>{state.q}</b>
-              <span className="muted"> · fast {state.fastDone ? '✓' : '…'} · deep {state.deepDone ? (state.cut ? 'stopped at its limit' : '✓') : state.step || 'working…'}</span></div>
-            {state.fast ? <AnswerView text={state.fast} cites={state.cites} onCite={openCite} onHover={c => setPreview({ source: c.source, ref: c.ref })} /> : !state.fastDone && <p className="muted">Writing an answer…</p>}
+              <span className="muted"> · fast {state.fastDone ? '✓' : '…'} · deep {state.deepDone ? (state.cut ? 'stopped at its limit' : '✓') : state.step || 'working…'}</span>{!(state.fastDone && state.deepDone) && <span className="ask-spin" aria-hidden />}</div>
+            {state.fast ? <AnswerView text={state.fast} cites={state.cites} onCite={openCite} onHover={c => setPreview({ source: c.source, ref: c.ref })} /> : !state.fastDone && <p className="muted ask-wait"><span className="ask-spin" aria-hidden />Writing an answer<span className="ask-dots" /></p>}
             <SourceChips items={state.found} onPick={openCite} onHover={c => setPreview({ source: c.source, ref: c.ref })} />
             {state.deep && (showDeep
               ? <div className="ask-deep"><div className="muted">Deeper answer</div><AnswerView text={state.deep} cites={state.cites} onCite={openCite} onHover={c => setPreview({ source: c.source, ref: c.ref })} /></div>

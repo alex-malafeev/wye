@@ -1725,3 +1725,8 @@ button.slack-open { cursor: pointer; } button.slack-open:disabled { opacity: .6;
 .sb-foot { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 2px; font: 11px var(--font-m); line-height: 1.5; }
 .sb-row.compact { padding: 7px 0; } .sb-row.compact .sb-row-head { margin: 0; gap: 10px; flex-wrap: wrap; } .sb-row.compact .sb-row-head .sb-item { font: 12px var(--font-m); } .sb-row.compact .sb-row-head > .muted:last-child { margin-left: auto; }
 .sb-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* the search answer while it is written: a spinner next to the status and on the waiting line, dots that move (the person asked for movement, 2026-10-11) */
+.ask-spin { display: inline-block; width: 11px; height: 11px; margin-left: 8px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; vertical-align: -1px; animation: af-spin .9s linear infinite; }
+.ask-wait .ask-spin { margin: 0 8px 0 0; }
+.ask-dots::after { content: '…'; display: inline-block; width: 1.2em; text-align: left; animation: ask-dots 1.2s steps(3, end) infinite; overflow: hidden; vertical-align: bottom; white-space: nowrap; }
+@keyframes ask-dots { 0% { width: 0; } 100% { width: 1.2em; } }
