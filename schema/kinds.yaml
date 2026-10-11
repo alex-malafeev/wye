@@ -69,6 +69,7 @@ verbs:
   calls:          action | op → op   (inverse: called-by)
   content:        any → block   (inverse: parent)
   contradicts:    any → node   (inverse: contradicts)
+  decides:        question → node   (inverse: decided-by)
   depends-on:     any | task → node | task   (inverse: depended-on-by)
   embedded-in:    entity → entity   (inverse: embeds)
   gated-by:       module | op | page → gate   (inverse: gates)

@@ -8,7 +8,7 @@ import { writeAtomic, withFileLock, rebuild } from '@/lib/write';
 import { embedInDefinition, readPrDoc } from '@/lib/pr-docs';
 import { claimWrite } from '@/lib/changes';
 import { recordArtifact } from '@/lib/artifacts';
-import { parseCard, placeCard } from '@/lib/propose-card';
+import { parseCard, placeCard, questionProblem } from '@/lib/propose-card';
 
 // op:api.propose (req:exec.wye-proposes, decision:exec.definition-home-fallback) — POST { card, pr, doc? } → one
 // proposed block (a yaml card with `- id: kind:slug`, checked by parseCard) added to the document where that kind lives,
@@ -23,6 +23,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ product
   const parsed = parseCard(body.card ?? '');
   if ('error' in parsed) return NextResponse.json({ error: 'invalid', message: parsed.error }, { status: 422 });
   const { id, block } = parsed;
+  if (id.startsWith('question:')) {
+    const problem = questionProblem(block, ref => { const n = scope.idx.byId.get(ref); return n?.defined ? n.kind : undefined; });
+    if (problem) return NextResponse.json({ error: 'invalid', message: problem }, { status: 422 });
+  }
   if (scope.idx.byId.get(id)?.defined) return NextResponse.json({ error: 'conflict', message: `${id} already exists — refine it with wf node set, do not add a second one` }, { status: 409 });
   const session = req.headers.get('x-wf-session') ?? undefined;
   const pr = body.pr ? await readPrDoc(product, body.pr) : null;

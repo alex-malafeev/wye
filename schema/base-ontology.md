@@ -205,6 +205,9 @@ type means instances may carry properties the type does not declare without a wa
   props:
     q: text?
     context: text?
+    why: text?
+    answer-changes: text?
+    decides: list of node? -(inverse)-> decided-by
 - id: type:decision
   extends: type:node
   purpose: >

@@ -37,3 +37,36 @@ export function placeCard(md: string, fence: string): string {
   const end = n === -1 ? md.length : start + n;
   return `${md.slice(0, start)}${md.slice(start, end).replace(/\s+$/, '')}\n\n${fence}\n${n === -1 ? '' : '\n'}${md.slice(end)}`;
 }
+
+// A card's top-level keys and their values: a `|` / `>` value is its deeper lines joined, a list value its items
+// joined by ", " (decides: [a, b] and decides:\n  - a read the same).
+export function cardKeys(block: string): Record<string, string> {
+  const out: Record<string, string> = {}; let cur = ''; const more: string[] = [];
+  const flush = () => { if (cur && more.length) out[cur] = (out[cur] ? `${out[cur]} ` : '') + more.map(l => l.replace(/^-\s+/, '')).join(out[cur] === undefined || /^[|>]/.test(out[cur]) ? ' ' : ', '); more.length = 0; };
+  for (const l of block.split('\n').slice(1)) {
+    const m = l.match(/^ {2}([A-Za-z][\w-]*):\s*(.*)$/);
+    if (m) { flush(); cur = m[1]; out[cur] = m[2].trim(); continue; }
+    if (cur && l.trim()) more.push(l.trim());
+  }
+  flush();
+  for (const k of Object.keys(out)) out[k] = out[k].replace(/^[|>][-+]?\s*/, '').trim();
+  return out;
+}
+
+// What a question must say (constraint:waterfall.question-says-why-and-what-the-answer-changes,
+// decision:waterfall.question-fields-why-answer-changes-decides): why it is asked, what each answer changes, and the
+// decision it settles — or, before one exists, the requirement, constraint or rule the choice belongs to
+// (decision:waterfall.decides-names-a-decision-or-what-it-decides-for). null when it says all three.
+export const QUESTION_FIELDS = { why: 'what is blocked or waiting on the answer', 'answer-changes': 'what each likely answer changes, naming the blocks or work', decides: 'the id of the decision the answer settles or changes (or, before one exists, the req / constraint / rule it decides for)' } as const;
+const DECIDES_KINDS = new Set(['decision', 'req', 'constraint', 'rule']);
+export function questionProblem(block: string, kindOf: (id: string) => string | undefined): string | null {
+  const k = cardKeys(block);
+  const missing = Object.entries(QUESTION_FIELDS).filter(([f]) => !k[f]?.replace(/[[\]\s]/g, ''));
+  if (missing.length) return `a question says why it is asked and what its answer changes — add ${missing.map(([f, what]) => `\`${f}:\` (${what})`).join(', ')}`;
+  for (const id of k.decides.replace(/[[\]]/g, '').split(/[,\s]+/).filter(Boolean)) {
+    const kind = kindOf(id);
+    if (!kind) return `decides: ${id} is not in the vault — name the decision the answer settles, or the req / constraint / rule it decides for`;
+    if (!DECIDES_KINDS.has(kind)) return `decides: ${id} is a ${kind} — name a decision, or the req / constraint / rule the choice belongs to`;
+  }
+  return null;
+}

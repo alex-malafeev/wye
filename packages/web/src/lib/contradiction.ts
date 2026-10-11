@@ -93,7 +93,16 @@ export async function askOnContradiction(scope: Scope, cid: string, q: string, b
   const s = sidesOf(scope.idx, c);
   const key = cid.replace(/^contradiction:/, '').replace(/^[a-z0-9-]+\./, '');
   const n = (scope.idx.inc.get(cid) ?? []).filter(e => e.verb === 'part-of' && e.from.startsWith('question:')).length + 1;
-  const made = await addInstance(scope, 'question', { slug: `${scope.product.slug}.${key}-${n}`.toLowerCase(), title: text.slice(0, 160), status: 'open', props: { q: text, ...(s ? { about: `[${s.a.id}, ${s.b.id}]` } : {}), 'part-of': cid, ...(by ? { by } : {}) }, rebuild: false });
+  // why it is asked and what the answer changes (constraint:waterfall.question-says-why-and-what-the-answer-changes):
+  // the contradiction waits on it, and its answer settles which side holds
+  const sides = s ? [s.a, s.b] : [];
+  const decides = sides.filter(x => ['decision', 'req', 'constraint', 'rule'].includes(x.kind)).map(x => x.id);
+  const explain = {
+    why: `${cid} stays open until this is answered${s ? ` — ${s.a.id} and ${s.b.id} cannot both hold` : ''}`,
+    'answer-changes': s ? `the answer settles ${cid}: the side that holds stays, the other (${s.a.id} or ${s.b.id}) is superseded by a decision` : `the answer settles ${cid}`,
+    ...(decides.length ? { decides: `[${decides.join(', ')}]` } : {}),
+  };
+  const made = await addInstance(scope, 'question', { slug: `${scope.product.slug}.${key}-${n}`.toLowerCase(), title: text.slice(0, 160), status: 'open', props: { q: text, ...explain, ...(s ? { about: `[${s.a.id}, ${s.b.id}]` } : {}), 'part-of': cid, ...(by ? { by } : {}) }, rebuild: false });
   if (!made.ok) return { ok: false, status: made.status, message: made.message };
   const prior = parseBody(c.body ?? '').find(r => r.key === 'asked')?.value ?? '';
   await editNode(scope, cid, { props: { asked: prior ? `[${idsOf(prior).concat(made.id).join(', ')}]` : made.id } });

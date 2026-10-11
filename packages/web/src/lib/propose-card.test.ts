@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCard, placeCard } from './propose-card';
+import { parseCard, placeCard, cardKeys, questionProblem } from './propose-card';
 
 describe('parseCard', () => {
   it('takes one card and returns its id and the block as a list item', () => {
@@ -35,5 +35,28 @@ describe('placeCard', () => {
   });
   it('appends to an ordinary document', () => {
     expect(placeCard('# Tests\n\nsome text\n', '```yaml\n- id: test:b\n```')).toBe('# Tests\n\nsome text\n\n```yaml\n- id: test:b\n```\n');
+  });
+});
+
+// req:waterfall.card-quality.question-explains, req:waterfall.card-quality.question-has-decision
+describe('questionProblem', () => {
+  const kinds: Record<string, string> = { 'decision:x': 'decision', 'req:y': 'req', 'task:z': 'task' };
+  const kindOf = (id: string) => kinds[id];
+  const q = (extra: string) => (parseCard(`- id: question:q\n  title: Which one?\n  status: open\n${extra}`) as { block: string }).block;
+  const full = '  why: the build of task:z waits on it\n  answer-changes: |\n    A — req:y keeps its wording; B — req:y is superseded\n  decides: decision:x\n';
+  it('reads a card\'s top-level keys, a block value whole', () => {
+    expect(cardKeys(q(full))).toMatchObject({ why: 'the build of task:z waits on it', 'answer-changes': 'A — req:y keeps its wording; B — req:y is superseded', decides: 'decision:x' });
+  });
+  it('passes a question with why, answer-changes and decides naming a decision or a requirement', () => {
+    expect(questionProblem(q(full), kindOf)).toBeNull();
+    expect(questionProblem(q(full.replace('decides: decision:x', 'decides: [decision:x, req:y]')), kindOf)).toBeNull();
+  });
+  it('refuses a question without why, answer-changes or decides, naming each missing field', () => {
+    expect(questionProblem(q(''), kindOf)).toMatch(/why.*answer-changes.*decides/s);
+    expect(questionProblem(q(full.replace(/  why:.*\n/, '')), kindOf)).toMatch(/^.*`why:`/);
+  });
+  it('refuses decides that names nothing in the vault, or a block that is not a decision, requirement, constraint or rule', () => {
+    expect(questionProblem(q(full.replace('decision:x', 'decision:nope')), kindOf)).toMatch(/decision:nope.*not in the vault/);
+    expect(questionProblem(q(full.replace('decision:x', 'task:z')), kindOf)).toMatch(/task:z is a task/);
   });
 });
