@@ -30,12 +30,6 @@ runs the clock now.
 ## Hooks
 
 ```yaml
-- id: hook:req-approved-tests
-  title: An approved requirement gets a task to define its test cases, and an agent starts on it
-  on: req.status:approved
-  do: task "Define test cases for {{title}}" --worker agent --skill skill:define-tests
-  once: true
-  status: active
 - id: hook:import-analyse
   title: An imported document is read by an agent and rewritten into typed blocks, all proposed
   on: module.created
