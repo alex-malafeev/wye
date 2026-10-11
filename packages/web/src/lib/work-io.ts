@@ -4,9 +4,9 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { loadScope, type Scope } from './scope';
-import { listSessions, createSession, updateSession, onSessionEnd, AGENTS, getSession, setPrDoc } from './sessions';
+import { listSessions, createSession, updateSession, onSessionEnd, AGENTS, getSession, setPrDoc, addTasksToSession } from './sessions';
 import type { SessionHook } from './session-types';
-import { liveState, startChat } from './agent-host';
+import { liveState, startChat, sendMessage } from './agent-host';
 import { adoptPrDoc, readPrDoc, definitionContext, prDefinition } from './pr-docs';
 import { setFrontmatter, definitionIds } from './pr-doc';
 import { editNode } from './node-edit';
@@ -41,15 +41,25 @@ export function findItem(items: WorkItem[], id: string): WorkItem | null {
   return null;
 }
 
+// One agent, many tasks (decision:waterfall.hook-tasks-batched): the instruction lists every task with its text and
+// what it serves; the agent ticks each as it goes and leaves what it cannot do open for the next worker.
+const taskText = (scope: Scope, item: WorkItem) => scope.idx.byId.get(item.id)?.body.match(/^text:[ \t]*(.*)$/m)?.[1].trim() || item.title;
+export function batchInstruction(tasks: { id: string; text: string; partOf?: string[] }[], note?: string): string {
+  const parts = [`Work on ${tasks.length} tasks, one after another:`];
+  parts.push(tasks.map((t, i) => `${i + 1}. ${t.id} — ${t.text}${t.partOf?.length ? ` (serves ${t.partOf.join(', ')})` : ''}`).join('\n'));
+  if (note?.trim()) parts.push(note.trim());
+  parts.push('Tick each as you finish it: `wye node set <task id> --status done`. Say at the end which you did and which you left; a task you cannot do stays open as it is, for the next worker.');
+  return parts.join('\n\n');
+}
 // The instruction a worker gets for a task: its text, the note, and where it is.
 function taskInstruction(scope: Scope, item: WorkItem, note?: string): string {
   const n = scope.idx.byId.get(item.id);
-  const text = n?.body.match(/^text:[ \t]*(.*)$/m)?.[1].trim() || item.title;
+  const text = taskText(scope, item);
   const parts = [`Work on ${item.id}: ${text}`];
   if (note?.trim()) parts.push(note.trim());
   if (item.partOf.length) parts.push(`It serves ${item.partOf.join(', ')}.`);
   if (item.pr) parts.push(`It is on the plan ${item.pr.id}${item.pr.title ? ` ("${item.pr.title}")` : ''}.`);
-  parts.push(`When it is done: \`wf node set ${item.id} --status done\`; what you leave open stays as task lines under it.`);
+  parts.push(`When it is done: \`wye node set ${item.id} --status done\`; what you leave open stays as task lines under it.`);
   return parts.join('\n\n');
 }
 
@@ -61,32 +71,39 @@ export type AssignResult = { ok: true; worker: string; session?: string; mode?: 
 // Assign (req:exec.dispatch): a person gets `worker:`; an agent gets a session with the task, its document and what
 // it serves as refs (the constraint packet rides in the first message, agent-host#buildPrompt); the runner pool gets a
 // queued run session. A held task (a session queued or working on it) asks before it re-queues (`force`).
-export async function assignTask(scope: Scope, id: string, input: AssignInput): Promise<AssignResult> {
+export async function assignTask(scope: Scope, id: string, input: AssignInput): Promise<AssignResult> { return assignTasks(scope, [id], input); }
+// Many tasks to one worker in one session (decision:waterfall.hook-tasks-batched): one agent takes the whole batch,
+// its instruction listing every task; each task is in progress with that session on its line. `build` is one task's.
+export async function assignTasks(scope: Scope, ids: string[], input: AssignInput): Promise<AssignResult> {
   const { items } = await loadWork(scope);
-  const item = findItem(items, id); if (!item) return { ok: false, error: 'not_found', message: `${id} is not a task` };
-  const refusal = assignRefusal(item); if (refusal) return { ok: false, error: 'refused', message: refusal };
+  const found = ids.map(id => findItem(items, id));
+  const missing = ids.find((id, i) => !found[i]); if (missing) return { ok: false, error: 'not_found', message: `${missing} is not a task` };
+  const batch = found as WorkItem[];
+  for (const item of batch) { const refusal = assignRefusal(item); if (refusal) return { ok: false, error: 'refused', message: refusal }; }
   const worker = input.worker.trim(); if (!worker) return { ok: false, error: 'invalid', message: 'a worker is required' };
   const isAgent = AGENT_IDS.has(worker) || worker === RUNNER_POOL;
   if (!isAgent) {
-    const r = await editNode(scope, id, { props: { worker } });
-    return r.ok ? { ok: true, worker } : { ok: false, error: 'invalid', message: r.message };
+    for (const item of batch) { const r = await editNode(scope, item.id, { props: { worker } }); if (!r.ok) return { ok: false, error: 'invalid', message: r.message }; }
+    return { ok: true, worker };
   }
-  // held by a librarian refining it (decision:exec.wye-is-a-role): Build hands the request to a builder anyway
-  const heldByLibrarian = input.build && item.sessions.length > 0 && (await Promise.all(item.sessions.map(x => getSession(scope.product.dir, x.id)))).every(x => !x || x.role === 'librarian' || !['queued', 'running'].includes(x.status));
-  if ((item.state === 'queued' || item.state === 'working') && !input.force && !heldByLibrarian) return { ok: false, error: 'held', message: `${item.worker ?? 'a worker'} holds it (${item.state}) — assign again to re-queue` };
+  for (const item of batch) {
+    // held by a librarian refining it (decision:exec.wye-is-a-role): Build hands the request to a builder anyway
+    const heldByLibrarian = input.build && item.sessions.length > 0 && (await Promise.all(item.sessions.map(x => getSession(scope.product.dir, x.id)))).every(x => !x || x.role === 'librarian' || !['queued', 'running'].includes(x.status));
+    if ((item.state === 'queued' || item.state === 'working') && !input.force && !heldByLibrarian) return { ok: false, error: 'held', message: `${item.worker ?? 'a worker'} holds ${item.id} (${item.state}) — assign again to re-queue` };
+  }
+  const item = batch[0]; const id = item.id;
   const node = scope.idx.byId.get(id)!;
   const r = docRoute(node.file);
-  const docNode = docIdOf(scope.graph, node.file);
-  const refs = [id, ...(docNode ? [docNode] : []), ...item.partOf].slice(0, 20);
+  const refs = [...new Set(batch.flatMap(it => { const dn = docIdOf(scope.graph, scope.idx.byId.get(it.id)?.file ?? ''); return [it.id, ...(dn ? [dn] : []), ...it.partOf]; }))].slice(0, 60);
   const source = r ? { project: r.project, doc: r.doc, link: `${input.wfUrl}/${scope.product.slug}/${r.project}/d/${r.doc}#n-${encodeURIComponent(id)}` } : {};
   const mode: 'chat' | 'run' = worker === RUNNER_POOL ? 'run' : 'chat';
   const agent = worker === RUNNER_POOL ? (input.agent && AGENT_IDS.has(input.agent) ? input.agent : 'claude-code') : worker;
   let cwd = input.cwd?.trim() || (productRepo(scope.product) ?? REPO_ROOT);
   if (mode === 'chat') { try { if (!(await stat(cwd)).isDirectory()) throw new Error(); } catch { cwd = REPO_ROOT; } }
-  let instruction = taskInstruction(scope, item, input.note);
-  const def = input.build ? await definitionContext(scope, input.build) : null;
+  let instruction = batch.length === 1 ? taskInstruction(scope, item, input.note) : batchInstruction(batch.map(it => ({ id: it.id, text: taskText(scope, it), partOf: it.partOf })), input.note);
+  const def = input.build && batch.length === 1 ? await definitionContext(scope, input.build) : null;
   if (def) instruction = `${instruction}\n\n${def.text}`;
-  const s = await createSession(scope.product.dir, scope.product.slug, { agent, instruction, refs, source, mode, cwd, task: id, ...(input.skills?.length ? { skills: input.skills } : {}), ...(input.hook ? { hook: input.hook } : {}) });
+  const s = await createSession(scope.product.dir, scope.product.slug, { agent, instruction, refs, source, mode, cwd, task: id, tasks: ids, ...(input.skills?.length ? { skills: input.skills } : {}), ...(input.hook ? { hook: input.hook } : {}) });
   if (def && input.build) {
     // Build: the session continues the plan that holds the Definition (rule:pr-doc, decision:exec.plan-lifecycle)
     await setPrDoc(scope.product.dir, s.id, input.build, `builds ${input.build} from its Definition`); s.prDoc = input.build;
@@ -96,27 +113,45 @@ export async function assignTask(scope: Scope, id: string, input: AssignInput): 
   // no request page otherwise: a PR is a person's request to change the knowledge, never an agent's, a task's, a hook's
   // or an import's (constraint:wf2.pr-is-the-persons) — the session works on the task's own document
   // taken: in progress, the worker and the session on the line, the ready mark spent
-  await editNode(scope, id, { status: 'in-progress', props: { worker: agent, session: [...new Set([...item.sessions.map(x => x.id), s.id])].join(' '), ready: null } });
+  for (const it of batch) await editNode(scope, it.id, { status: 'in-progress', props: { worker: agent, session: [...new Set([...it.sessions.map(x => x.id), s.id])].join(' '), ready: null } });
   if (mode === 'chat') await startChat(scope.product.dir, scope.product.slug, s.id, { wfUrl: input.wfUrl });
   return { ok: true, worker: agent, session: s.id, mode };
+}
+
+// More tasks for a batch session that is queued or running (decision:waterfall.hook-tasks-batched): they go into its
+// instruction while it waits for a slot, or to it as a message once it runs; each is in progress on that session.
+export async function joinTasks(scope: Scope, sessionId: string, ids: string[], input: { worker: string; wfUrl: string; by?: string }): Promise<AssignResult> {
+  const { items } = await loadWork(scope);
+  const batch = ids.map(id => findItem(items, id)).filter((x): x is WorkItem => !!x);
+  if (batch.length !== ids.length) return { ok: false, error: 'not_found', message: 'a task is missing' };
+  const text = batchInstruction(batch.map(it => ({ id: it.id, text: taskText(scope, it), partOf: it.partOf })), `More work for this session, after what it has:`);
+  const how = await addTasksToSession(scope.product.dir, sessionId, ids, text);
+  if (!how) return { ok: false, error: 'held', message: `session ${sessionId} is over` };
+  for (const it of batch) await editNode(scope, it.id, { status: 'in-progress', props: { worker: input.worker, session: [...new Set([...it.sessions.map(x => x.id), sessionId])].join(' '), ready: null } });
+  if (how === 'message') await sendMessage(scope.product.dir, sessionId, { text, refs: ids });
+  return { ok: true, worker: input.worker, session: sessionId, mode: 'chat' };
 }
 
 // A session that was assigned a task ends: the task goes to review unless the agent marked it done (req:exec.work-states).
 onSessionEnd(async (productDir, s) => {
   if (!s.task) return;
   const scope = await loadScope(s.product); if (!scope) return;
-  const n = scope.idx.byId.get(s.task); if (!n?.defined || n.status === 'done') return;
-  await editNode(scope, s.task, { status: s.status === 'done' ? 'review' : 'todo' }).catch(() => undefined);
+  for (const id of new Set([s.task, ...(s.tasks ?? [])])) {
+    const n = scope.idx.byId.get(id); if (!n?.defined || n.status === 'done') continue;
+    await editNode(scope, id, { status: s.status === 'done' ? 'review' : 'todo' }).catch(() => undefined);
+  }
   void productDir;
 }, 'work-io');
 
 // Where a captured task goes (req:exec.capture): under the node it was captured from when there is one, else the
 // project's plan document (`plan.md`, the follow-ups home) under "## Backlog", appended.
-export type CaptureInput = { text: string; partOf?: string; project?: string; by?: string; ready?: boolean };
+// `avoid`: ids given out earlier in the same pass, before the graph has them (a hook firing on several nodes at once)
+export type CaptureInput = { text: string; partOf?: string; project?: string; by?: string; ready?: boolean; avoid?: Set<string> };
 export async function captureTask(scope: Scope, input: CaptureInput): Promise<{ ok: true; id: string; file: string } | { ok: false; message: string }> {
   const text = input.text.replace(/\s+/g, ' ').trim(); if (!text) return { ok: false, message: 'text required' };
   const base = `task:${scope.product.slug}.${slugify(text).split('-').slice(0, 6).join('-') || 'item'}`;
-  let id = base; for (let n = 2; scope.idx.byId.get(id)?.defined; n++) id = `${base}-${n}`;
+  let id = base; for (let n = 2; scope.idx.byId.get(id)?.defined || input.avoid?.has(id); n++) id = `${base}-${n}`;
+  input.avoid?.add(id);
   const today = new Date().toISOString().slice(0, 10);
   const props = [`by: ${input.by || 'person'}`, `since: ${today}`, ...(input.partOf ? [`part-of: ${input.partOf}`] : [])];
   const line = `- [ ] ${id} ${text.replace(/[()#]/g, ' ').replace(/\s+/g, ' ').trim()}${input.ready ? ' #ready' : ''} (${props.join(', ')})`;

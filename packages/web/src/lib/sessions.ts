@@ -44,9 +44,9 @@ function upgrade(s: Session): Session {
 }
 // `images` (name + data URL, as pasted into the command box) become the session's files (store:session-files) and
 // are listed on the session by file name; they go to the agent with the first message.
-export async function createSession(productDir: string, product: string, input: { agent: string; instruction: string; refs?: string[]; source?: SessionSource; mode?: 'run' | 'chat'; cwd?: string; images?: { name?: string; dataUrl: string }[]; task?: string; role?: SessionRole; hook?: SessionHook; skills?: string[]; hooks?: string[]; system?: string; model?: string; ownConfig?: boolean; /** an agent that is already running somewhere joins as this session (decision:wf2.remote-agents-join): running from the start under this runner name, never queued — the app starts nothing for it */ runner?: string }): Promise<Session> {
+export async function createSession(productDir: string, product: string, input: { agent: string; instruction: string; refs?: string[]; source?: SessionSource; mode?: 'run' | 'chat'; cwd?: string; images?: { name?: string; dataUrl: string }[]; task?: string; tasks?: string[]; role?: SessionRole; hook?: SessionHook; skills?: string[]; hooks?: string[]; system?: string; model?: string; ownConfig?: boolean; /** an agent that is already running somewhere joins as this session (decision:wf2.remote-agents-join): running from the start under this runner name, never queued — the app starts nothing for it */ runner?: string }): Promise<Session> {
   const now = new Date().toISOString();
-  const s: Session = { id: randomBytes(5).toString('hex'), product, agent: input.agent, mode: input.mode ?? 'run', cwd: input.cwd, ...(input.task ? { task: input.task } : {}), ...(input.role && input.role !== 'worker' ? { role: input.role } : {}), ...(input.hook ? { hook: input.hook } : {}), ...(input.skills?.length ? { skills: input.skills } : {}), ...(input.hooks?.length ? { hooks: input.hooks } : {}), ...(input.system ? { system: input.system } : {}), ...(input.model ? { model: input.model } : {}), ...(input.ownConfig ? { ownConfig: true } : {}), status: input.runner ? 'running' : 'queued', ...(input.runner ? { runner: input.runner, startedAt: now } : {}), createdAt: now, updatedAt: now, instruction: input.instruction, refs: [...new Set(input.refs ?? [])], source: input.source ?? {}, log: [{ t: now, line: input.runner ? `joined from ${input.runner}` : input.mode === 'chat' ? 'chat session created' : `queued for ${input.agent}` }] };
+  const s: Session = { id: randomBytes(5).toString('hex'), product, agent: input.agent, mode: input.mode ?? 'run', cwd: input.cwd, ...(input.task ? { task: input.task } : {}), ...(input.tasks && input.tasks.length > 1 ? { tasks: input.tasks } : {}), ...(input.role && input.role !== 'worker' ? { role: input.role } : {}), ...(input.hook ? { hook: input.hook } : {}), ...(input.skills?.length ? { skills: input.skills } : {}), ...(input.hooks?.length ? { hooks: input.hooks } : {}), ...(input.system ? { system: input.system } : {}), ...(input.model ? { model: input.model } : {}), ...(input.ownConfig ? { ownConfig: true } : {}), status: input.runner ? 'running' : 'queued', ...(input.runner ? { runner: input.runner, startedAt: now } : {}), createdAt: now, updatedAt: now, instruction: input.instruction, refs: [...new Set(input.refs ?? [])], source: input.source ?? {}, log: [{ t: now, line: input.runner ? `joined from ${input.runner}` : input.mode === 'chat' ? 'chat session created' : `queued for ${input.agent}` }] };
   const images: string[] = [];
   for (const im of (input.images ?? []).slice(0, 8)) { const n = await saveAttachment(productDir, s.id, im.name ?? 'image', im.dataUrl); if (n) images.push(n); }
   if (images.length) s.images = images;
@@ -112,6 +112,19 @@ export async function updateSession(productDir: string, id: string, patch: { sta
   });
   if (ended && out) for (const h of endHooks) { try { await h(productDir, out); } catch { /* the record is saved; a hook's failure is its own */ } }
   return out;
+}
+
+// More tasks for a session that already has some (decision:waterfall.hook-tasks-batched): a hook firing again
+// while its batch session is queued or running. Queued: the tasks go into the instruction it will start with; running:
+// the caller sends them as a message. Returns which, or null when the session is gone or over.
+export async function addTasksToSession(productDir: string, id: string, ids: string[], text: string): Promise<'instruction' | 'message' | null> {
+  return mutate(productDir, id, s => {
+    if (!['queued', 'running', 'waiting'].includes(s.status)) return null;
+    s.tasks = [...new Set([...(s.task ? [s.task] : []), ...(s.tasks ?? []), ...ids])];
+    s.refs = [...new Set([...s.refs, ...ids])].slice(0, 60);
+    if (s.status === 'queued') { s.instruction = `${s.instruction}\n\n${text}`; return 'instruction'; }
+    return 'message';
+  });
 }
 
 // Refs added after creation (the plan's request task, req:exec.request-is-a-task).

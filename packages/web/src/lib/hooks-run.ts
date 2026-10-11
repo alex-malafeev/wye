@@ -9,7 +9,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { loadScope, type Scope } from './scope';
 import { hooksOf, matchHooks, fillTemplate, templateVars, cardValue, nextDepth, type HookDef, type HookEvent, type HookAction } from './hooks';
-import { createSession, getSession, onSessionEnd, updateSession } from './sessions';
+import { createSession, getSession, listSessions, onSessionEnd, updateSession } from './sessions';
 import { startChat, buildPrompt } from './agent-host';
 import { skillsSection, listSkills } from './skills';
 import { readSettings, agentSettings } from './settings';
@@ -18,7 +18,7 @@ import { docRoute, documentTree } from './doc';
 import { readContent, writeContent } from './node-content';
 import { rebuild, withFileLock, writeAtomic } from './write';
 import { claimWrite } from './changes';
-import { assignTask, captureTask } from './work-io';
+import { assignTask, assignTasks, joinTasks, captureTask } from './work-io';
 import { addInboxItem } from './inbox';
 import type { GraphNode } from './graph';
 
@@ -81,6 +81,7 @@ export async function fire(product: string, events: (HookEvent & { depth?: numbe
   const productDir = scope.product.dir;
   const fired = opts.force ? new Set<string>() : await firedSet(productDir);
   const out: Firing[] = [];
+  const deferred: Deferred[] = []; // the task actions with a worker: assigned together once every event of this call ran
   for (const ev of events) {
     if (ev.depth === null) { log(`hooks: ${ev.id} ${ev.event} — chain deeper than allowed, not fired`); continue; }
     const node = scope.idx.byId.get(ev.id);
@@ -96,7 +97,7 @@ export async function fire(product: string, events: (HookEvent & { depth?: numbe
       try {
         await saveFiring(productDir, f); // recorded before the actions: a crash mid-way still counts as fired
         for (const a of h.actions) {
-          try { f.actions.push(await runAction(scope, actorOf(h), a, ev, node, f, log)); }
+          try { f.actions.push(await runAction(scope, actorOf(h), a, ev, node, f, log, deferred)); }
           catch (e) { f.actions.push({ kind: a.kind, error: e instanceof Error ? e.message : String(e) }); }
         }
         await saveFiring(productDir, f);
@@ -105,13 +106,45 @@ export async function fire(product: string, events: (HookEvent & { depth?: numbe
       out.push(f);
     }
   }
+  await assignDeferred(scope, deferred, log);
   return out;
 }
 
-export async function runAction(scope: Scope, actor: Actor, a: HookAction, ev: HookEvent, node: GraphNode | undefined, f: Firing, log: (m: string) => void): Promise<FiringAction> {
+// One agent for the batch (decision:waterfall.hook-tasks-batched): a hook that fires on many nodes in one change
+// (eight requirements approved together) used to start eight sessions, seven of them waiting for a slot. Now the
+// task actions of one fire() call are grouped by hook, worker and skill: each group is one session with every task
+// in its instruction — or, when that hook's batch session is still queued or running, the tasks join it (into its
+// instruction while it waits, as a message once it runs). The tasks themselves stay one per node: the work is
+// tracked line by line and what the agent leaves open is picked up by the next worker.
+type Deferred = { key: string; actor: Actor; a: { text: string; worker?: string; skill?: string }; taskId: string; f: Firing; action: FiringAction };
+async function assignDeferred(scope: Scope, deferred: Deferred[], log: (m: string) => void): Promise<void> {
+  if (!deferred.length) return;
+  const groups = new Map<string, Deferred[]>();
+  for (const d of deferred) groups.set(d.key, [...(groups.get(d.key) ?? []), d]);
+  const settings = agentSettings(await readSettings());
+  const fresh = await loadScope(scope.product.slug); if (!fresh) throw new Error('the product could not be reloaded');
+  const open = (await listSessions(scope.product.dir)).filter(s => s.hook && ['queued', 'running'].includes(s.status) && s.task);
+  const touched = new Set<Firing>();
+  for (const group of groups.values()) {
+    const { actor, a } = group[0];
+    const ids = [...new Set(group.map(d => d.taskId))];
+    const worker = a.worker === 'agent' ? settings.agent : a.worker!;
+    const skills = [...new Set([...(a.skill ? [a.skill] : []), ...actor.skills])];
+    const hook = { id: actor.id, firing: group[0].f.id, ...(a.skill ? { skill: a.skill } : {}) };
+    const same = open.find(s => s.hook!.id === actor.id && (s.hook!.skill ?? '') === (a.skill ?? '') && s.agent === worker);
+    try {
+      const r = same ? await joinTasks(fresh, same.id, ids, { worker, wfUrl: state().wfUrl, by: actor.id }) : await assignTasks(fresh, ids, { worker, wfUrl: state().wfUrl, by: actor.id, force: true, skills, hook });
+      for (const d of group) { if (r.ok) { if (r.session) d.action.session = r.session; } else d.action.error = `assigned to nobody — ${r.message}`; touched.add(d.f); }
+      if (r.ok) log(`${actor.id}: ${ids.length} task${ids.length === 1 ? '' : 's'} → ${same ? `joined session ${same.id}` : `session ${r.session ?? '(a person)'}`}`);
+    } catch (e) { for (const d of group) { d.action.error = e instanceof Error ? e.message : String(e); touched.add(d.f); } }
+  }
+  for (const f of touched) await saveFiring(scope.product.dir, f);
+}
+
+export async function runAction(scope: Scope, actor: Actor, a: HookAction, ev: HookEvent, node: GraphNode | undefined, f: Firing, log: (m: string) => void, defer?: Deferred[]): Promise<FiringAction> {
   if (a.kind === 'run') return { kind: 'run', session: await startSkillSession(scope, actor, a.skill, ev, node, f) };
   if (a.kind === 'add') { if (!node) throw new Error(`${ev.id} is not in the graph`); return { kind: 'add', added: await addFromTemplate(scope, actor, a.template, a.to, node, log) }; }
-  if (a.kind === 'task') { if (!node) throw new Error(`${ev.id} is not in the graph`); return await taskUnder(scope, actor, a, node, f); }
+  if (a.kind === 'task') { if (!node) throw new Error(`${ev.id} is not in the graph`); return await taskUnder(scope, actor, a, node, f, defer); }
   if (a.kind === 'assign') return await assignExisting(scope, actor, a, f);
   if (a.kind === 'notify') { if (!node) throw new Error(`${ev.id} is not in the graph`); return { kind: 'notify', added: [await notify(scope, actor, a.text, node, ev)] }; }
   // a workflow: the run starts on the node the event names, and its first stage is entered at once (lib/runs-run)
@@ -124,14 +157,18 @@ export async function runAction(scope: Scope, actor: Actor, a: HookAction, ev: H
 // `task "<text>" [--worker w] [--skill s]`: a task line under the node — part of it, ready, by the hook — so Work
 // lists it; with a worker it is assigned at once (lib/work-io#assignTask: an agent starts a session with the skill
 // in its first message and the task in progress; a person's name is just set). Returns the task id (and the session).
-async function taskUnder(scope: Scope, actor: Actor, a: { text: string; worker?: string; skill?: string }, node: GraphNode, f: Firing): Promise<FiringAction> {
+async function taskUnder(scope: Scope, actor: Actor, a: { text: string; worker?: string; skill?: string }, node: GraphNode, f: Firing, defer?: Deferred[]): Promise<FiringAction> {
   const by = actor.id;
   const text = fillTemplate(a.text, templateVars(node));
   claimWrite(node.id, { by });
-  const made = await captureTask(scope, { text, partOf: node.id, by, ready: !a.worker });
+  // the ids of this call's earlier tasks: the scope is from before them, and three "Define test cases for A …" would share one id
+  const avoid = new Set(defer?.map(d => d.taskId));
+  const made = await captureTask(scope, { text, partOf: node.id, by, ready: !a.worker, avoid });
   if (!made.ok) throw new Error(made.message);
   await rebuild(scope.product.dir);
   if (!a.worker) return { kind: 'task', added: [made.id] };
+  // inside fire(): the assignment waits for the other events of the call, so the batch gets one agent (assignDeferred)
+  if (defer) { const action: FiringAction = { kind: 'task', added: [made.id] }; defer.push({ key: `${actor.id}|${a.worker}|${a.skill ?? ''}`, actor, a, taskId: made.id, f, action }); return action; }
   const fresh = await loadScope(scope.product.slug); if (!fresh) throw new Error('the product could not be reloaded');
   const settings = agentSettings(await readSettings());
   const worker = a.worker === 'agent' ? settings.agent : a.worker;
