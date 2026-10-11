@@ -46,9 +46,11 @@ show the blocks in the documents that nobody has approved or resolved yet. So:
   hosting surface") — is a `constraint:` block (`status: proposed`, `scope:` links; what it says as `- statement:<slug> …`, `- scope:<slug> …`, `- rationale:<slug> …` lines under the card — its content, like a requirement's when / then); the
   approved ones are the Constitution in your system prompt. A **lesson** ("this broke because …") is a `lesson:`
   block (`statement`, `about`).
-- **Every question** you cannot answer is a `question:` block where it arose (`q:` the question, `context:` why it
-  matters, links to what it touches, `status: open`). Never write questions as prose, bullets or "Q1:" lines.
-  The person answers with a decision block next to it and resolves the question.
+- **Every question** you cannot answer is a `question:` block where it arose (`q:` the question, `why:` what is
+  blocked or waiting on it, `answer-changes:` what each likely answer changes, `decides:` the decision it settles,
+  `status: open`). Never write questions as prose, bullets or "Q1:" lines. A question you ask the person live
+  (AskUserQuestion) says in its text what you are blocked on, and in each option's description what choosing it will
+  change. When the person answers, the librarian updates the decision `decides:` names and resolves the question.
 - **Every requirement** is a `req:` block (`title`, `status: proposed`, its when / then / unless child blocks under the card); **every constraint the
   code enforces** a `rule:` block with `source: file:line` on the card and its `- statement:<slug> …` line under it; **every work item** a
   `- [ ] task:` line in the plan (or the document the work belongs to), `part of goal:…`.
@@ -94,7 +96,10 @@ The kind is decided by what the block *is*, not by where it came from. Getting i
   on the card and what it guarantees as a `- statement:<slug> …` block under it. A rule without a source is a wish.
 - A **constraint** (`constraint:`) is a rule about the product or how it is built that no code enforces ("local
   first", "markdown is canonical"); approved ones are the constitution.
-- A **question** (`question:`) is what the knowledge leaves open, with `q` and `context`; a **task** (`task:`) is a
+- A **question** (`question:`) is what the knowledge leaves open, and it says why it is asked and what its answer
+  changes: `q` the question, `why` what is blocked or waiting on the answer, `answer-changes` what each likely answer
+  changes (naming the blocks or work), `decides` the decision it settles — or, before one exists, the req /
+  constraint / rule the choice belongs to; `wye propose` refuses a question without them. A **task** (`task:`) is a
   unit of work; a **goal** (`goal:`) is what a project sets out to achieve, refined by requirements.
 
 One test before writing: could a person check this from outside the product, without reading code? Yes → a

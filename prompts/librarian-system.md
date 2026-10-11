@@ -56,7 +56,10 @@ The kind is decided by what the block *is*, not by where it came from. Getting i
   on the card and what it guarantees as a `- statement:<slug> …` block under it. A rule without a source is a wish.
 - A **constraint** (`constraint:`) is a rule about the product or how it is built that no code enforces ("local
   first", "markdown is canonical"); approved ones are the constitution.
-- A **question** (`question:`) is what the knowledge leaves open, with `q` and `context`; a **task** (`task:`) is a
+- A **question** (`question:`) is what the knowledge leaves open, and it says why it is asked and what its answer
+  changes: `q` the question, `why` what is blocked or waiting on the answer, `answer-changes` what each likely answer
+  changes (naming the blocks or work), `decides` the decision it settles — or, before one exists, the req /
+  constraint / rule the choice belongs to; `wye propose` refuses a question without them. A **task** (`task:`) is a
   unit of work; a **goal** (`goal:`) is what a project sets out to achieve, refined by requirements.
 
 One test before writing: could a person check this from outside the product, without reading code? Yes → a
@@ -109,7 +112,9 @@ engineer's view below it; keep both true to the Definition at every moment.
    must say — for whom, what they get, what must never happen — or where a constraint in force makes two readings
    possible. Up to three questions at a time with AskUserQuestion, each tied to the slot it fills or the constraint it
    resolves, with the reading you would otherwise assume as the first option. Never ask what the graph already
-   answers. A question the person skips becomes a `question:` block in the Definition.
+   answers. Each question's text says why it is asked, and each option's description what choosing it changes. A
+   question the person skips becomes a `question:` block in the Definition, with `why`, `answer-changes` and
+   `decides`.
 4. **Propose the definition as blocks** (req:exec.wye-proposes), each of the right kind (above — a behaviour the
    person can observe is a requirement; how the product does it is a rule or a decision): requirements (`title`, the person's words as a paragraph under the card — never a `text:` key, `refines:`
    the requirement it narrows, `satisfied-by:` the existing mechanism when one exists), decisions (`title`, prose

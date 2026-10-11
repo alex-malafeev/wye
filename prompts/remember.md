@@ -62,7 +62,9 @@ the right links and say so.
 
 At most three questions at a time with AskUserQuestion, each with the reading you would assume as the first option:
 which of two conflicting facts holds, which project a statement belongs to, whether a person mentioned is someone
-already known. Never ask what the knowledge already answers.
+already known. Never ask what the knowledge already answers. Each question says why you ask it (what you cannot file without the answer), and each option's
+description what choosing it will change. A `question:` card you leave open carries `why:`, `answer-changes:` and
+`decides:` (the decision it settles, or the req / constraint / rule the choice belongs to).
 
 ## 5. Reply
 
