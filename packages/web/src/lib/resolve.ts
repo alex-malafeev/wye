@@ -44,7 +44,7 @@ export async function resolveLink(scope: Scope, link: string): Promise<Resolved 
   const text = out.node?.body ?? out.block?.text ?? out.section?.text ?? (anchor ? '' : body);
   const srcs = [...text.matchAll(/\]\((drawings\/[a-z0-9._-]+)\.excalidraw\)/g)].map(m => m[1]);
   // images in the text (a bug's screenshot: ![shot](assets/x.png)): the file an agent can look at
-  const imgs = [...text.matchAll(/!\[([^\]]*)\]\(((?:assets|drawings)\/[A-Za-z0-9._-]+\.(?:png|jpe?g|gif|webp|svg))\)/g)];
+  const imgs = [...text.matchAll(/!\[([^\]]*)\]\(((?:assets|drawings)\/(?:[A-Za-z0-9][A-Za-z0-9._-]*\/)*[A-Za-z0-9._-]+\.(?:png|jpe?g|gif|webp|svg))\)/g)];
   if (imgs.length) out.images = [...new Map(imgs.map(m => [m[2], { src: m[2], alt: m[1], path: path.join(assetDir(docNode.file), m[2]) }])).values()];
   if (srcs.length) {
     const docsDir = path.join(REPO_ROOT, assetDir(docNode.file));
