@@ -1,5 +1,5 @@
 // The pages the app writes into every product (lib/doc SYSTEM_DIR): Goals and Work (lib/pr-docs SYSTEM_VIEWS), Hooks,
-// Skills with the base skills and the shipped workflows (decision:wf2.hooks-and-skills). They live in the project that
+// Skills (decision:wf2.hooks-and-skills) — the base skills and workflows under it are rendered from the install by each build. They live in the project that
 // holds PRs (else the first) and are written the first time the product is shown. A page written just now is not in
 // the graph yet, so the product is built before anything renders it — or the rail's Goals and Work of a new product
 // lead to "Page not found" until something else builds it.
@@ -8,7 +8,7 @@ import path from 'node:path';
 import { isSystemSlug } from './doc';
 import { prsPageId } from './pr-doc';
 import { SYSTEM_VIEWS, ensureViewPages, viewPageId } from './pr-docs';
-import { ensureBaseSkills, ensureBaseWorkflows, ensureHooksPage, hooksPageId, skillsPageId } from './skills';
+import { ensureHooksPage, ensureSkillsPage, hooksPageId, skillsPageId } from './skills';
 import { loadScope, treeFor, type Scope } from './scope';
 import { rebuild } from './write';
 
@@ -26,9 +26,10 @@ export async function ensureSystemPages(scope: Scope): Promise<Scope> {
   let wrote = false;
   try {
     const m = mainOf(scope, p);
-    const views = await ensureViewPages(p); await ensureHooksPage(p, m);
-    const skills = await ensureBaseSkills(p, m); const flows = await ensureBaseWorkflows(p, m);
-    wrote = views.length + skills.length + flows.length > 0;
+    // the Skills and Hooks pages only: the skills, workflows and hooks under them come from the install with each build
+    // (lib/shipped — decision:waterfall.skills-read-from-install-overrides-on-edit), never copied in
+    const views = await ensureViewPages(p); await ensureHooksPage(p, m); await ensureSkillsPage(p, m);
+    wrote = views.length > 0;
   } catch { /* read-only tree */ }
   const pages: [string, string][] = [...SYSTEM_VIEWS.map(v => [viewPageId(p.slug, v.slug), `${v.slug}.md`] as [string, string]), [hooksPageId(p.slug), 'hooks.md'], [skillsPageId(p.slug), 'skills.md']];
   const known = new Set(scope.graph.modules.map(m => m.id));

@@ -89,52 +89,6 @@ export function shippedTexts(file: string, toText: (content: string) => string):
   return history.get(file)!;
 }
 
-// Write the base skills under the Skills page when they are missing, and bring the ones nobody edited up to date with
-// their prompt. Returns the slugs written.
-export async function ensureBaseSkills(project: Project, root: string | null): Promise<string[]> {
-  const parent = await ensureSkillsPage(project, root);
-  const written: string[] = [];
-  for (const s of BASE_SKILLS) {
-    const file = path.join(project.wyeDir, `skill-${s.slug}.md`);
-    let prompt = ''; try { prompt = await readFile(path.join(REPO_ROOT, s.file), 'utf8'); } catch { continue; }
-    const fresh = skillDocFromPrompt(prompt, s, parent);
-    if (await exists(file)) {
-      const cur = await readFile(file, 'utf8');
-      const legacy = !/^source-hash:/m.test(splitDoc(cur).fm) ? await shippedTexts(s.file, p => p.replace(/^# .*\n+/, '').trim()) : new Set<string>();
-      const next = followSource(cur, fresh, t => legacy.has(t));
-      if (next) { await writeAtomic(file, next); written.push(s.slug); }
-      continue;
-    }
-    await writeAtomic(file, fresh);
-    written.push(s.slug);
-  }
-  return written;
-}
-
-// The shipped workflows under the Skills page, written when missing and kept up to date while nobody edited them
-// (decision:wf2.workflow-is-a-skill, decision:wf2.shipped-copies-follow-source). Returns the slugs written. `{{title}}` and the produced-document names in the stage cards are left for the engine to fill.
-export async function ensureBaseWorkflows(project: Project, root: string | null): Promise<string[]> {
-  const parent = await ensureSkillsPage(project, root);
-  const written: string[] = [];
-  for (const slug of BASE_WORKFLOWS) {
-    const file = path.join(project.wyeDir, `workflow-${slug}.md`); const src = `templates/docs/workflow-${slug}.md`;
-    let tpl = ''; try { tpl = await readFile(path.join(REPO_ROOT, src), 'utf8'); } catch { continue; }
-    const filled = fill(tpl, { slug, date: today(), parent });
-    const { fm, body } = splitDoc(filled);
-    const fresh = `---\n${fm}\nsource: ${src}\nsource-hash: ${textHash(textOf(body))}\n---\n${body}`;
-    if (await exists(file)) {
-      const cur = await readFile(file, 'utf8');
-      const legacy = !/^source-hash:/m.test(splitDoc(cur).fm) ? await shippedTexts(src, t => textOf(splitDoc(fill(t, { slug, date: '', parent: '' })).body)) : new Set<string>();
-      const next = followSource(cur, fresh, t => legacy.has(t));
-      if (next) { await writeAtomic(file, next); written.push(slug); }
-      continue;
-    }
-    await writeAtomic(file, fresh);
-    written.push(slug);
-  }
-  return written;
-}
-
 // A new, empty skill from the template ("+ skill" on the folder). Returns the document slug.
 export async function createSkillDoc(project: Project, root: string | null, title: string, role: SkillRole = 'librarian'): Promise<string> {
   const parent = await ensureSkillsPage(project, root);
