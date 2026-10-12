@@ -5,7 +5,7 @@ title: Shipped hooks
 status: active
 owner: unassigned
 last-verified: {{date}}
-{{parent}}---
+{{parent}}{{source}}---
 
 # Shipped hooks
 

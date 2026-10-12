@@ -106,7 +106,15 @@ export function renamePage(md: string, title: string): WriteResult {
 // The temp name is unique per call, not per process: two writes of one file in flight at once (a save and the debounced
 // one behind it) must never share a temp file — one would truncate the other's and the rename that lost would fail.
 let writeSeq = 0;
+// A shipped document (lib/shipped, rendered into <product>/_build/shipped/<project>/) is never written: an edit to it
+// becomes the project's own copy in projects/<project>/.wye/, which the next build uses in its place
+// (req:waterfall.global-skills.override). The copy keeps the shipped `source-hash:` it started from.
+export const overrideOf = (file: string): string | null => {
+  const m = file.match(/^(.*)\/_build\/shipped\/([^/]+)\/([^/]+\.md)$/);
+  return m ? path.join(m[1], 'projects', m[2], '.wye', m[3]) : null;
+};
 export async function writeAtomic(file: string, text: string): Promise<void> {
+  file = overrideOf(file) ?? file;
   await mkdir(path.dirname(file), { recursive: true }); // a project's .wye/ is made by its first system page
   // rule:install.write-through-link: under a package link (projects/<p>/.wye/packages/<pkg> → the system library) the
   // temp file is made in the link's real folder and renamed onto the real file — the save lands in the system library
