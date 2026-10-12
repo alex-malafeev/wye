@@ -17,7 +17,7 @@ export type Scored = ChunkRow & { score: number };
 const TABLE = 'chunks';
 const ALL = 10_000_000;
 const schema = (dim: number) => new Schema([
-  ...['id', 'source', 'scope', 'ref', 'title', 'text', 'body', 'nodes', 'hash', 'model'].map(n => new Field(n, new Utf8(), false)),
+  ...['id', 'source', 'scope', 'ref', 'title', 'body', 'nodes', 'hash', 'model'].map(n => new Field(n, new Utf8(), false)),
   new Field('vector', new FixedSizeList(dim, new Field('item', new Float32(), true)), false),
 ]);
 export const hashOf = (c: ChunkRow) => createHash('sha1').update(c.title + '\n' + c.text + '\n' + c.nodes.join(',')).digest('hex').slice(0, 16);
@@ -26,7 +26,14 @@ const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
 export async function openStore(dir: string, dim: number): Promise<Store> {
   await mkdir(dir, { recursive: true });
   const db = await lancedb.connect(dir);
-  const table = (await db.tableNames()).includes(TABLE) ? await db.openTable(TABLE) : await db.createEmptyTable(TABLE, schema(dim));
+  let table = (await db.tableNames()).includes(TABLE) ? await db.openTable(TABLE) : await db.createEmptyTable(TABLE, schema(dim));
+  // an index written before the text was stored once is rewritten without its copy, once, keeping its vectors (dropping
+  // the column alone leaves its bytes in the data files)
+  if ((await table.schema()).fields.some(f => f.name === 'text')) {
+    const rows = (await table.query().limit(ALL).toArray()).map(({ text: _text, ...r }) => ({ ...r, vector: Array.from(r.vector as ArrayLike<number>) }));
+    table = rows.length ? await db.createTable(TABLE, rows, { mode: 'overwrite', schema: schema(dim) }) : await db.createEmptyTable(TABLE, schema(dim), { mode: 'overwrite' });
+    if (rows.length) await table.createIndex('body', { config: lancedb.Index.fts({ withPosition: false }) });
+  }
   const hasFts = (await table.listIndices()).some(i => i.columns.includes('body'));
   let scopes: Store['scopes'] = {};
   try { scopes = JSON.parse(await readFile(path.join(dir, 'scopes.json'), 'utf8')); } catch { /* fresh */ }
@@ -43,7 +50,7 @@ export async function state(s: Store): Promise<Map<string, { scope: string; hash
 export async function apply(s: Store, remove: string[], add: StoredRow[]): Promise<void> {
   const gone = [...new Set([...remove, ...add.map(r => r.id)])];
   for (let i = 0; i < gone.length; i += 500) await s.table.delete(`id IN (${gone.slice(i, i + 500).map(lit).join(',')})`);
-  if (add.length) await s.table.add(add.map(r => ({ id: r.id, source: r.source, scope: r.scope, ref: r.ref, title: r.title, text: r.text, body: `${r.title}\n${r.text}`, nodes: JSON.stringify(r.nodes), hash: r.hash, model: r.model, vector: r.vector })));
+  if (add.length) await s.table.add(add.map(r => ({ id: r.id, source: r.source, scope: r.scope, ref: r.ref, title: r.title, body: `${r.title}\n${r.text}`, nodes: JSON.stringify(r.nodes), hash: r.hash, model: r.model, vector: r.vector })));
   if (!add.length && !gone.length) return;
   if (!s.hasFts && add.length) { await s.table.createIndex('body', { config: lancedb.Index.fts({ withPosition: false }) }); s.hasFts = true; }
 }
@@ -59,8 +66,9 @@ export async function tidy(s: Store, keepMs = KEEP_MS): Promise<void> {
   await s.table.optimize({ cleanupOlderThan: new Date(Date.now() - keepMs) });
 }
 
-const toChunk = (r: Record<string, unknown>): ChunkRow => ({ id: String(r.id), source: r.source as Source, ref: String(r.ref), title: String(r.title), text: String(r.text), nodes: JSON.parse(String(r.nodes || '[]')) });
-const COLS = ['id', 'source', 'ref', 'title', 'text', 'nodes'];
+// the text is stored once, in body after the title and a newline — the column full-text search reads
+const toChunk = (r: Record<string, unknown>): ChunkRow => { const title = String(r.title); return { id: String(r.id), source: r.source as Source, ref: String(r.ref), title, text: String(r.body).slice(title.length + 1), nodes: JSON.parse(String(r.nodes || '[]')) }; };
+const COLS = ['id', 'source', 'ref', 'title', 'body', 'nodes'];
 export async function getChunks(s: Store, ids: string[]): Promise<ChunkRow[]> {
   const out = new Map<string, ChunkRow>();
   for (let i = 0; i < ids.length; i += 500) for (const r of await s.table.query().where(`id IN (${ids.slice(i, i + 500).map(lit).join(',')})`).select(COLS).limit(ALL).toArray()) out.set(String(r.id), toChunk(r));

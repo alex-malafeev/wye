@@ -69,6 +69,16 @@ describe('store', () => {
     expect((await readdir(path.join(t, '_versions'))).length).toBeLessThanOrEqual(2);
     expect((await search(s, 'invite', null, { limit: 10 })).map(h => h.id)).toEqual(['doc:4a']);
   });
+  it('an index written with the text column drops it on open and still reads every passage', async () => {
+    const dir = await tmp();
+    const lancedb = await import('@lancedb/lancedb');
+    const db = await lancedb.connect(dir);
+    await db.createTable('chunks', [{ id: 'doc:a', source: 'doc', scope: 's', ref: 'a', title: 'Invites', text: 'the invite email', body: 'Invites\nthe invite email', nodes: '[]', hash: 'h', model: 'm', vector: [0, 0, 1] }]);
+    const s = await openStore(dir, DIM);
+    expect((await s.table.schema()).fields.map(f => f.name)).not.toContain('text');
+    expect(await getChunks(s, ['doc:a'])).toEqual([{ id: 'doc:a', source: 'doc', ref: 'a', title: 'Invites', text: 'the invite email', nodes: [] }]);
+    expect((await search(s, 'invite', null, { limit: 5 })).map(h => h.id)).toEqual(['doc:a']);
+  });
   it('search on an empty store is empty, not an error', async () => {
     expect(await search(await openStore(await tmp(), DIM), 'anything', [1, 0, 0], { limit: 5 })).toEqual([]);
   });
