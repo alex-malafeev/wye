@@ -4,3 +4,5 @@ packages/web/.next/
 data/_settings.json
 packages/desktop/dist/
 data/_trash/
+# a graph built at the repo root by a command run without --root: a cache, never committed
+/_build/

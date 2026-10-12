@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const assert = require('assert');
-const { initVault, links, readMeta, vaultAbove, vaultsBelow, vaultOf, reach, rescan, applyFixes } = require('../lib/vault');
+const { IGNORED, initVault, links, readMeta, vaultAbove, vaultsBelow, vaultOf, reach, rescan, applyFixes } = require('../lib/vault');
 const { parseFiles } = require('../lib/parse');
 const { Graph } = require('../lib/graph');
 
@@ -26,6 +26,22 @@ const meta = fs.readFileSync(path.join(dir, '_product.md'), 'utf8');
 assert(/^slug: payments$/m.test(meta) && !/^repo:/m.test(meta) && !meta.includes(tmp), 'the vault names its slug and no path of this machine');
 const ignore = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8').split('\n');
 for (const c of ['_build/', '_sessions/', '_changes/', '_hooks/', '_impact/', '_ea/']) assert(ignore.includes(c), `${c} stays out of git`);
+// git itself lists no cache file: every cache folder filled, the folder a git repo (req:waterfall.cache-size.ignored)
+{
+  const { execFileSync } = require('child_process');
+  const git = (...a) => execFileSync('git', a, { cwd: F('services/payments'), encoding: 'utf8' });
+  git('init', '-q');
+  for (const c of IGNORED) { fs.mkdirSync(path.join(dir, c, 'deep'), { recursive: true }); fs.writeFileSync(path.join(dir, c, 'deep', 'x.json'), '{}'); }
+  fs.mkdirSync(path.join(dir, '_build/search.lance/chunks.lance/data'), { recursive: true }); fs.writeFileSync(path.join(dir, '_build/search.lance/chunks.lance/data/a.lance'), 'x');
+  const listed = git('status', '--porcelain', '--untracked-files=all').split('\n').filter(l => /\/_[a-z]+\//.test(l));
+  assert.deepStrictEqual(listed, [], 'git status lists no cache file');
+  fs.rmSync(F('services/payments/.git'), { recursive: true, force: true });
+}
+// this repo's legacy product home ignores the same folders, _hooks aside (its records there are committed)
+{
+  const home = fs.readFileSync(path.join(__dirname, '../data/products/.gitignore'), 'utf8');
+  for (const c of IGNORED.filter(c => c !== '_hooks/')) assert(home.split('\n').some(l => l === c || l === `**/${c}*` || l === `**/${c}`), `data/products ignores ${c}`);
+}
 const docs = path.join(dir, 'projects/payments/docs');
 assert(!fs.readdirSync(docs).some(f => fs.readFileSync(path.join(docs, f), 'utf8').includes(tmp)), 'no page holds an absolute path');
 const g = new Graph(parseFiles(fs.readdirSync(docs).filter(f => f.endsWith('.md')).map(f => path.join(docs, f)).sort()));
