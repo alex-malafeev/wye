@@ -8,6 +8,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { createRequire } from 'node:module';
 import { REPO_ROOT, type Project } from './products';
 import { writeAtomic } from './write';
 import { bodyOf } from './write';
@@ -18,33 +19,12 @@ export const hooksPageId = (projectSlug: string) => `module:${projectSlug}-hooks
 
 export type SkillRole = 'librarian' | 'worker';
 
-// The base skills: which prompt file each comes from and the card that heads its document.
-export const BASE_SKILLS: { slug: string; title: string; role: SkillRole; file: string; takes?: string; writes?: string[]; skills?: string[] }[] = [
-  { slug: 'refine', title: 'Refine a request', role: 'librarian', file: 'prompts/librarian-system.md', takes: 'pr', writes: ['req', 'decision', 'constraint', 'question', 'task'] },
-  { slug: 'build', title: 'Build a request', role: 'worker', file: 'prompts/agent-system.md', takes: 'pr', writes: ['task', 'decision'] },
-  { slug: 'describe-module', title: 'Describe a module from its code', role: 'worker', file: 'prompts/describe-module.md', takes: 'module', writes: ['req', 'lib', 'op'] },
-  { slug: 'define-tests', title: 'Define how a requirement is tested', role: 'librarian', file: 'prompts/define-tests.md', takes: 'req', writes: ['test', 'ui-test', 'question'] },
-  { slug: 'analyse-request', title: 'Analyse a request — changes, code, risks, contradictions', role: 'librarian', file: 'prompts/analyse-request.md', takes: 'pr', writes: ['constraint', 'question'] },
-  { slug: 'revisit-request', title: 'Revisit a request with the current approach', role: 'librarian', file: 'prompts/revisit-request.md', takes: 'pr', writes: ['req', 'decision', 'question', 'test'] },
-  { slug: 'remember', title: 'Remember what the person pasted', role: 'librarian', file: 'prompts/remember.md', takes: '*', writes: ['fact', 'decision', 'req', 'question', 'task', 'note'] },
-  { slug: 'complete', title: 'Complete this — and what belongs to it', role: 'librarian', file: 'prompts/complete.md', takes: '*', writes: ['task', 'commitment', 'risk', 'question', 'goal', 'project'] },
-  { slug: 'import', title: 'Import a document — extract its types, requirements, facts and decisions', role: 'worker', file: 'prompts/import.md', takes: 'module', writes: ['type', 'req', 'decision', 'constraint', 'entity', 'fact', 'task', 'question'] },
-  { slug: 'import-code', title: 'Import a module from its code — requirements, rules, entities, operations, tests', role: 'worker', file: 'prompts/import-code.md', takes: 'module', writes: ['req', 'rule', 'entity', 'state', 'op', 'lib', 'test', 'question'] },
-  // the stages of workflow:feature (decision:wf2.workflow-is-a-skill): each one an editable instruction
-  { slug: 'research', title: 'Explore an idea', role: 'worker', file: 'prompts/research.md', takes: '*', writes: ['question', 'decision', 'note'] },
-  { slug: 'prd', title: 'Write a PRD', role: 'librarian', file: 'prompts/prd.md', takes: 'module', writes: ['req', 'goal', 'question', 'entity'] },
-  { slug: 'tech-design', title: 'Write the technical design', role: 'librarian', file: 'prompts/tech-design.md', takes: 'module', writes: ['decision', 'entity', 'op', 'rule', 'state', 'page'] },
-  { slug: 'test-design', title: 'Write the test design', role: 'librarian', file: 'prompts/test-design.md', takes: 'module', writes: ['test', 'ui-test', 'question'], skills: ['skill:define-tests'] },
-  { slug: 'plan', title: 'Build the implementation plan', role: 'librarian', file: 'prompts/plan.md', takes: 'module', writes: ['task'] },
-  // a plan page and its build, run by an agent in a terminal from the folder with the vault (/wye-plan, /wye-build —
-  // decision:waterfall.plan-is-a-vault-document): the launchers fetch these, so a person edits them here
-  { slug: 'plan-page', title: 'Plan a piece of work as a plan page', role: 'worker', file: 'prompts/plan-page.md', takes: '*', writes: ['plan', 'req', 'task', 'decision', 'question'] },
-  { slug: 'build-plan', title: 'Build a plan', role: 'worker', file: 'prompts/build-plan.md', takes: 'plan', writes: ['task', 'decision', 'question', 'req'] },
-];
-
-// The workflows shipped as documents beside the skills (decision:wf2.workflow-is-a-skill): a workflow is a skill that
-// declares stages, so it lives under the same page and a person edits the pipeline as they edit a prompt.
-export const BASE_WORKFLOWS = ['feature'];
+// The base skills and the shipped workflows: the catalog lives in lib/shipped.js, which the build renders into every
+// product from the install (decision:waterfall.skills-read-from-install-overrides-on-edit).
+type BaseSkill = { slug: string; title: string; role: SkillRole; file: string; takes?: string; writes?: string[]; skills?: string[] };
+const shippedLib = createRequire(path.join(REPO_ROOT, 'package.json'))('./lib/shipped.js') as { BASE_SKILLS: BaseSkill[]; BASE_WORKFLOWS: string[] };
+export const BASE_SKILLS: BaseSkill[] = shippedLib.BASE_SKILLS;
+export const BASE_WORKFLOWS: string[] = shippedLib.BASE_WORKFLOWS;
 
 const today = () => new Date().toISOString().slice(0, 10);
 const fill = (tpl: string, vars: Record<string, string>) => tpl.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? vars[k] : m));
