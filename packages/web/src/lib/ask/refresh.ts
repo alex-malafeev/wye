@@ -27,7 +27,7 @@ export function getStore(p: Product): Promise<Store> {
   if (!s) {
     s = openStore(path.join(p.dir, '_build/search.lance'), EMBED_DIM); s.catch(() => stores.delete(p.dir)); stores.set(p.dir, s);
     // the versions an earlier run left behind go when the store is first opened (decision:waterfall.index-compacts-once-per-refresh)
-    void s.then(st => withLock(p.dir, () => tidy(st))).catch(e => console.warn(`[ask] ${p.slug}: tidying the index failed — ${e instanceof Error ? e.message : e}`));
+    void s.then((st: Store) => withLock(p.dir, () => tidy(st))).catch((e: unknown) => console.warn(`[ask] ${p.slug}: tidying the index failed — ${e instanceof Error ? e.message : e}`));
   }
   return s;
 }
