@@ -36,7 +36,7 @@ export async function cacheInfo(p: Product): Promise<CacheInfo> {
   let other = 0; for (const f of await readdir(path.join(p.dir, '_build')).catch(() => [] as string[])) if (!known.has(f)) other += await sizeOf(b(f));
   if (other) parts.push({ key: 'other', label: 'Other build files', bytes: other, clears: false });
   for (const [d, label] of HISTORY) parts.push({ key: d, label, bytes: await sizeOf(path.join(p.dir, d)), clears: false });
-  parts.push({ key: 'models', label: 'Embedding models (all products)', bytes: await sizeOf(path.join(REPO_ROOT, '.cache/models')), clears: false, shared: true });
+  parts.push({ key: 'models', label: 'Embedding models', bytes: await sizeOf(path.join(REPO_ROOT, '.cache/models')), clears: false, shared: true });
   const own = parts.filter(x => !x.shared);
   return { product: p.slug, parts, total: own.reduce((s, x) => s + x.bytes, 0), clearable: parts.filter(x => x.clears).reduce((s, x) => s + x.bytes, 0), rebuilding: clearing().has(p.dir) || indexingNow(p) };
 }

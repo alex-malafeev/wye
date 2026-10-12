@@ -1224,6 +1224,17 @@ HTTP operations this module serves (`op:` cards); the wf CLI and the UI call the
     person ticks it.
   status: proposed
   part-of: module:app-storage
+- id: lib:cache
+  file: packages/web/src/lib/cache.ts
+  side: server
+  purpose: >
+    A product's cache on disk (req&#58;waterfall.cache-size.status-bar): each part with its size, for the status bar
+    and its popover, and Clear and rebuild. Only what rebuilds here without a model call is cleared — the Ask index,
+    the graph, the context search's vectors, the viewer's data (decision&#58;waterfall.history-is-not-cache); the
+    model judgements cached in _build (verdicts, impact, cleanup, jev) cost agent calls to remake and are kept, as
+    are the eval results, the history (_sessions, _changes, _hooks) and the shared models.
+  status: proposed
+  part-of: module:app-storage
 ```
 
 <!-- /list:lib -->

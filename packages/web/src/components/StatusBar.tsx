@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { CacheItem } from './CacheItem';
 
 // The bar at the bottom of every page (decision:waterfall.status-bar-memory-and-limits): the server's memory against
 // its cap, and each agent's plan windows as Claude Code's /usage and Codex's /status show them — the 5-hour and the
@@ -50,7 +51,7 @@ export function StatusBar() {
     return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
   }, [open]);
   const setMode = (c: boolean) => { setCompact(c); try { localStorage.setItem('wf-statusbar', c ? 'compact' : 'detailed'); } catch { /* ignore */ } };
-  if (!s) return <div className="statusbar" ref={bar} />;
+  if (!s) return <div className="statusbar" ref={bar}><span className="sb-strip" /><CacheItem /></div>;
   const mem = s.memory; const pct = Math.round(mem.used / (mem.capGb * 2 ** 30) * 100);
   const Bar = ({ percent }: { percent: number }) => <span className="sb-bar"><i style={{ width: `${Math.min(100, percent)}%` }} /></span>;
   return (
@@ -67,6 +68,7 @@ export function StatusBar() {
           </span>
         ))}
       </button>
+      <CacheItem />
       {open && (
         <div className="sb-pop" role="dialog" aria-label="Usage">
           <div className="sb-pop-head"><b>Usage</b><span className="muted">every {Math.round(s.pollMs / 60000)} min</span><button type="button" className="mini" title="Ask again now" onClick={() => setTick(t => t + 1)}>↻</button></div>

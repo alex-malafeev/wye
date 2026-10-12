@@ -987,6 +987,14 @@ Every operation the UI, the wye CLI and agents call, by area; the CLI commands a
   source: packages/web/src/app/api/[product]/cleanup/route.ts
   status: proposed
   part-of: module:api
+- id: op:api.cache
+  args: GET | POST /api/<product>/cache
+  does: >
+    (no header comment)
+  gate: none (local app)
+  source: packages/web/src/app/api/[product]/cache/route.ts
+  status: proposed
+  part-of: module:api
 ```
 
 <!-- /list:op -->

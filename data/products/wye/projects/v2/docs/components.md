@@ -1228,6 +1228,15 @@ The editor's blocks and the components the pages are made of, by area.
     ones
   status: proposed
   part-of: module:components
+- id: component:cache-item
+  file: packages/web/src/components/CacheItem.tsx
+  side: client
+  purpose: >
+    The open product's cache on the status bar (req&#58;waterfall.cache-size.status-bar): its size on disk; a click
+    opens each part with its size and Clear and rebuild, which deletes what rebuilds without a model call and builds
+    it again (lib/cache). Hidden off a product's pages. Polled every minute, every two seconds while a rebuild runs.
+  status: proposed
+  part-of: module:components
 ```
 
 <!-- /list:component -->
