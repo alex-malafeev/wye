@@ -14,6 +14,18 @@ const PROSE_KEYS = ['text', 'title', 'statement', 'description', 'when', 'then',
 
 type Entry = { id: string; hash: string; vec: number[] };
 type Cache = { model: string; entries: Record<string, Entry> };
+// on disk each vector is Int8 scaled by its largest component, base64 (decision:waterfall.embeddings-stored-as-int8):
+// a fifth of the bytes of decimal JSON, and finer than the four decimals it replaced; an older file's arrays still read
+type Stored = { id: string; hash: string; vec?: number[]; q?: string; s?: number };
+export function packVec(v: number[]): { q: string; s: number } {
+  const s = Math.max(...v.map(Math.abs)) || 1;
+  return { q: Buffer.from(Int8Array.from(v, x => Math.round(x / s * 127)).buffer).toString('base64'), s };
+}
+export function unpackVec(e: Stored): number[] {
+  if (Array.isArray(e.vec)) return e.vec;
+  const b = Buffer.from(e.q ?? '', 'base64'); const s = (e.s ?? 1) / 127;
+  return Array.from(new Int8Array(b.buffer, b.byteOffset, b.length), x => x * s);
+}
 export type Hit = { id: string; score: number; semantic: number; keyword: number; snippet: string };
 // hits plus how many ended nodes (superseded, rejected, retired, past `until`) the filter kept out
 export type Hits = Hit[] & { hidden?: number };
@@ -34,18 +46,21 @@ async function buildIndex(productDir: string, graph: GraphData) {
   const texts = new Map(nodes.map(n => [n.id, nodeText(n)]));
   const file = path.join(productDir, '_build/embeddings.json');
   let cache: Cache = { model: MODEL, entries: {} };
-  try { const c = JSON.parse(await readFile(file, 'utf8')) as Cache; if (c.model === MODEL) cache = c; } catch { /* cold */ }
+  try {
+    const c = JSON.parse(await readFile(file, 'utf8')) as { model: string; entries: Record<string, Stored> };
+    if (c.model === MODEL) cache = { model: c.model, entries: Object.fromEntries(Object.entries(c.entries).map(([id, e]) => [id, { id: e.id, hash: e.hash, vec: unpackVec(e) }])) };
+  } catch { /* cold */ }
   const stale = nodes.filter(n => cache.entries[n.id]?.hash !== hashOf(texts.get(n.id)!));
   if (stale.length) {
     const embed = await getEmbedder();
     for (let i = 0; i < stale.length; i += 64) {
       const batch = stale.slice(i, i + 64);
       const vecs = await embed(batch.map(n => texts.get(n.id)!));
-      batch.forEach((n, k) => { cache.entries[n.id] = { id: n.id, hash: hashOf(texts.get(n.id)!), vec: vecs[k].map(x => Math.round(x * 1e4) / 1e4) }; });
+      batch.forEach((n, k) => { cache.entries[n.id] = { id: n.id, hash: hashOf(texts.get(n.id)!), vec: vecs[k] }; });
     }
     for (const id of Object.keys(cache.entries)) if (!texts.has(id)) delete cache.entries[id];
     await mkdir(path.dirname(file), { recursive: true });
-    await writeFile(file, JSON.stringify(cache));
+    await writeFile(file, JSON.stringify({ model: cache.model, entries: Object.fromEntries(Object.entries(cache.entries).map(([id, e]) => [id, { id: e.id, hash: e.hash, ...packVec(e.vec) }])) }));
   }
   return { nodes, texts, vecs: new Map(nodes.map(n => [n.id, cache.entries[n.id].vec])) };
 }
