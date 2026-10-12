@@ -191,8 +191,9 @@ export async function listSkills(scope: Scope): Promise<{ id: string; title: str
   const out: { id: string; title: string; role: string; takes: string; status: string; slug: string; project: string }[] = [];
   for (const p of scope.projects) {
     // the project's own skill pages, then those of the packages it installed (.wye/packages/<pkg>/skill-*.md)
-    const dirs: [string, string][] = [[p.wyeDir, '']];
-    try { for (const pkg of await readdir(path.join(p.wyeDir, 'packages'))) dirs.push([path.join(p.wyeDir, 'packages', pkg), `${pkg}.`]); } catch { /* no packages */ }
+    // and what Wye ships, rendered from the install by the build (lib/shipped) — after the project's own, which win
+    const dirs: [string, string][] = [[p.wyeDir, ''], [path.join(p.dir, '../..', '_build', 'shipped', p.slug), '']];
+    try { for (const pkg of await readdir(path.join(p.wyeDir, 'packages'))) dirs.splice(1, 0, [path.join(p.wyeDir, 'packages', pkg), `${pkg}.`]); } catch { /* no packages */ }
     for (const [dir, prefix] of dirs) {
       let files: string[] = []; try { files = (await readdir(dir)).filter(f => /^skill-.*\.md$/.test(f)); } catch { continue; }
       for (const f of files) {

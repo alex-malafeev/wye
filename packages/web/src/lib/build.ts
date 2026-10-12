@@ -16,7 +16,7 @@ import { graphDelta, mergeDeltas, EVERYTHING, NOTHING, type GraphDelta } from '.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const req = createRequire(path.join(REPO_ROOT, 'package.json'));
 type Lib = { newParseCache(): unknown; findDocs(root: string): string[]; buildGraph(root: string, o: { cache?: unknown; cwd?: string; files?: string[] }): { graph: GraphData; files: string[] }; checkLines(graph: GraphData, o: { repo: string; strict?: boolean }): { errors: string[]; warnings: string[]; output: string } };
-const LIB = ['./lib/parse.js', './lib/build.js'];
+const LIB = ['./lib/parse.js', './lib/build.js', './lib/shipped.js'];
 // The parser is CommonJS, required once and kept in Node's module cache, which Next's reload does not touch: editing
 // lib/parse.js while the dev server runs used to leave it building yesterday's graph, silently. In development the
 // files' mtimes are checked and the modules dropped when they change; the parse caches go with them, because they hold

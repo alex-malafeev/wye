@@ -8,7 +8,7 @@ import { usePathname } from 'next/navigation';
 type Part = { key: string; label: string; bytes: number; clears: boolean; shared?: boolean };
 type Info = { product: string; parts: Part[]; total: number; clearable: number; rebuilding: boolean };
 
-export const size = (b: number) => b >= 2 ** 30 ? `${(b / 2 ** 30).toFixed(1)} GB` : b >= 2 ** 20 ? `${(b / 2 ** 20).toFixed(b >= 10 * 2 ** 20 ? 0 : 1)} MB` : b >= 1024 ? `${Math.round(b / 1024)} KB` : b ? `${b} B` : '—';
+export const size = (b: number) => b >= 2 ** 30 ? `${(b / 2 ** 30).toFixed(1)} GB` : b >= 1000 * 1024 ? `${(b / 2 ** 20).toFixed(b >= 10 * 2 ** 20 ? 0 : 1)} MB` : b >= 1024 ? `${Math.round(b / 1024)} KB` : b ? `${b} B` : '—';
 const NOT_PRODUCTS = new Set(['', 'api', 'settings', 'new']);   // the app's own top-level routes
 
 export function CacheItem() {

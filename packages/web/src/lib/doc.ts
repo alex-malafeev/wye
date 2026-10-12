@@ -32,7 +32,11 @@ export function taskProgress(nodes: Pick<GraphNode, 'kind' | 'status' | 'file' |
 // makes can meet one. In a URL their slug carries SYSTEM_MARK (`/d/~goals`): slugify never makes a `~`.
 export const SYSTEM_DIR = '.wye';
 export const SYSTEM_MARK = '~';
-export const isSystemFile = (file: string) => /(^|\/)projects\/[^/]+\/\.wye\//.test(file);
+export const isSystemFile = (file: string) => /(^|\/)projects\/[^/]+\/\.wye\//.test(file) || isShippedFile(file);
+// What Wye ships (skills, workflows, hooks — lib/shipped) is rendered from the install into <product>/_build/shipped/<project>/
+// and opens as that project's system page, read-only: an edit is saved as the project's own copy in .wye/
+const SHIPPED_DOC = /(?:^|\/)_build\/shipped\/([^/]+)\/([^/]+)\.md$/;
+export const isShippedFile = (file: string) => SHIPPED_DOC.test(file);
 export const isSystemSlug = (slug: string) => slug.startsWith(SYSTEM_MARK);
 // the file name of a page's slug, without the mark (`~pr-12` → `pr-12`)
 export const bareSlug = (slug: string) => isSystemSlug(slug) ? slug.slice(SYSTEM_MARK.length) : slug;
@@ -229,6 +233,7 @@ export function docIdOf(g: Pick<GraphData, 'modules'>, file: string): string | n
 export function docNodeOf(index: Record<string, IndexEntry>, slug: string): string | null { for (const e of Object.values(index)) if (e.doc === slug) return e.id; return null; }
 export function docRoute(file: string): { project: string; doc: string } | null {
   const pm = file.match(PACKAGE_DOC); if (pm) return { project: pm[1], doc: packageSlug(pm[2], pm[3]) };
+  const sm = file.match(SHIPPED_DOC); if (sm) return { project: sm[1], doc: SYSTEM_MARK + sm[2] };
   const m = file.match(/\/projects\/([^/]+)\/(docs|\.wye)\/([^/]+)\.md$/);
   return m ? { project: m[1], doc: (m[2] === SYSTEM_DIR ? SYSTEM_MARK : '') + m[3] } : null;
 }

@@ -35,6 +35,6 @@ fs.appendFileSync(path.join(sys, 'hooks.md'), '\n```yaml\n- id: hook:import-anal
 const one = id => graph.nodes.filter(n => n.id === id && n.defined);
 assert.strictEqual(one('skill:remember').length, 1); assert.strictEqual(one('skill:remember')[0].title, 'Remember, our way', 'the own skill wins');
 assert.strictEqual(one('hook:import-analyse').length, 1); assert(/Imports wait/.test(one('hook:import-analyse')[0].title), 'the own hook wins');
-assert(!fs.existsSync(path.join(root, '_build/shipped/skill-remember.md')), 'the replaced skill is not rendered');
+assert(!fs.existsSync(path.join(root, '_build/shipped/app/skill-remember.md')), 'the replaced skill is not rendered');
 assert.deepStrictEqual(new Graph(graph).check({ repo: root }).errors, [], 'still clean with overrides');
 console.log('shipped ok — skills, workflows and hooks from the install, the product\'s own replace them, nothing written into it');
