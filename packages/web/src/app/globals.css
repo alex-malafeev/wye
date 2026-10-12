@@ -1754,3 +1754,4 @@ p.q-why.muted { border-left-color: var(--line); font-style: italic; }
 .cleanup-list p { margin: 4px 0 0 24px; font-size: 13px; line-height: 1.45; }
 .cleanup-why { font: 10px var(--font-m); text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 4px; background: var(--sunk); }
 .cleanup-why.duplicate { color: var(--accent); }
+.shipped-notice { flex-wrap: wrap; } .shipped-diff { flex-basis: 100%; } .shipped-diff pre { max-height: 320px; overflow: auto; white-space: pre-wrap; font: 12px var(--font-m); background: var(--sunk); padding: 8px 10px; border-radius: 8px; }

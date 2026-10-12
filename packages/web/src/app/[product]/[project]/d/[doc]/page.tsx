@@ -22,6 +22,8 @@ import { analyticsSql, buildAnalytics, facetsOf, parseAnalyticsQuery } from '@/l
 import { runQuery } from '@/lib/query';
 import { AnalyticsView } from '@/components/AnalyticsView';
 import { GoneNotice } from '@/components/GoneNotice';
+import { ShippedNotice } from '@/components/ShippedNotice';
+import { shippedStatus } from '@/lib/skills';
 
 export default async function DocPage({ params }: { params: Promise<{ product: string; project: string; doc: string }> }) {
   const { product, project, doc } = await params;
@@ -99,8 +101,10 @@ export default async function DocPage({ params }: { params: Promise<{ product: s
       </MapCanvas>
     </div>
   );
+  const shipped = await shippedStatus(scope.product.dir, d.file);
   return (
     <div className={`page${isSystemSlug(d.slug) && !/^~pr-\d+/.test(d.slug) ? ' page-full' : ''}`}>
+      {shipped && <ShippedNotice product={product} project={project} slug={d.slug} status={shipped} />}
       {split.frontmatter.type === 'pr' && <PrHead product={product} prRef={`${product}/${project}/${d.slug}`} />}
       <RunStrip product={product} node={d.module.id} />
       {/* a page the app writes as a view (Goals, Work, Hooks, Skills — a `~` slug) has no header of its own: the view is the page; a request's page keeps it */}

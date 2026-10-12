@@ -1237,6 +1237,16 @@ The editor's blocks and the components the pages are made of, by area.
     it again (lib/cache). Hidden off a product's pages. Polled every minute, every two seconds while a rebuild runs.
   status: proposed
   part-of: module:components
+- id: component:shipped-notice
+  file: packages/web/src/components/ShippedNotice.tsx
+  side: client
+  purpose: >
+    The bar on a skill, workflow or hooks page Wye ships (req&#58;waterfall.global-skills.override): a shipped page
+    says an edit makes this project's own copy; an own copy says so, and when the shipped text moved on since it was
+    made, shows the new text and Use the shipped version — which removes the copy, so the page follows the install
+    again.
+  status: proposed
+  part-of: module:components
 ```
 
 <!-- /list:component -->

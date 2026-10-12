@@ -995,6 +995,16 @@ Every operation the UI, the wye CLI and agents call, by area; the CLI commands a
   source: packages/web/src/app/api/[product]/cache/route.ts
   status: proposed
   part-of: module:api
+- id: op:api.shipped
+  args: POST /api/<product>/shipped
+  does: >
+    POST { project, slug } → Use the shipped version (req&#58;waterfall.global-skills.override): the project's own
+    copy of a shipped skill, workflow or hooks page is removed and the product rebuilt, so the page is read from the
+    install again.
+  gate: none (local app)
+  source: packages/web/src/app/api/[product]/shipped/route.ts
+  status: proposed
+  part-of: module:api
 ```
 
 <!-- /list:op -->

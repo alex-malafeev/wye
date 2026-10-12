@@ -167,3 +167,16 @@ export function skillTakes(takes: string, kind: string): boolean {
   const t = takes.split(/[,\s]+/).map(x => x.trim()).filter(Boolean);
   return t.includes('*') || t.includes(kind) || (kind === 'module' && t.includes('page'));
 }
+
+// Where a page stands against what Wye ships (req:waterfall.global-skills.override): `shipped` — read from the
+// install, an edit makes the project's own copy; `own` — the project's copy of a shipped one, `edited` when its text
+// changed, `behind` when the install's moved on (its text in `shippedText`). Null for every other page.
+export type ShippedStatus = { kind: 'shipped' } | { kind: 'own'; edited: boolean; behind: boolean; shippedText: string };
+export async function shippedStatus(productDir: string, file: string): Promise<ShippedStatus | null> {
+  const abs = path.resolve(REPO_ROOT, file);
+  if (/\/_build\/shipped\/[^/]+\/[^/]+\.md$/.test(abs)) return { kind: 'shipped' };
+  if (!/\/projects\/[^/]+\/\.wye\/(skill-[^/]+|workflow-[^/]+|shipped-hooks)\.md$/.test(abs)) return null;
+  let md = ''; try { md = await readFile(abs, 'utf8'); } catch { return null; }
+  const st = (createRequire(path.join(REPO_ROOT, 'package.json'))('./lib/shipped.js') as { copyState(dir: string, md: string): { edited: boolean; behind: boolean; shippedText: string } | null }).copyState(productDir, md);
+  return st ? { kind: 'own', edited: st.edited, behind: st.behind, shippedText: st.shippedText } : null;
+}

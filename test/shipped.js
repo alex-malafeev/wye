@@ -38,3 +38,28 @@ assert.strictEqual(one('hook:import-analyse').length, 1); assert(/Imports wait/.
 assert(!fs.existsSync(path.join(root, '_build/shipped/app/skill-remember.md')), 'the replaced skill is not rendered');
 assert.deepStrictEqual(new Graph(graph).check({ repo: root }).errors, [], 'still clean with overrides');
 console.log('shipped ok — skills, workflows and hooks from the install, the product\'s own replace them, nothing written into it');
+
+// an own copy follows the install while its text is untouched; an edited one stays and says it is behind
+{
+  const { copyState, writeShipped } = require('../lib/shipped');
+  const inst = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'wye-install-')));
+  fs.mkdirSync(path.join(inst, 'prompts')); fs.writeFileSync(path.join(inst, 'prompts/remember.md'), '# Remember\n\nVersion one.\n');
+  const prod = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'wye-follow-')));
+  const w = path.join(prod, 'projects/app/.wye'); fs.mkdirSync(w, { recursive: true });
+  fs.writeFileSync(path.join(w, 'skills.md'), '---\nnode: module:app-skills\ntype: module\ntitle: Skills\n---\n');
+  const [shipped] = writeShipped(prod, [], inst).filter(f => f.endsWith('skill-remember.md'));
+  const copy = path.join(w, 'skill-remember.md');
+  fs.writeFileSync(copy, fs.readFileSync(shipped, 'utf8').replace('status: active', 'status: paused'));   // only the status changed
+  fs.writeFileSync(path.join(inst, 'prompts/remember.md'), '# Remember\n\nVersion two.\n');
+  assert.deepStrictEqual((({ edited, behind }) => ({ edited, behind }))(copyState(prod, fs.readFileSync(copy, 'utf8'), inst)), { edited: false, behind: true });
+  writeShipped(prod, [copy], inst);
+  const followed = fs.readFileSync(copy, 'utf8');
+  assert(followed.includes('Version two.') && followed.includes('status: paused'), 'an untouched copy takes the new text and keeps its status');
+  fs.writeFileSync(copy, followed.replace('Version two.', 'Our own words.'));
+  fs.writeFileSync(path.join(inst, 'prompts/remember.md'), '# Remember\n\nVersion three.\n');
+  writeShipped(prod, [copy], inst);
+  assert(fs.readFileSync(copy, 'utf8').includes('Our own words.'), 'an edited copy is never overwritten');
+  const st = copyState(prod, fs.readFileSync(copy, 'utf8'), inst);
+  assert(st.edited && st.behind && st.shippedText === 'Version three.', 'it says the shipped one moved on, with its text');
+  console.log('shipped ok — an untouched copy follows the install, an edited one stays and says it is behind');
+}

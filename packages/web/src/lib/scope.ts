@@ -30,7 +30,8 @@ export async function loadScope(productSlug: string, projectSlug?: string): Prom
       cached = await graphFor(product.dir);
       // the rest of _build follows in the background (req:waterfall.cache-size.rebuilds): the Ask index — blocks and
       // documents first, then code and sessions — so the first question does not wait for it
-      if (cached) void import('./ask/env').then(m => m.askEnv(product.slug, { rerank: false })).catch(e => console.warn(`[wf] ${product.slug}: the search index could not be started — ${e instanceof Error ? e.message : e}`));
+      // WYE_INDEX_WARM=0 leaves it to the first question (the tests: a scratch product is removed as soon as it is read)
+      if (cached && process.env.WYE_INDEX_WARM !== '0') void import('./ask/env').then(m => m.askEnv(product.slug, { rerank: false })).catch(e => console.warn(`[wf] ${product.slug}: the search index could not be started — ${e instanceof Error ? e.message : e}`));
     }
     else console.warn(`[wf] ${product.slug}: the graph could not be built — ${r.output.split('\n').filter(Boolean).slice(-2).join(' ')}`);
   }
