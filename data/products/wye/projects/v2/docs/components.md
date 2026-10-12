@@ -560,7 +560,7 @@ The editor's blocks and the components the pages are made of, by area.
   purpose: >
     Images and files a document embeds: docs/assets/<file>, served relative to the document's URL so the markdown
     can say ![caption](assets/<file>) and render both here and on GitHub.
-  status: approved
+  status: retired
   part-of: module:components
 - id: component:product-layout
   file: packages/web/src/app/[product]/layout.tsx
@@ -1245,6 +1245,15 @@ The editor's blocks and the components the pages are made of, by area.
     says an edit makes this project's own copy; an own copy says so, and when the shipped text moved on since it was
     made, shows the new text and Use the shipped version — which removes the copy, so the page follows the install
     again.
+  status: proposed
+  part-of: module:components
+- id: component:file-route-2
+  file: packages/web/src/app/[product]/[project]/d/assets/[...file]/route.ts
+  side: server
+  purpose: >
+    Images and files a document embeds: docs/assets/<file> or a subfolder of it (assets/receipt-qr/off.png), served
+    relative to the document's URL so the markdown can say ![caption](assets/<file>) and render both here and on
+    GitHub.
   status: proposed
   part-of: module:components
 ```
