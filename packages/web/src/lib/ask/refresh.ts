@@ -11,7 +11,7 @@ import type { Product } from '../products';
 import { REPO_ROOT, DATA_ROOT, productRepo } from '../products';
 import type { GraphData } from '../graph';
 import type { ChunkRow, Source } from './types';
-import { openStore, state, apply, getChunks, saveScopes, hashOf, type Store, type StoredRow } from './store';
+import { openStore, state, apply, getChunks, saveScopes, tidy, hashOf, type Store, type StoredRow } from './store';
 import { nodeChunks, docChunks, codeChunks, sessionChunks } from './chunk';
 import { getEmbedder, toVector, EMBED_MODEL, EMBED_DIM, type Embed } from './embed';
 
@@ -24,7 +24,11 @@ export const codeRoot = (p: Product): string | null => productRepo(p);
 const stores = ((globalThis as { __askStores?: Map<string, Promise<Store>> }).__askStores ??= new Map());
 export function getStore(p: Product): Promise<Store> {
   let s = stores.get(p.dir);
-  if (!s) { s = openStore(path.join(p.dir, '_build/search.lance'), EMBED_DIM); s.catch(() => stores.delete(p.dir)); stores.set(p.dir, s); }
+  if (!s) {
+    s = openStore(path.join(p.dir, '_build/search.lance'), EMBED_DIM); s.catch(() => stores.delete(p.dir)); stores.set(p.dir, s);
+    // the versions an earlier run left behind go when the store is first opened (decision:waterfall.index-compacts-once-per-refresh)
+    void s.then(st => withLock(p.dir, () => tidy(st))).catch(e => console.warn(`[ask] ${p.slug}: tidying the index failed — ${e instanceof Error ? e.message : e}`));
+  }
   return s;
 }
 const gitFiles = async (root: string) => (await promisify(execFile)('git', ['ls-files'], { cwd: root, maxBuffer: 64 * 1024 * 1024 })).stdout.split('\n').filter(Boolean);
@@ -78,7 +82,7 @@ export async function refresh(p: Product, graph: GraphData, opts: RefreshOpts = 
   let embed: Embed | null = opts.embed === undefined ? null : opts.embed;
   if (opts.embed === undefined) { try { embed = await getEmbedder(); } catch { embed = null; } }
   const model = embed ? EMBED_MODEL : '';
-  const changed: Record<Source, number> = { node: 0, doc: 0, code: 0, session: 0 }; let embedded = 0;
+  const changed: Record<Source, number> = { node: 0, doc: 0, code: 0, session: 0 }; let embedded = 0; let wrote = false;
   const files = await walk(p, graph, opts.listCode ?? gitFiles, sources); const present = new Set(files.map(f => f.scope));
   const todo = files.filter(f => s.scopes[f.scope]?.mtime !== f.mtime);
   const size = opts.batch ?? Number.MAX_SAFE_INTEGER;
@@ -115,8 +119,10 @@ export async function refresh(p: Product, graph: GraphData, opts: RefreshOpts = 
       }
       await apply(s, remove, rows);
       if (JSON.stringify(scopes) !== JSON.stringify(s.scopes)) { s.scopes = scopes; await saveScopes(s); }
+      if (rows.length || remove.length) wrote = true;
     });
   }
+  if (wrote) await withLock(p.dir, () => tidy(s));                    // one compaction for the whole refresh
   return { changed, embedded, ...(embed ? {} : { degraded: 'no-vectors' as const }) };
 }
 

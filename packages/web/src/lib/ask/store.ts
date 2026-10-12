@@ -46,7 +46,17 @@ export async function apply(s: Store, remove: string[], add: StoredRow[]): Promi
   if (add.length) await s.table.add(add.map(r => ({ id: r.id, source: r.source, scope: r.scope, ref: r.ref, title: r.title, text: r.text, body: `${r.title}\n${r.text}`, nodes: JSON.stringify(r.nodes), hash: r.hash, model: r.model, vector: r.vector })));
   if (!add.length && !gone.length) return;
   if (!s.hasFts && add.length) { await s.table.createIndex('body', { config: lancedb.Index.fts({ withPosition: false }) }); s.hasFts = true; }
-  else await s.table.optimize({ cleanupOlderThan: new Date(Date.now() - 10 * 60_000) });   // folds new rows into the indexes; old versions stay 10 min for reads still on them
+}
+
+// Compacts the table into one file, folds new rows into the indexes and removes old versions — once per refresh and
+// when a store is opened, never per batch (decision:waterfall.index-compacts-once-per-refresh): each compaction
+// rewrites the whole table, and a version kept by the prune window keeps that copy on disk. A minute is enough for a
+// search still reading the version it opened; the copy a compaction replaces goes on the next tidy, so the index holds
+// at most twice its live rows. Rows added since the last tidy are still found, unindexed.
+export const KEEP_MS = 60_000;
+export async function tidy(s: Store, keepMs = KEEP_MS): Promise<void> {
+  if (!(await s.table.countRows())) return;
+  await s.table.optimize({ cleanupOlderThan: new Date(Date.now() - keepMs) });
 }
 
 const toChunk = (r: Record<string, unknown>): ChunkRow => ({ id: String(r.id), source: r.source as Source, ref: String(r.ref), title: String(r.title), text: String(r.text), nodes: JSON.parse(String(r.nodes || '[]')) });

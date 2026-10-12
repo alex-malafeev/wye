@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { openStore, state, apply, search, getChunks, chunksMentioning, ftsText, hashOf, type StoredRow } from './store';
+import { openStore, state, apply, tidy, search, getChunks, chunksMentioning, ftsText, hashOf, type StoredRow } from './store';
 import type { ChunkRow } from './types';
 
 const DIM = 3;
@@ -57,6 +57,17 @@ describe('store', () => {
     const s = await openStore(await tmp(), DIM);
     await apply(s, [], [r('doc', 'p#1', 'about req:a', { nodes: ['req:a'] }), r('doc', 'p#2', 'other', { nodes: ['req:ab'] })]);
     expect((await chunksMentioning(s, 'req:a', 5)).map(c => c.id)).toEqual(['doc:p#1']);
+  });
+  it('batches leave no copies: apply writes no compaction, tidy leaves one data file and one version', async () => {
+    const dir = await tmp(); const s = await openStore(dir, DIM);
+    for (let b = 0; b < 5; b++) await apply(s, b ? [`doc:${b - 1}a`] : [], [r('doc', `${b}a`, `batch ${b} invite`), r('doc', `${b}b`, `batch ${b} billing`)]);
+    const t = path.join(dir, 'chunks.lance');
+    expect(await readdir(path.join(t, 'data'))).toHaveLength(5);     // one small file per batch, no full copies
+    const files: number[] = [];
+    for (let k = 0; k < 3; k++) { await tidy(s, 0); files.push((await readdir(path.join(t, 'data'))).length); }
+    expect(files.at(-1)).toBe(1);                            // the copy a compaction replaces goes on a later tidy
+    expect((await readdir(path.join(t, '_versions'))).length).toBeLessThanOrEqual(2);
+    expect((await search(s, 'invite', null, { limit: 10 })).map(h => h.id)).toEqual(['doc:4a']);
   });
   it('search on an empty store is empty, not an error', async () => {
     expect(await search(await openStore(await tmp(), DIM), 'anything', [1, 0, 0], { limit: 5 })).toEqual([]);
