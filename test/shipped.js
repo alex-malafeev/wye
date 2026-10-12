@@ -63,3 +63,31 @@ console.log('shipped ok — skills, workflows and hooks from the install, the pr
   assert(st.edited && st.behind && st.shippedText === 'Version three.', 'it says the shipped one moved on, with its text');
   console.log('shipped ok — an untouched copy follows the install, an edited one stays and says it is behind');
 }
+
+// a product made before: its untouched copies and unedited shipped or retired hook cards go; changed ones stay
+{
+  const { migrateCopies, shippedDocs } = require('../lib/shipped');
+  const prod = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'wye-migrate-')));
+  const w = path.join(prod, 'projects/app/.wye'); fs.mkdirSync(w, { recursive: true });
+  fs.writeFileSync(path.join(w, 'skills.md'), '---\nnode: module:app-skills\ntype: module\ntitle: Skills\n---\n');
+  const docs = shippedDocs(prod, []);
+  const doc = n => docs.find(d => d.name === n).text;
+  fs.writeFileSync(path.join(w, 'skill-remember.md'), doc('skill-remember.md'));                                   // untouched
+  fs.writeFileSync(path.join(w, 'skill-build.md'), doc('skill-build.md').replace('status: active', 'status: paused')); // status changed
+  fs.writeFileSync(path.join(w, 'skill-plan.md'), doc('skill-plan.md').trimEnd() + '\n\nOur extra step.\n');          // text changed
+  fs.writeFileSync(path.join(w, 'workflow-feature.md'), doc('workflow-feature.md'));
+  const shippedCard = doc('shipped-hooks.md').match(/^- id: hook:import-analyse\n(?:  .*\n)*/m)[0];
+  const retired = '- id: hook:req-approved-tests\n  title: An approved requirement gets a task to define its test cases, and an agent starts on it\n  on: req.status:approved\n  do: task "Define test cases for {{title}}" --worker agent --skill skill:define-tests\n  once: true\n  status: active\n';
+  const mine = '- id: hook:ours\n  title: Ours\n  on: req.created\n  do: notify "x"\n';
+  fs.writeFileSync(path.join(w, 'hooks.md'), '---\nnode: module:app-hooks\ntype: module\ntitle: Hooks\n---\n\n```yaml\n' + shippedCard + retired.replace('status: active', 'status: paused') + mine + '```\n');
+  const gone = migrateCopies(prod).map(f => path.basename(f)).sort();
+  assert.deepStrictEqual(gone, ['hooks.md', 'skill-remember.md', 'workflow-feature.md']);
+  assert.deepStrictEqual(fs.readdirSync(w).sort(), ['hooks.md', 'skill-build.md', 'skill-plan.md', 'skills.md'], 'changed copies stay');
+  const h = fs.readFileSync(path.join(w, 'hooks.md'), 'utf8');
+  assert(!h.includes('hook:import-analyse') && h.includes('hook:req-approved-tests') && h.includes('hook:ours'), 'an unedited shipped card goes, a paused retired one and the product\'s own stay');
+  fs.writeFileSync(path.join(w, 'hooks.md'), h.replace('status: paused', 'status: active'));
+  migrateCopies(prod);
+  assert(!fs.readFileSync(path.join(w, 'hooks.md'), 'utf8').includes('hook:req-approved-tests'), 'an unedited retired card goes');
+  assert.deepStrictEqual(migrateCopies(prod), [], 'a second pass changes nothing');
+  console.log('shipped ok — a product made before keeps only what it changed');
+}
