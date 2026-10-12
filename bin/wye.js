@@ -9,7 +9,7 @@
 //   wye graph <get|neighbors|search|constraints|reqs|stats|site|impact|packet|verdicts> …   every graph command by name
 //
 //   wye --version                         the version and the install it runs from (is the global wye the latest?)
-//   wye setup                             the home (~/.wye when installed from npm: your products in data/) and the Claude Code skills
+//   wye setup                             the home (~/.wye when installed from npm: your products in data/) and the agent skills (Claude Code, Codex)
 //   wye app [folder] [--port 3456] [--browser] [--no-open]   the app in its own window, over the home (--browser: in your browser);
 //        with a folder, that folder is opened as the workspace: its vaults are the Documents roots, its files are under Files
 //   wye export <product> [--out file]     the product as one file, <product>.wye.tgz (documents, pages, inbox; not sessions)
@@ -129,6 +129,8 @@ const { spawn } = require('child_process');
 const env = (k) => process.env['WYE_' + k] || process.env['WF_' + k];
 const WF_URL = (env('URL') || 'http://localhost:3456').replace(/\/$/, '');
 const argv = process.argv.slice(2);
+// the agent skills follow the install on every call — an upgrade links the new ones, drops the gone (req:waterfall.global-skills.agent-skills)
+require('./wye-home.js').keepSkillsLinked();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -202,7 +204,7 @@ async function resolve(link) {
 }
 
 const commands = {
-  // wye setup: the home (~/.wye for an installed package, bin/wye-home.js) and the Claude Code skills
+  // wye setup: the home (~/.wye for an installed package, bin/wye-home.js) and the agent skills (Claude Code, Codex)
   async setup() {
     const h = require('./wye-home.js'); const dir = h.ensureHome();
     console.log(`home     → ${dir}${dir === h.INSTALL ? ' (this clone)' : ''}  — products in ${path.join(dir, 'data', 'products')}`);

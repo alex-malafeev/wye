@@ -13,7 +13,7 @@ export interface CliStatus { link: string; target: string; installed: boolean; e
 export interface Toolchain { agents: Agents; wye: CliStatus; tools: Record<string, boolean> }
 
 // bin/wye-home.js knows where the command links (a home's bin/ is a link to the package, so it resolves to the install)
-type Home = { cliStatus(): CliStatus; linkCli(): CliStatus; linkSkills(): string[] };
+type Home = { cliStatus(): CliStatus; linkCli(): CliStatus; linkSkills(): string[]; keepSkillsLinked(): string[] };
 const req = createRequire(path.join(REPO_ROOT, 'package.json'));
 export const wyeHome = (): Home => req(/* turbopackIgnore: true */ /* webpackIgnore: true */ './bin/wye-home.js'); // read at run time, never bundled
 
@@ -36,9 +36,10 @@ export async function ensureToolchain(log: (line: string) => void = console.log)
   if (process.env.WYE_AUTO_INSTALL !== '0') {
     const h = wyeHome(), st = h.cliStatus();
     if (!st.installed && !st.elsewhere && !st.blocked) {
-      try { h.linkCli(); h.linkSkills(); log(`wye: installed the wye command → ${st.link} and the Claude Code skills`); }
+      try { h.linkCli(); h.linkSkills(); log(`wye: installed the wye command → ${st.link} and the agent skills for Claude Code and Codex`); }
       catch (e) { log(`wye: could not install the wye command: ${(e as Error).message}`); }
     }
+    h.keepSkillsLinked();   // the agent skills of the install the command is, for Claude Code and Codex
   }
   const t = await toolchain(true);
   const mark = (ok: boolean) => ok ? '✓' : '✗';

@@ -36,18 +36,38 @@ function ensureHome() {
   return h;
 }
 
-// The Claude Code skills (skills/*) linked into ~/.claude/skills, so any session can work with Wye.
-function linkSkills() {
-  const dir = path.join(os.homedir(), '.claude', 'skills'); fs.mkdirSync(dir, { recursive: true });
-  const out = [];
-  for (const s of fs.readdirSync(path.join(INSTALL, 'skills'), { withFileTypes: true })) {
-    if (!s.isDirectory()) continue;
-    const link = path.join(dir, s.name), target = path.join(INSTALL, 'skills', s.name);
-    try { fs.unlinkSync(link); } catch { /* none yet */ }
-    fs.symlinkSync(target, link); out.push(link);
+// Wye's agent skills (skills/wye-*) linked once per machine where the agents read them — Claude Code in
+// ~/.claude/skills, Codex in ~/.agents/skills — never into a repo (req:waterfall.global-skills.agent-skills). Run on
+// every `wye` call and app start, so an upgrade links the skills it adds and removes the links of the ones it dropped:
+// a link is Wye's when it points at a skills/wye-* folder; a real folder or a link elsewhere under that name is left
+// alone and reported. Returns the links (`.left` names what was left alone).
+const SKILL_HOMES = () => [path.join(os.homedir(), '.claude', 'skills'), path.join(os.homedir(), '.agents', 'skills')];
+const isWyeLink = to => /[\/\\]skills[\/\\]wye-[^\/\\]+$/.test(to);
+function linkSkills(homes = SKILL_HOMES()) {
+  const ours = fs.readdirSync(path.join(INSTALL, 'skills'), { withFileTypes: true }).filter(s => s.isDirectory()).map(s => s.name);
+  const out = []; out.left = [];
+  for (const dir of homes) {
+    fs.mkdirSync(dir, { recursive: true });
+    for (const name of ours) {
+      const link = path.join(dir, name), target = path.join(INSTALL, 'skills', name);
+      let cur = null; try { cur = fs.readlinkSync(link); } catch { /* none, or a real folder */ }
+      if (cur === target) { out.push(link); continue; }
+      if (cur === null && fs.existsSync(link)) { out.left.push(link); continue; }
+      if (cur !== null && !isWyeLink(cur)) { out.left.push(link); continue; }
+      if (cur !== null) fs.unlinkSync(link);
+      fs.symlinkSync(target, link); out.push(link);
+    }
+    // the links to a skill this install no longer has
+    for (const name of fs.readdirSync(dir)) {
+      if (!name.startsWith('wye-') || ours.includes(name)) continue;
+      let cur = null; try { cur = fs.readlinkSync(path.join(dir, name)); } catch { continue; }
+      if (isWyeLink(cur)) fs.unlinkSync(path.join(dir, name));
+    }
   }
   return out;
 }
+// quiet and cheap: what every `wye` call and the app's start do — only touches the links when one is wrong;
+function keepSkillsLinked() { try { return cliStatus().installed ? linkSkills() : []; } catch { return []; } }   // the install the `wye` command is, only — with several clones the links follow the command
 
 // The `wye` command: ~/.local/bin/wye → this install's bin/wye.js (what install.sh does). A real file already there is left alone.
 function cliPath() { return path.join(os.homedir(), '.local', 'bin', 'wye'); }
@@ -97,4 +117,4 @@ function prepareApp(web, homeDir) {
   return dir;
 }
 
-module.exports = { INSTALL, home, ensureHome, linkSkills, linkCli, cliStatus, prepareApp, isCheckout };
+module.exports = { keepSkillsLinked, SKILL_HOMES, INSTALL, home, ensureHome, linkSkills, linkCli, cliStatus, prepareApp, isCheckout };
