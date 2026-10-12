@@ -26,7 +26,12 @@ export async function loadScope(productSlug: string, projectSlug?: string): Prom
   if (!cached && await hasDocs(product.dir)) {
     building.set(product.slug, building.get(product.slug) ?? rebuild(product.dir).finally(() => building.delete(product.slug)));
     const r = await building.get(product.slug)!;
-    if (r.code === 0) cached = await graphFor(product.dir);
+    if (r.code === 0) {
+      cached = await graphFor(product.dir);
+      // the rest of _build follows in the background (req:waterfall.cache-size.rebuilds): the Ask index — blocks and
+      // documents first, then code and sessions — so the first question does not wait for it
+      if (cached) void import('./ask/env').then(m => m.askEnv(product.slug, { rerank: false })).catch(e => console.warn(`[wf] ${product.slug}: the search index could not be started — ${e instanceof Error ? e.message : e}`));
+    }
     else console.warn(`[wf] ${product.slug}: the graph could not be built — ${r.output.split('\n').filter(Boolean).slice(-2).join(' ')}`);
   }
   const graph = cached?.graph ?? EMPTY;
