@@ -16,7 +16,7 @@ export type InboxType = 'decision' | 'requirement' | 'rule' | 'question' | 'note
 // impact judged on arrival are what Wye makes of it (decision:waterfall.raw-input-stays-raw)
 export type InboxImpactCandidate = { id: string; kind: string; title: string; verdict: 'update' | 'rework' | 'contradicts' | 'ask'; reason: string; question?: string };
 export type InboxImpact = { at: string; judged: number; candidates: InboxImpactCandidate[] };
-export interface InboxItem { name: string; type: InboxType; title: string; from: string; added: string; status: 'new' | 'filed' | 'dismissed' | 'digested'; refs: string[]; session?: string; raw?: boolean; impact?: InboxImpact; fields: Record<string, string>; body: string; filedTo?: string; node?: string; size: number; mtime: string }
+export interface InboxItem { name: string; type: InboxType; title: string; from: string; added: string; status: 'new' | 'filed' | 'dismissed' | 'digested'; refs: string[]; session?: string; raw?: boolean; impact?: InboxImpact; fields: Record<string, string>; body: string; filedTo?: string; node?: string; request?: 'done' | 'declined'; size: number; mtime: string }
 
 const FIELD_KEYS = ['context', 'choice', 'alternatives', 'consequences', 'when', 'then', 'unless', 'statement', 'source', 'q'];
 
@@ -44,7 +44,7 @@ export function parseItem(name: string, md: string): Omit<InboxItem, 'size' | 'm
   for (const line of rest.split('\n')) { const h = line.match(/^##\s+(.+)$/); if (h) { flush(); cur = h[1].trim().toLowerCase(); } else buf.push(line); }
   flush();
   const type = (['decision', 'requirement', 'rule', 'question', 'note'].includes(head.type) ? head.type : 'note') as InboxType;
-  return { name, type, title: head.title || body.split('\n')[0].slice(0, 80) || name, from: head.from || 'unknown', added: head.added || '', status: (head.status as InboxItem['status']) || 'new', refs: (head.refs || '').split(/[,\s]+/).filter(Boolean), session: head.session || undefined, ...(head.raw === 'true' ? { raw: true } : {}), fields, body, filedTo: head['filed-to'] || undefined, node: head.node || undefined };
+  return { name, type, title: head.title || body.split('\n')[0].slice(0, 80) || name, from: head.from || 'unknown', added: head.added || '', status: (head.status as InboxItem['status']) || 'new', refs: (head.refs || '').split(/[,\s]+/).filter(Boolean), session: head.session || undefined, ...(head.raw === 'true' ? { raw: true } : {}), fields, body, filedTo: head['filed-to'] || undefined, node: head.node || undefined, ...(head.request === 'done' || head.request === 'declined' ? { request: head.request } : {}) };
 }
 
 export async function addInboxItem(productDir: string, input: { type?: string; title?: string; text?: string; from?: string; refs?: string[]; session?: string; raw?: boolean; fields?: Record<string, string> }): Promise<string> {
@@ -122,6 +122,8 @@ export async function digestInboxItem(productDir: string, name: string, start: R
     return { session: s.id };
   } catch (e) { return { session: null, error: e instanceof Error ? e.message : String(e) }; }
 }
+// a request another vault sent (plan:vault-links), answered: done or declined — the asking vault was told by the caller
+export async function markRequest(productDir: string, name: string, outcome: 'done' | 'declined'): Promise<void> { await patchHead(productDir, name, { request: outcome }); }
 export async function dismissItem(productDir: string, name: string): Promise<void> { await patchHead(productDir, name, { status: 'dismissed' }); }
 // A raw item whose digest session has ended has nothing left to review: it leaves the queue as `digested` (still
 // listed under All, with its session). Reconciled when the inbox is listed, from the session's status.

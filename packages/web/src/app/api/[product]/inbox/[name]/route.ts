@@ -3,7 +3,7 @@ import { digestRaw, judgeRawImpact } from '@/lib/inbox-raw';
 import { captureTask } from '@/lib/work-io';
 import { markFiled } from '@/lib/inbox';
 import { loadScope } from '@/lib/scope';
-import { dismissItem, fileItem, listInboxItems, suggestFiling } from '@/lib/inbox';
+import { dismissItem, fileItem, markRequest, listInboxItems, suggestFiling } from '@/lib/inbox';
 import { documentTree, docRoute } from '@/lib/doc';
 import { jevClient } from '@/lib/jev';
 
@@ -21,7 +21,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ product
   const { product, name } = await params;
   const scope = await loadScope(product); if (!scope) return NextResponse.json({ error: 'not_found' }, { status: 404 });
   const item = (await listInboxItems(scope.product.dir)).find(i => i.name === decodeURIComponent(name)); if (!item) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  const b = (await req.json()) as { action?: string; doc?: string; project?: string; id?: string };
+  const b = (await req.json()) as { action?: string; doc?: string; project?: string; id?: string; outcome?: string };
+  // a request from another vault answered (wye request done|decline, plan:vault-links): the item says so
+  if (b.action === 'request') {
+    if (b.outcome !== 'done' && b.outcome !== 'declined') return NextResponse.json({ error: 'invalid', message: 'outcome: done | declined' }, { status: 422 });
+    await markRequest(scope.product.dir, item.name, b.outcome); return NextResponse.json({ ok: true });
+  }
   if (b.action === 'dismiss') { await dismissItem(scope.product.dir, item.name); return NextResponse.json({ ok: true }); }
   if (b.action === 'impact' || b.action === 'digest') {
     const impact = await judgeRawImpact(scope.product.dir, product, item.name);

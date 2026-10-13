@@ -47,6 +47,10 @@
 //        correction, a pasted document; stdin or the argument): kept in the inbox as raw input — never a block —, its impact on
 //        what is known judged (update | rework | contradicts | ask) and digested at once by a Remember session: new facts
 //        proposed, changed ones superseded, contradictions raised as questions
+//   wye request <vault> [--title "…"] <<'EOF' … EOF   a request to another vault (parent, one below, a linked repo): kept
+//        in its inbox as said and digested there; a task on each side tracks it
+//   wye requests [--all]                  the requests other vaults sent here, not answered yet
+//   wye request done|decline <inbox item> [--note "…" | --why "…"]   tell the vault that asked; closes the tasks on both sides
 //   wye links [--json]                    the vaults this one reaches: the one above (parent) and below by folder, and the
 //        repos it links, with where each is on this machine
 //   wye link <repo URL> [--name n]        link a vault in another repo by its URL (committed in _product.md); where it is on
@@ -559,6 +563,52 @@ const commands = {
     if (flags.json) return out(vs);
     if (!vs.length) return console.log('no linked vaults — the vault above and the ones below link by folder (wye init); another repo: wye link <repo URL> --name <name>');
     for (const v of vs) console.log(`${v.name.padEnd(16)} ${v.kind.padEnd(7)} ${v.folder || `not on this machine — clone ${v.repo}, or: wye link ${v.name} --path <folder>`}${v.repo && v.folder ? `  (${v.repo})` : ''}`);
+  },
+  // wye request <vault>: a request to another vault (plan:vault-links) — kept in its inbox as said, marked with the
+  // vault it came from, and digested there at once (decision:waterfall.cross-vault-request-digested-at-once); a task on
+  // each side tracks it. In the vault that got it: wye request done|decline <inbox item> tells the asking vault and
+  // closes both tasks; wye requests lists the ones not answered yet.
+  async request() {
+    const L = require('../lib/links.js'); const V = require('../lib/vault.js'); const home = require('./wye-home.js').home();
+    const sub = pos[1];
+    if (sub === 'done' || sub === 'decline') {
+      const p = product(); const name = pos[2] || die(`wye request ${sub} <inbox item> [--note "…"]`);
+      const item = (await api('GET', `/api/${p}/inbox`)).items.find(i => i.name === name || i.name === name + '.md') || die(`no inbox item ${name} — wye requests lists them`);
+      const f = item.fields || {}; if (!f['reply-to']) die(`${item.name} is not a request from another vault`);
+      const note = String(flags.note || flags.why || ''); if (sub === 'decline' && !note) die('wye request decline <item> --why "<why>"');
+      const outcome = sub === 'done' ? 'done' : 'declined', mine = V.readMeta(hereVault()).slug || path.basename(hereVault());
+      const back = L.folderOf(hereVault(), f['reply-to'], home);
+      if (back) {
+        const r = await fetch(`${WF_URL}/api/products/open`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ folder: path.join(back, '.wye') }) }); const a = (await r.json().catch(() => ({}))).slug;
+        if (a) {
+          await api('POST', `/api/${a}/inbox`, { type: 'note', title: `${mine} ${outcome === 'done' ? 'did' : 'declined'}: ${item.title}`, text: note || (outcome === 'done' ? 'Done.' : ''), from: `vault ${mine}`, refs: [f['tracking-task']].filter(Boolean), fields: { 'from-vault': mine, request: item.title } });
+          if (f['tracking-task']) await api('PUT', `/api/${a}/node/${encodeURIComponent(f['tracking-task'])}`, { status: outcome === 'done' ? 'done' : 'cancelled' }).catch(e => console.error(`  ! ${f['tracking-task']} in ${f['from-vault']}: ${e.message}`));
+        }
+      }
+      if (f.task) await api('PUT', `/api/${p}/node/${encodeURIComponent(f.task)}`, { status: outcome === 'done' ? 'done' : 'cancelled' }).catch(e => console.error(`  ! ${f.task}: ${e.message}`));
+      await api('POST', `/api/${p}/inbox/${encodeURIComponent(item.name)}`, { action: 'request', outcome });
+      return console.log(`${item.name}: ${outcome}${back ? ` — told ${f['from-vault']}${f['tracking-task'] ? `, ${f['tracking-task']} closed there` : ''}` : ` — ${f['from-vault']} is not on this machine, it was not told`}`);
+    }
+    const name = sub || die('wye request <vault> [--title "…"] <<\'EOF\' … EOF   (the request on stdin)  ·  wye request done|decline <inbox item>  ·  wye requests');
+    const text = flags.file ? fs.readFileSync(flags.file, 'utf8') : (pos[2] || await readStdin()); if (!text.trim()) die('the request goes on stdin or as the argument');
+    const other = await otherVault(name); const here = hereVault(); const mine = V.readMeta(here).slug || path.basename(here);
+    const title = String(flags.title || text.trim().split('\n')[0]).slice(0, 120);
+    const by = env('SESSION') ? `agent:${env('SESSION')}` : 'agent';
+    const mineTask = await api('POST', `/api/${product()}/work`, { text: `Requested of ${other.name}: ${title}`, by }).catch(() => null);
+    const theirTask = await api('POST', `/api/${other.slug}/work`, { text: `Request from ${mine}: ${title}`, by: `vault ${mine}` }).catch(() => null);
+    const j = await api('POST', `/api/${other.slug}/inbox`, { type: 'note', title, text, from: `vault ${mine}`, digest: true, session: undefined,
+      fields: { 'from-vault': mine, 'reply-to': L.addressOf(here, other.folder), ...(mineTask ? { 'tracking-task': mineTask.id } : {}), ...(theirTask ? { task: theirTask.id } : {}) } });
+    if (flags.json) return out({ vault: other.name, item: j.name, session: j.session, task: mineTask && mineTask.id, theirTask: theirTask && theirTask.id });
+    console.log(`sent to ${other.name}: ${j.name}${j.session ? ` — digested there by session ${j.session}` : ''}`);
+    if (theirTask) console.log(`their task: ${theirTask.id} — when it is done there: wye request done ${j.name}`);
+    if (mineTask) console.log(`tracked here as ${mineTask.id} — it closes when ${other.name} says done or declined`);
+  },
+  async requests() {
+    const p = product(); const j = await api('GET', `/api/${p}/inbox`);
+    const rs = j.items.filter(i => i.fields && i.fields['reply-to'] && (flags.all || !i.request));
+    if (flags.json) return out(rs);
+    if (!rs.length) return console.log(flags.all ? 'no requests from other vaults' : 'no open requests from other vaults (--all shows the answered ones)');
+    for (const i of rs) console.log(`${(i.request || 'open').padEnd(9)} ${i.fields['from-vault'].padEnd(16)} ${i.name}\n          ${i.title}${i.fields.task ? `  (${i.fields.task})` : ''}`);
   },
   async session() {
     const sub = pos[1]; const p = product();
