@@ -25,6 +25,10 @@ describe('askReducer', () => {
     const s = [{ type: 'fast.delta', text: 'Not in the sources.\nTHIN' }, { type: 'fast.done', citations: [] }].reduce((a, e) => askReducer(a, e as AskEvent), initialAsk('q'));
     expect(s.thin).toBe(true); expect(s.fast).toBe('Not in the sources.');
   });
+  it('marks an unanswered deep answer and strips the marker', () => {
+    const s = [{ type: 'deep.delta', text: 'Nothing on refunds.\nUNANSWERED' }, { type: 'deep.done', citations: [] }].reduce((a, e) => askReducer(a, e as AskEvent), initialAsk('q'));
+    expect(s.unanswered).toBe(true); expect(s.deep).toBe('Nothing on refunds.');
+  });
   it('records lane errors', () => {
     const s = askReducer(initialAsk('q'), { type: 'error', lane: 'deep', message: 'boom' });
     expect(s.errors).toEqual([{ lane: 'deep', message: 'boom' }]);

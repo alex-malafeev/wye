@@ -14,3 +14,4 @@ Answer:
 - Cite every claim with the source in double brackets, exactly as you found it: a node id `[[req:x.y]]`, a passage id
   from ask-search `[[doc:v2/m#b-1a2b3c4d]]`, or code with lines `[[packages/web/src/lib/x.ts:40-88]]`.
 - Say what holds now when sources disagree or one is superseded. Say plainly what you could not find.
+- If, and only if, you could not find what answers the question, end with the line: `UNANSWERED`

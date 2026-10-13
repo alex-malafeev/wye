@@ -33,8 +33,10 @@
 //   wye impact <id> --after "<new text>" --product p [--no-judge] [--json]   what an edit would reach and what each reached node
 //        needs (unaffected | update | rework | contradicts | ask) — run it before editing an approved node; nothing is written
 //   wye context "<text>" --product p [--all | --as-of d]   knowledge closest to a text (local semantic search; ended nodes hidden)
-//   wye ask "<question>" --product p [--fast | --deep] [--json]   a cited answer from the product's knowledge, documents,
+//   wye ask "<question>" [--vault <name>] --product p [--fast | --deep] [--json]   a cited answer from the product's knowledge, documents,
 //        code and sessions: a fast answer, the sources a deeper search opens as it works, then its answer
+//        --vault <name>: another vault answers — parent, a vault below by its name, or a linked repo (wye links); when it
+//        cannot, the question is filed there as open (asked-by this vault) and its answer comes back to this inbox [--no-queue]
 //   wye ask-search "<words>" --product p [--source node|doc|code|session] [--limit n] [--expand] [--rerank] [--json]
 //        the passages Ask answers from, ranked (full-text + vectors; --expand adds one hop along the graph)
 //   wye packet --for "<text>" [--ref id ...] --product p [--budget N] [--all | --as-of d]   the constraints in force for a text:
@@ -173,6 +175,25 @@ async function otherVault(name) {
   const r = await fetch(`${WF_URL}/api/products/open`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ folder: path.join(v.folder, '.wye') }), signal: AbortSignal.timeout(8000) });
   const j = await r.json().catch(() => ({})); if (!r.ok || !j.slug) die(`the app could not open ${v.folder}: ${j.message || r.status}`);
   return { ...v, slug: j.slug };
+}
+
+// file a question vault `other` could not answer there, saying which vault asked and how to reach it back
+async function queueQuestion(other, q) {
+  const L = require('../lib/links.js'); const V = require('../lib/vault.js');
+  const here = hereVault(), mine = V.readMeta(here).slug || path.basename(here), proj = V.readMeta(other.folder).slug || path.basename(other.folder);
+  const words = q.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(w => w.length > 2).slice(0, 6).join('-') || 'question';
+  const id = `question:${proj}.${mine}-${words}`.slice(0, 90).replace(/-+$/, '');
+  const block = s => '|\n' + String(s).split('\n').map(l => '    ' + l).join('\n');
+  const card = [`- id: ${id}`, `  title: ${JSON.stringify(q.split('\n')[0].slice(0, 200))}`, '  status: open', `  asked-by: ${mine}`, `  asked-from: ${L.addressOf(here, other.folder)}`,
+    `  why: ${block(flags.why || `the ${mine} vault asked it and its work waits on the answer; this vault's knowledge did not answer it`)}`,
+    `  answer-changes: ${block(flags.changes || `what ${mine} builds or decides next`)}`, `  text: ${block(q)}`].join('\n') + '\n';
+  const doc = fs.existsSync(path.join(other.folder, '.wye/projects', proj, 'docs/decisions.md')) ? 'decisions' : proj;
+  try { const j = await api('POST', `/api/${other.slug}/propose`, { card, doc: `${other.slug}/${proj}/${doc}` }); return { id: j.id, file: j.file, vault: other.name }; }
+  catch (e) {
+    // asked before (the same id, or a card that says the same): still open there, its answer still comes back
+    const m = e.message.match(/409: (\S+) already exists|409: already known as (\S+)/); if (m) return { id: m[1] || m[2], vault: other.name, already: true };
+    console.error(`  ! could not file the question in ${other.name}: ${e.message}`); return null;
+  }
 }
 
 async function api(method, p, body) {
@@ -442,7 +463,10 @@ const commands = {
   async ask() {
     const q = pos.slice(1).join(' ') || (await readStdin()); if (!q.trim()) die('wye ask "<question>" [--fast | --deep] [--json]');
     const lanes = flags.fast ? ['fast'] : flags.deep ? ['deep'] : ['fast', 'deep'];
-    const r = await fetch(`${WF_URL}/api/${product()}/ask`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q, lanes }) });
+    // --vault <name>: another vault answers — the one above (parent), one below, or a linked repo (plan:vault-links)
+    const other = flags.vault ? await otherVault(String(flags.vault)) : null;
+    if (other && !flags.json) process.stderr.write(`  asking ${other.name} — ${other.folder}\n`);
+    const r = await fetch(`${WF_URL}/api/${other ? other.slug : product()}/ask`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q, lanes }) });
     if (!r.ok) die(`ask → ${r.status}: ${(await r.text()).slice(0, 200)}`);
     const res = { fast: '', deep: '', citations: new Map(), cut: false, errors: [] };
     const show = !flags.json; let section = '';
@@ -463,7 +487,14 @@ const commands = {
       }
     }
     const cites = [...res.citations.values()].sort((a, b) => a.n - b.n);
-    if (flags.json) return out({ fast: res.fast, deep: res.deep, citations: cites, cut: res.cut, errors: res.errors });
+    // not answered: the deep lane said UNANSWERED, or only the fast lane ran (or the deep one failed) and it was THIN
+    const thin = /\n?\s*THIN\s*$/.test(res.fast), unanswered = /\n?\s*UNANSWERED\s*$/.test(res.deep) || (thin && (!lanes.includes('deep') || res.errors.some(e => e.lane === 'deep')));
+    res.fast = res.fast.replace(/\n?\s*THIN\s*$/, ''); res.deep = res.deep.replace(/\n?\s*UNANSWERED\s*$/, '');
+    // a question another vault could not answer is filed there as an open question, its answer sent back when settled
+    // (decision:waterfall.cross-vault-question-answers-now-else-queues)
+    const queued = other && unanswered && !flags['no-queue'] ? await queueQuestion(other, q) : null;
+    if (flags.json) return out({ fast: res.fast, deep: res.deep, citations: cites, cut: res.cut, errors: res.errors, unanswered, ...(other ? { vault: other.name } : {}), ...(queued ? { queued } : {}) });
+    if (queued) console.log(queued.already ? `\n\n${other.name} could not answer it; it was asked there before as ${queued.id} — its answer comes back to this vault's inbox` : `\n\n${other.name} could not answer it: filed there as ${queued.id} (${queued.file}); the answer comes back to this vault's inbox`);
     if (res.cut) console.log('\n\n(the deep search was cut short at its limit)');
     console.log(`\n\n## Sources\n${cites.map(c => `[${c.n}] ${c.ref}${c.href ? `  ${WF_URL}${c.href}` : ''}`).join('\n')}`);
   },

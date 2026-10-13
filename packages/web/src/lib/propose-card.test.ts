@@ -59,6 +59,12 @@ describe('questionProblem', () => {
     expect(questionProblem(q(full.replace('decision:x', 'decision:nope')), kindOf)).toMatch(/decision:nope.*not in the vault/);
     expect(questionProblem(q(full.replace('decision:x', 'task:z')), kindOf)).toMatch(/task:z is a task/);
   });
+  it('a question another vault asked needs no decides of this vault (plan:vault-links)', () => {
+    const asked = full.replace('  decides: decision:x\n', '  asked-by: ios\n');
+    expect(questionProblem(q(asked), kindOf)).toBeNull();
+    expect(questionProblem(q(asked + '  decides: req:ios.login\n'), kindOf)).toBeNull();
+    expect(questionProblem(q('  asked-by: ios\n'), kindOf)).toMatch(/why.*answer-changes/s);
+  });
 });
 
 // req:waterfall.card-quality.no-duplicates

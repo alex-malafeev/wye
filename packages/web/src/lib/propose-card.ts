@@ -61,8 +61,12 @@ export const QUESTION_FIELDS = { why: 'what is blocked or waiting on the answer'
 const DECIDES_KINDS = new Set(['decision', 'req', 'constraint', 'rule', 'fact']);
 export function questionProblem(block: string, kindOf: (id: string) => string | undefined): string | null {
   const k = cardKeys(block);
-  const missing = Object.entries(QUESTION_FIELDS).filter(([f]) => !k[f]?.replace(/[[\]\s]/g, ''));
+  // a question another vault asked (asked-by:, plan:vault-links) decides something in that vault, not in this one:
+  // `decides:` is optional and its ids are not looked up here
+  const asked = !!k['asked-by']?.trim();
+  const missing = Object.entries(QUESTION_FIELDS).filter(([f]) => !(asked && f === 'decides') && !k[f]?.replace(/[[\]\s]/g, ''));
   if (missing.length) return `a question says why it is asked and what its answer changes — add ${missing.map(([f, what]) => `\`${f}:\` (${what})`).join(', ')}`;
+  if (asked) return null;
   for (const id of k.decides.replace(/[[\]]/g, '').split(/[,\s]+/).filter(Boolean)) {
     const kind = kindOf(id);
     if (!kind) return `decides: ${id} is not in the vault — name the decision the answer settles, or the req / constraint / rule it decides for`;

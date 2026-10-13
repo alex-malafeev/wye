@@ -15,7 +15,7 @@ const L = require('../lib/links');
 const F = rel => path.join(tmp, rel);
 const repo = (rel, url) => { fs.mkdirSync(F(rel), { recursive: true }); fs.writeFileSync(F(rel + '/a.ts'), 'export const a = 1;\n'); execFileSync('git', ['init', '-q'], { cwd: F(rel) }); if (url) execFileSync('git', ['remote', 'add', 'origin', url], { cwd: F(rel) }); };
 
-repo('work/org', 'git@github.com:acme/org.git'); repo('work/org/ios');
+repo('work/org', 'git@github.com:acme/org.git'); fs.mkdirSync(F('work/org/ios'), { recursive: true }); fs.writeFileSync(F('work/org/ios/b.swift'), 'let b = 1\n');
 initVault({ folder: F('work/org') }); initVault({ folder: F('work/org/ios') });
 repo('clones/backend', 'https://github.com/acme/backend.git'); initVault({ folder: F('clones/backend') });
 repo('elsewhere/backend-2', 'https://github.com/acme/backend'); initVault({ folder: F('elsewhere/backend-2') });
@@ -62,6 +62,17 @@ L.removeLink(ios, 'web');
 assert.deepStrictEqual(L.repoLinks(ios).map(l => l.name), ['backend']);
 L.removeLink(ios, 'backend');
 assert(!/^links:/m.test(readMeta(ios).md), 'the last link removed leaves no key');
+
+// how one vault names another so a reply finds its way back: a path inside one repo, else the URL (#folder when deeper)
+assert.strictEqual(L.addressOf(ios, F('work/org')), 'ios');
+assert.strictEqual(L.addressOf(F('work/org'), ios), '..');
+assert.strictEqual(L.folderOf(F('work/org'), 'ios', home), ios);
+assert.strictEqual(L.addressOf(F('clones/backend'), ios), 'https://github.com/acme/backend');
+assert.strictEqual(L.addressOf(ios, F('clones/backend')), 'https://github.com/acme/org#ios');
+assert.strictEqual(L.folderOf(F('clones/backend'), 'https://github.com/acme/backend', home), F('elsewhere/backend-2'), 'the stored clone');
+assert.strictEqual(L.folderOf(F('clones/backend'), 'https://github.com/acme/nowhere', home), null);
+fs.writeFileSync(path.join(home, 'data/products/backend/_product.md'), `---\nroot: ${F('work/org/ios')}/.wye\n---\n`);
+assert.strictEqual(L.folderOf(F('clones/backend'), 'https://github.com/acme/org#ios', home), ios, 'found through a known vault deeper in that repo');
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('links ok — the tree links itself, a repo link is its URL, the path is this machine\'s, found or given and checked');
