@@ -1235,6 +1235,16 @@ HTTP operations this module serves (`op:` cards); the wf CLI and the UI call the
     are the eval results, the history (_sessions, _changes, _hooks) and the shared models.
   status: proposed
   part-of: module:app-storage
+- id: lib:vault-links
+  file: packages/web/src/lib/vault-links.ts
+  side: server
+  purpose: >
+    What goes back to the vault that asked (plan:vault-links): a question another vault asked carries `asked-by:`
+    (its name) and `asked-from:` (how to reach it from here — a path inside one repo, else its repo URL,
+    lib/links.js); when it is answered, the answer lands in the asking vault's inbox, if that vault is on this
+    machine (decision&#58;waterfall.cross-vault-question-answers-now-else-queues).
+  status: proposed
+  part-of: module:app-storage
 ```
 
 <!-- /list:lib -->
