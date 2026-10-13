@@ -443,6 +443,9 @@ const commands = {
     const j = await api('POST', `/api/${product()}/packet`, { text, refs, budget: flags.budget ? Number(flags.budget) : undefined, all: !!flags.all, asOf: flags['as-of'] || undefined });
     if (flags.json) return out(j);
     console.log(`# Constraints in force: ${text.trim().slice(0, 80) || refs.join(', ')}\n\n${j.markdown}`);
+    // the vaults this one reaches (plan:vault-links): what another repo does is asked there, never guessed
+    let vs = []; try { const f = require('../lib/vault.js').vaultOf(process.cwd()); if (f) vs = require('../lib/links.js').linkedVaults(f, require('./wye-home.js').home()); } catch { /* none */ }
+    if (vs.length) console.log(`\n### Linked vaults (${vs.length}) — ask them, never guess: wye ask --vault <name> "…" · wye request <name>\n${vs.map(v => `- ${v.name} [${v.kind}]${v.repo ? ` ${v.repo}` : ''}${v.folder ? '' : ' — not on this machine'}`).join('\n')}`);
   },
   async verdicts() {
     // the verdict pass for nodes, now (op:api.verdicts): how each relates to its neighbours; non-consistent verdicts land under the node
