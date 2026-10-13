@@ -6,6 +6,8 @@ import { SmartTag } from './SmartTag';
 import type { InboxItem } from '@/lib/inbox';
 
 type Suggestion = { doc: string | null; project: string | null; kind: string; id: string; similar: { id: string; score: number; p?: number }[] };
+// how a vault reaches back, shown as the pills and lines above instead (plan:vault-links)
+const VAULT_FIELDS = new Set(['from-vault', 'reply-to', 'tracking-task', 'task']);
 type Docs = { file: string; slug: string; title: string; project: string }[];
 
 // Inbox items to review: each one can be filed into a document as a node (with a suggested document and id) or
@@ -54,12 +56,17 @@ export function InboxList({ product, initial, quiet }: { product: string; initia
               <span className="inbox-title">{i.title}</span>
               {i.raw && i.impact && i.impact.candidates.length > 0 && <span className="inbox-impact-count" title="what this input touches in what is known">{impactSummary(i.impact.candidates)}</span>}
               {i.status !== 'new' && <span className={`pill s ${i.status}`}>{i.status}</span>}
+              {/* from another vault (plan:vault-links): which one, and for a request it sent, whether it was answered */}
+              {i.fields['from-vault'] && <span className="pill s from-vault" title={i.fields['reply-to'] ? `a request the ${i.fields['from-vault']} vault sent — answer it with wye request done|decline ${i.name}` : `from the ${i.fields['from-vault']} vault`}>from {i.fields['from-vault']}</span>}
+              {i.fields['reply-to'] && <span className={`pill s request-${i.request ?? 'open'}`}>{i.request ?? 'open'} request</span>}
               <span className="muted inbox-meta">{i.from}{i.session ? ` · session ${i.session.slice(0, 6)}` : ''} · {i.added.slice(0, 16).replace('T', ' ')}</span>
             </div>
             {openName === i.name && (
               <div className="inbox-detail">
                 {i.body && <p className="inbox-body">{i.body}</p>}
-                {Object.entries(i.fields).map(([k, v]) => <p key={k} className="inbox-field"><b>{k}</b> {v}</p>)}
+                {Object.entries(i.fields).filter(([k]) => !VAULT_FIELDS.has(k)).map(([k, v]) => <p key={k} className="inbox-field"><b>{k}</b> {v}</p>)}
+                {i.fields.task && !i.refs.includes(i.fields.task) && <p className="inbox-field"><b>task here</b> <SmartTag id={i.fields.task} /></p>}
+                {i.fields['reply-to'] && !i.request && <p className="muted">When it is done or will not be: <code>wye request done {i.name} --note &quot;…&quot;</code> or <code>wye request decline {i.name} --why &quot;…&quot;</code> — the {i.fields['from-vault']} vault is told.</p>}
                 {i.refs.length > 0 && <div className="tags">{i.refs.map(r => <SmartTag key={r} id={r} />)}</div>}
                 {i.status === 'filed' && i.node && <p className="muted">filed as <SmartTag id={i.node} /> in {i.filedTo}</p>}
                 {i.raw && (

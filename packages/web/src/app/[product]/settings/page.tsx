@@ -3,10 +3,11 @@ import path from 'node:path';
 import { getProduct, registryDir } from '@/lib/products';
 import { SettingsName } from '@/components/SettingsName';
 import { SettingsFolder } from '@/components/SettingsFolder';
+import { SettingsLinks } from '@/components/SettingsLinks';
 import { SettingsExport } from '@/components/SettingsExport';
 import { DeleteProduct } from '@/components/DeleteProduct';
 
-// One product's settings: its name, where its folder is, exporting it, and deleting it. What belongs to the app on this machine rather than to
+// One product's settings: its name, where its folder is, the vaults it links, exporting it, and deleting it. What belongs to the app on this machine rather than to
 // this product — the theme, agents, the Jev key — is at /settings.
 export default async function ProductSettingsPage({ params }: { params: Promise<{ product: string }> }) {
   const { product } = await params;
@@ -20,6 +21,7 @@ export default async function ProductSettingsPage({ params }: { params: Promise<
       </header>
       {p && <SettingsName product={product} title={p.meta.title} icon={p.meta.icon} description={p.meta.description} />}
       <SettingsFolder product={product} />
+      <SettingsLinks product={product} />
       <SettingsExport product={product} />
       {p && <DeleteProduct product={product} title={p.meta.title || product} relocated={relocated} dir={p.dir} />}
     </div>

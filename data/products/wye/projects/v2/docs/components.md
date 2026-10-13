@@ -1256,6 +1256,16 @@ The editor's blocks and the components the pages are made of, by area.
     GitHub.
   status: proposed
   part-of: module:components
+- id: component:settings-links
+  file: packages/web/src/components/SettingsLinks.tsx
+  side: client
+  purpose: >
+    Settings › Links (plan:vault-links, req&#58;waterfall.vault-links.app): the vaults this one reaches — the one
+    above and the ones below by folder, and other repos by URL. A repo link is committed with the vault; where that
+    repo is on this machine is kept on this machine only, found from a vault the app knows or set here. Agents ask
+    them with `wye ask --vault <name>` and send them work with `wye request <name>`.
+  status: proposed
+  part-of: module:components
 ```
 
 <!-- /list:component -->

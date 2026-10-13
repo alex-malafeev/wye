@@ -1005,6 +1005,16 @@ Every operation the UI, the wye CLI and agents call, by area; the CLI commands a
   source: packages/web/src/app/api/[product]/shipped/route.ts
   status: proposed
   part-of: module:api
+- id: op:api.vaults
+  args: GET | POST /api/<product>/vaults
+  does: >
+    GET → { vaults } — the vault above, the ones below and the linked repos, with where each is on this machine
+    (null for a product that is not a vault). POST { action: add | path | remove, url?, name?, path? } — as wye link
+    (plan:vault-links).
+  gate: none (local app)
+  source: packages/web/src/app/api/[product]/vaults/route.ts
+  status: proposed
+  part-of: module:api
 ```
 
 <!-- /list:op -->

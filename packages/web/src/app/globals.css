@@ -274,6 +274,8 @@ code, pre { font-family: var(--font-m); }
 .inbox-impact { list-style: none; margin: 0; padding: 0; font-size: 13px; } .inbox-impact li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 3px 0; }
 .pill.s.impact-contradicts { background: var(--k-question, #b4513a); color: #fff; } .pill.s.impact-rework { background: var(--k-req, #c27a2a); color: #fff; } .pill.s.impact-update { background: var(--line-2); color: var(--ink); } .pill.s.impact-ask { background: var(--line-2); color: var(--ink-2); }
 .pill.s.filed { color: var(--ok); border-color: var(--ok); } .pill.s.dismissed { color: var(--muted); border-style: dashed; } .pill.s.digested { color: var(--ok); border-color: var(--ok); }
+.pill.s.from-vault { color: var(--accent); border-color: var(--accent); } .pill.s.request-done { color: var(--ok); border-color: var(--ok); } .pill.s.request-declined { color: var(--muted); border-style: dashed; }
+.vault-links .remote > .inbox-row { padding: 4px 0 2px 18px; } .vault-links .remote-state { overflow-wrap: anywhere; }
 .session-rows { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; } .session-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; } .session-row:last-child { border-bottom: 0; } .session-row:hover, .session-row.on { background: var(--sunk); } .session-row.on { box-shadow: inset 3px 0 0 var(--accent); }
 .session-row-main { flex: 1; min-width: 0; }
 .session-row-acts { display: flex; gap: 4px; visibility: hidden; } .session-row:hover .session-row-acts, .session-row.on .session-row-acts { visibility: visible; }
