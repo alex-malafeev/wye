@@ -45,6 +45,11 @@
 //        correction, a pasted document; stdin or the argument): kept in the inbox as raw input — never a block —, its impact on
 //        what is known judged (update | rework | contradicts | ask) and digested at once by a Remember session: new facts
 //        proposed, changed ones superseded, contradictions raised as questions
+//   wye links [--json]                    the vaults this one reaches: the one above (parent) and below by folder, and the
+//        repos it links, with where each is on this machine
+//   wye link <repo URL> [--name n]        link a vault in another repo by its URL (committed in _product.md); where it is on
+//        this machine is found from a vault the app knows cloned from it, or: wye link <name> --path <folder> (kept here only);
+//        wye link --remove <name>
 //   wye inbox add --product p --title "…" [--ref id ...] (body on stdin)   a raw note (pasted material) for later filing;
 //        decisions, questions, requirements and rules are blocks in the documents, not inbox items
 //   wye inbox list --product p [--all]    what is waiting for review
@@ -157,6 +162,17 @@ async function findHereProduct() {
   // the app opens the vault when it does not know it yet, and says which name it has there (a second vault with one
   // slug on this machine is shown as <slug>-2); with no app running, the vault's own name
   try { const r = await fetch(`${WF_URL}/api/products/open`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ folder: path.join(folder, '.wye') }), signal: AbortSignal.timeout(4000) }); const j = await r.json(); hereProduct = (r.ok && j.slug) || own; } catch { hereProduct = own; }
+}
+
+// the vault folder of the folder this runs in (the nearest .wye/ at or above it)
+function hereVault() { const f = require('../lib/vault.js').vaultOf(process.cwd()); if (!f) die('no vault here or above — run wye init first'); return f; }
+// another vault by the name this one links it under (parent, a child's name, a repo link) → its slug in the app, opened
+// there when the app does not know it yet (plan:vault-links)
+async function otherVault(name) {
+  let v; try { v = require('../lib/links.js').resolveVault(hereVault(), name, require('./wye-home.js').home()); } catch (e) { die(e.message); }
+  const r = await fetch(`${WF_URL}/api/products/open`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ folder: path.join(v.folder, '.wye') }), signal: AbortSignal.timeout(8000) });
+  const j = await r.json().catch(() => ({})); if (!r.ok || !j.slug) die(`the app could not open ${v.folder}: ${j.message || r.status}`);
+  return { ...v, slug: j.slug };
 }
 
 async function api(method, p, body) {
@@ -494,6 +510,24 @@ const commands = {
     if (!im) console.log('impact: not judged');
     else if (!im.candidates.length) console.log(`impact: none on what is known (${im.judged} closest block${im.judged === 1 ? '' : 's'} judged)`);
     else for (const c of im.candidates) console.log(`impact: ${c.verdict.padEnd(11)} ${c.id} — ${c.question || c.reason}`);
+  },
+  // wye link / wye links: the vaults this one reaches (plan:vault-links, lib/links.js) — the one above and the ones below
+  // by folder, a vault in another repo by its URL, committed; where that repo is on this machine kept here only
+  async link() {
+    const L = require('../lib/links.js'); const here = hereVault();
+    if (flags.remove) { const n = flags.remove === true ? pos[1] : flags.remove; if (!n) die('wye link --remove <name>'); L.removeLink(here, n); return console.log(`unlinked ${n} (${path.relative(process.cwd(), path.join(here, '.wye/_product.md')) || '_product.md'} — commit it)`); }
+    const arg = pos[1]; if (!arg) die('wye link <repo URL> [--name <name>]  ·  wye link <name> --path <folder>  ·  wye link --remove <name>  ·  wye links');
+    if (flags.path) { const f = L.setPath(here, arg, String(flags.path).replace(/^~(?=$|\/)/, os.homedir())); return console.log(`${arg} is ${f} on this machine (kept in ${L.storeFile()}, not in git)`); }
+    const l = L.addLink(here, arg, flags.name);
+    console.log(`linked ${l.name} = ${l.repo} in ${path.join(here, '.wye/_product.md')} — commit it to share the link`);
+    try { const v = L.resolveVault(here, l.name, require('./wye-home.js').home()); console.log(`on this machine: ${v.folder}`); }
+    catch (e) { console.log(`not on this machine yet: clone it, or if it is cloned already: wye link ${l.name} --path <folder>`); }
+  },
+  async links() {
+    const L = require('../lib/links.js'); const vs = L.linkedVaults(hereVault(), require('./wye-home.js').home());
+    if (flags.json) return out(vs);
+    if (!vs.length) return console.log('no linked vaults — the vault above and the ones below link by folder (wye init); another repo: wye link <repo URL> --name <name>');
+    for (const v of vs) console.log(`${v.name.padEnd(16)} ${v.kind.padEnd(7)} ${v.folder || `not on this machine — clone ${v.repo}, or: wye link ${v.name} --path <folder>`}${v.repo && v.folder ? `  (${v.repo})` : ''}`);
   },
   async session() {
     const sub = pos[1]; const p = product();
@@ -1018,6 +1052,6 @@ if (GRAPH_CMDS.has(pos[0]) || pos[0] === 'graph') {
     const lines = fs.readFileSync(__filename, 'utf8').split('\n').slice(2); const end = lines.findIndex(l => !l.startsWith('//'));
     console.log(lines.slice(0, end < 0 ? undefined : end).map(l => l.replace(/^\/\/ ?/, '')).join('\n')); process.exit(pos[0] ? 1 : 0); }
   // the commands that work on a folder or on the app itself never ask which product
-  if (!['setup', 'app', 'init', 'initHere', 'open', 'importProduct', 'eval'].includes(pos[0])) await findHereProduct();
+  if (!['setup', 'app', 'init', 'initHere', 'open', 'importProduct', 'eval', 'link', 'links'].includes(pos[0])) await findHereProduct();
   try { await c(); } catch (e) { die(e.message); }
 })();
