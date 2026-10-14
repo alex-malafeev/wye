@@ -172,27 +172,27 @@ async function findHereProduct() {
 
 // the vault folder of the folder this runs in (the nearest .wye/ at or above it)
 function hereVault() { const f = require('../lib/vault.js').vaultOf(process.cwd()); if (!f) die('no vault here or above — run wye init first'); return f; }
-// another vault by the name this one links it under (parent, a child's name, a repo link) → its slug in the app, opened
-// there when the app does not know it yet (plan:vault-links)
-async function otherVault(name) {
-  let v; try { v = require('../lib/links.js').resolveVault(hereVault(), name, require('./wye-home.js').home()); } catch (e) { die(e.message); }
-  const r = await fetch(`${WF_URL}/api/products/open`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ folder: path.join(v.folder, '.wye') }), signal: AbortSignal.timeout(8000) });
-  const j = await r.json().catch(() => ({})); if (!r.ok || !j.slug) die(`the app could not open ${v.folder}: ${j.message || r.status}`);
-  return { ...v, slug: j.slug };
+// another vault by the name the product links it under (parent, a child's name, a repo link) → its slug in the app,
+// with the asking vault's name (mine), how it reaches back (address) and the doc a question is filed in. The app looks it
+// up from the product's links on its machine, never this one's files: an agent on another machine, whose folders are
+// not where the vaults are, reaches the same vaults (plan:vault-links, decision:waterfall.vault-links-resolved-by-the-app)
+async function linkedVault(by) {
+  const r = await fetch(`${WF_URL}/api/${product()}/vaults/resolve`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(by), signal: AbortSignal.timeout(8000) });
+  const j = await r.json().catch(() => ({})); if (!r.ok) die(j.message || `vaults/resolve → ${r.status}`);
+  return j;
 }
+const otherVault = name => linkedVault({ name });
 
 // file a question vault `other` could not answer there, saying which vault asked and how to reach it back
 async function queueQuestion(other, q) {
-  const L = require('../lib/links.js'); const V = require('../lib/vault.js');
-  const here = hereVault(), mine = V.readMeta(here).slug || path.basename(here), proj = V.readMeta(other.folder).slug || path.basename(other.folder);
+  const mine = other.mine, proj = other.project;
   const words = q.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(w => w.length > 2).slice(0, 6).join('-') || 'question';
   const id = `question:${proj}.${mine}-${words}`.slice(0, 90).replace(/-+$/, '');
   const block = s => '|\n' + String(s).split('\n').map(l => '    ' + l).join('\n');
-  const card = [`- id: ${id}`, `  title: ${JSON.stringify(q.split('\n')[0].slice(0, 200))}`, '  status: open', `  asked-by: ${mine}`, `  asked-from: ${L.addressOf(here, other.folder)}`,
+  const card = [`- id: ${id}`, `  title: ${JSON.stringify(q.split('\n')[0].slice(0, 200))}`, '  status: open', `  asked-by: ${mine}`, `  asked-from: ${other.address}`,
     `  why: ${block(flags.why || `the ${mine} vault asked it and its work waits on the answer; this vault's knowledge did not answer it`)}`,
     `  answer-changes: ${block(flags.changes || `what ${mine} builds or decides next`)}`, `  text: ${block(q)}`].join('\n') + '\n';
-  const doc = fs.existsSync(path.join(other.folder, '.wye/projects', proj, 'docs/decisions.md')) ? 'decisions' : proj;
-  try { const j = await api('POST', `/api/${other.slug}/propose`, { card, doc: `${other.slug}/${proj}/${doc}` }); return { id: j.id, file: j.file, vault: other.name }; }
+  try { const j = await api('POST', `/api/${other.slug}/propose`, { card, doc: `${other.slug}/${proj}/${other.doc}` }); return { id: j.id, file: j.file, vault: other.name }; }
   catch (e) {
     // asked before (the same id, or a card that says the same): still open there, its answer still comes back
     const m = e.message.match(/409: (\S+) already exists|409: already known as (\S+)/); if (m) return { id: m[1] || m[2], vault: other.name, already: true };
@@ -562,7 +562,9 @@ const commands = {
     catch (e) { console.log(`not on this machine yet: clone it, or if it is cloned already: wye link ${l.name} --path <folder>`); }
   },
   async links() {
-    const L = require('../lib/links.js'); const vs = L.linkedVaults(hereVault(), require('./wye-home.js').home());
+    // in a vault folder its own links; elsewhere (an agent on another machine) the product's, as the app sees them
+    const local = require('../lib/vault.js').vaultOf(process.cwd());
+    const vs = local ? require('../lib/links.js').linkedVaults(local, require('./wye-home.js').home()) : ((await api('GET', `/api/${product()}/vaults`)).vaults || []);
     if (flags.json) return out(vs);
     if (!vs.length) return console.log('no linked vaults — the vault above and the ones below link by folder (wye init); another repo: wye link <repo URL> --name <name>');
     for (const v of vs) console.log(`${v.name.padEnd(16)} ${v.kind.padEnd(7)} ${v.folder || `not on this machine — clone ${v.repo}, or: wye link ${v.name} --path <folder>`}${v.repo && v.folder ? `  (${v.repo})` : ''}`);
@@ -572,18 +574,16 @@ const commands = {
   // each side tracks it. In the vault that got it: wye request done|decline <inbox item> tells the asking vault and
   // closes both tasks; wye requests lists the ones not answered yet.
   async request() {
-    const L = require('../lib/links.js'); const V = require('../lib/vault.js'); const home = require('./wye-home.js').home();
     const sub = pos[1];
     if (sub === 'done' || sub === 'decline') {
       const p = product(); const name = pos[2] || die(`wye request ${sub} <inbox item> [--note "…"]`);
       const item = (await api('GET', `/api/${p}/inbox`)).items.find(i => i.name === name || i.name === name + '.md') || die(`no inbox item ${name} — wye requests lists them`);
       const f = item.fields || {}; if (!f['reply-to']) die(`${item.name} is not a request from another vault`);
       const note = String(flags.note || flags.why || ''); if (sub === 'decline' && !note) die('wye request decline <item> --why "<why>"');
-      const outcome = sub === 'done' ? 'done' : 'declined', mine = V.readMeta(hereVault()).slug || path.basename(hereVault());
-      const back = L.folderOf(hereVault(), f['reply-to'], home);
+      const outcome = sub === 'done' ? 'done' : 'declined';
+      const { slug: a, mine } = await linkedVault({ address: f['reply-to'] }); const back = !!a;
       if (back) {
-        const r = await fetch(`${WF_URL}/api/products/open`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ folder: path.join(back, '.wye') }) }); const a = (await r.json().catch(() => ({}))).slug;
-        if (a) {
+        {
           await api('POST', `/api/${a}/inbox`, { type: 'note', title: `${mine} ${outcome === 'done' ? 'did' : 'declined'}: ${item.title}`, text: note || (outcome === 'done' ? 'Done.' : ''), from: `vault ${mine}`, refs: [f['tracking-task']].filter(Boolean), fields: { 'from-vault': mine, request: item.title } });
           if (f['tracking-task']) await api('PUT', `/api/${a}/node/${encodeURIComponent(f['tracking-task'])}`, { status: outcome === 'done' ? 'done' : 'cancelled' }).catch(e => console.error(`  ! ${f['tracking-task']} in ${f['from-vault']}: ${e.message}`));
         }
@@ -594,13 +594,13 @@ const commands = {
     }
     const name = sub || die('wye request <vault> [--title "…"] <<\'EOF\' … EOF   (the request on stdin)  ·  wye request done|decline <inbox item>  ·  wye requests');
     const text = flags.file ? fs.readFileSync(flags.file, 'utf8') : (pos[2] || await readStdin()); if (!text.trim()) die('the request goes on stdin or as the argument');
-    const other = await otherVault(name); const here = hereVault(); const mine = V.readMeta(here).slug || path.basename(here);
+    const other = await otherVault(name); const mine = other.mine;
     const title = String(flags.title || text.trim().split('\n')[0]).slice(0, 120);
     const by = env('SESSION') ? `agent:${env('SESSION')}` : 'agent';
     const mineTask = await api('POST', `/api/${product()}/work`, { text: `Requested of ${other.name}: ${title}`, by }).catch(() => null);
     const theirTask = await api('POST', `/api/${other.slug}/work`, { text: `Request from ${mine}: ${title}`, by: `vault ${mine}` }).catch(() => null);
     const j = await api('POST', `/api/${other.slug}/inbox`, { type: 'note', title, text, from: `vault ${mine}`, digest: true, session: undefined,
-      fields: { 'from-vault': mine, 'reply-to': L.addressOf(here, other.folder), ...(mineTask ? { 'tracking-task': mineTask.id } : {}), ...(theirTask ? { task: theirTask.id } : {}) } });
+      fields: { 'from-vault': mine, 'reply-to': other.address, ...(mineTask ? { 'tracking-task': mineTask.id } : {}), ...(theirTask ? { task: theirTask.id } : {}) } });
     if (flags.json) return out({ vault: other.name, item: j.name, session: j.session, task: mineTask && mineTask.id, theirTask: theirTask && theirTask.id });
     console.log(`sent to ${other.name}: ${j.name}${j.session ? ` — digested there by session ${j.session}` : ''}`);
     if (theirTask) console.log(`their task: ${theirTask.id} — when it is done there: wye request done ${j.name}`);

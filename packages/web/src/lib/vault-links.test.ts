@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtemp, mkdir, writeFile, readdir, readFile, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { sendAnswerBack, vaultFolderOf } from './vault-links';
+import { sendAnswerBack, vaultFolderOf, resolveLinked } from './vault-links';
 
 const vault = async (f: string) => { await mkdir(path.join(f, '.wye', 'inbox'), { recursive: true }); await writeFile(path.join(f, '.wye', '_product.md'), '---\ntitle: x\n---\n'); };
 
@@ -25,5 +25,23 @@ describe('sendAnswerBack', () => {
     await vault(path.join(root, 'b'));
     expect(await sendAnswerBack(path.join(root, 'b', '.wye'), 'b', { id: 'question:b.x', title: 'x' }, { by: 'a', from: '../a' }, 'y')).toBeNull();
     expect(await sendAnswerBack(path.join(root, 'b', '.wye'), 'b', { id: 'question:b.x', title: 'x' }, { by: 'a', from: 'https://github.com/acme/nowhere-zz' }, 'y')).toBeNull();
+  });
+});
+
+// an agent on another machine names the product and the link; the app looks it up from the product's own folders
+describe('resolveLinked', () => {
+  it('finds the vault above and below by name, and the asking vault by its address', async () => {
+    const root = await realpath(await mkdtemp(path.join(tmpdir(), 'vault-links-')));
+    const org = path.join(root, 'org'), ios = path.join(org, 'ios');
+    await vault(org); await vault(ios);
+    await writeFile(path.join(org, '.wye', '_product.md'), '---\ntitle: org\nvaults: [ios]\n---\n'); await writeFile(path.join(ios, '.wye', '_product.md'), '---\ntitle: ios\nparent: ..\n---\n');
+    const opened: string[] = []; const open = async (f: string) => { opened.push(f); return path.basename(path.dirname(f)) + '-app'; };
+    const up = await resolveLinked(path.join(ios, '.wye'), { name: 'parent' }, open);
+    expect(up).toMatchObject({ name: 'parent', kind: 'parent', folder: org, slug: 'org-app', mine: 'ios', address: 'ios', project: 'org', doc: 'org' });
+    expect(opened).toEqual([path.join(org, '.wye')]);
+    expect(await resolveLinked(path.join(org, '.wye'), { name: 'ios' }, open)).toMatchObject({ kind: 'child', slug: 'ios-app', mine: 'org', address: '..' });
+    expect(await resolveLinked(path.join(org, '.wye'), { address: 'ios' }, open)).toMatchObject({ folder: ios, slug: 'ios-app', mine: 'org' });
+    expect(await resolveLinked(path.join(org, '.wye'), { address: '../elsewhere' }, open)).toMatchObject({ folder: null, slug: null });
+    await expect(resolveLinked(path.join(org, '.wye'), { name: 'backend' }, open)).rejects.toThrow(/no linked vault named backend/);
   });
 });

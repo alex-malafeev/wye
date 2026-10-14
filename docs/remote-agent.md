@@ -119,6 +119,12 @@ Works — everything that goes through the app:
 | write | `wye doc write`, `wye doc create`, `wye node set`, `wye node add`, `wye node content`, `wye propose`, `wye inbox add`, `wye work add` |
 | follow | `wye session list`, `wye work list`, `wye pr`, `wye hooks`, `wye run` |
 
+Linked vaults work too, through the app: `wye ask --vault <name>`, `wye request <name>`, `wye requests`,
+`wye request done|decline` and `wye links` look the other vault up from the product's links on the laptop, so the
+server needs no clone of the other repos. An agent working on several products sets `WYE_PRODUCT` (or `--product`) to
+the one it asks from; answers and replies land in that product's inbox on the laptop. Links are added on the laptop
+(`wye link` there, or **Settings › Links**), not from the server.
+
 Does not work on the server — the commands that read the product's files directly, which are on the laptop:
 `wye build`, `wye check`, `wye get`, `wye search` and the rest of `wye graph …`. The agent does not need them: the
 app builds and checks on every write, and `wye node` / `wye ask` cover the reads.

@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { REPO_ROOT, DATA_ROOT } from './products';
 import { addInboxItem } from './inbox';
+import { existsSync } from 'node:fs';
 import { parseBody, type GraphIndex } from './graph';
 
 export interface LinkedVault { name: string; kind: 'parent' | 'child' | 'repo'; folder: string | null; repo?: string; via?: string | null; slug: string | null }
@@ -15,7 +16,10 @@ const links = () => createRequire(path.join(REPO_ROOT, 'package.json'))('./lib/l
   addLink(folder: string, url: string, name?: string): { name: string; repo: string };
   setPath(folder: string, name: string, dir: string): string;
   removeLink(folder: string, name: string): void;
+  resolveVault(folder: string, name: string, home: string | null): LinkedVault;
+  addressOf(from: string, to: string): string;
 };
+const vaultMeta = () => createRequire(path.join(REPO_ROOT, 'package.json'))('./lib/vault.js') as { readMeta(folder: string): { slug?: string } };
 const HOME = () => path.dirname(DATA_ROOT);
 // the folder a vault sits beside (its .wye's parent), or null for a product that is not a vault
 const vaultFolder = (productDir: string) => path.basename(productDir) === '.wye' ? path.dirname(productDir) : null;
@@ -29,6 +33,29 @@ export function changeLink(productDir: string, b: { action?: string; url?: strin
   if (b.action === 'path') { L.setPath(f, String(b.name ?? ''), String(b.path ?? '').replace(/^~(?=$|\/)/, process.env.HOME ?? '~')); return; }
   if (b.action === 'remove') { L.removeLink(f, String(b.name ?? '')); return; }
   throw new Error('action: add | path | remove');
+}
+
+// Another vault, looked up by the app from the asking product's own links (decision:waterfall.vault-links-resolved-by-the-app):
+// the CLI may run where none of these folders are — an agent on another machine through a tunnel — so it names the
+// product and the link, and the app answers with everything it needs. By `name` (parent, a child's name, a repo link):
+// the other vault, opened here when the app does not know it yet, with how it reaches this one back (`address`) and the
+// doc a question for it is filed in. By `address` (a request's reply-to): that vault, or slug null when not on this machine.
+export interface ResolvedVault { name: string; kind?: string; folder: string | null; repo?: string; slug: string | null; mine: string; address?: string; project?: string; doc?: string }
+export class LinkError extends Error { constructor(message: string, public code: string) { super(message); } }
+export async function resolveLinked(productDir: string, by: { name?: string; address?: string }, open: (folder: string) => Promise<string>): Promise<ResolvedVault> {
+  const here = vaultFolder(productDir); if (!here) throw new LinkError('this product is not a vault beside its code (a folder with .wye), so it has no linked vaults', 'not-vault');
+  const slugOf = (f: string) => vaultMeta().readMeta(f).slug || path.basename(f);
+  const mine = slugOf(here);
+  if (by.address !== undefined) {
+    const f = links().folderOf(here, String(by.address), HOME());
+    return { name: String(by.address), folder: f, slug: f ? await open(path.join(f, '.wye')) : null, mine };
+  }
+  let v: LinkedVault;
+  try { v = links().resolveVault(here, String(by.name ?? ''), HOME()); }
+  catch (e) { const err = e as Error & { code?: string }; throw new LinkError(err.message, err.code ?? 'unknown'); }
+  const folder = v.folder!, project = slugOf(folder);
+  return { name: v.name, kind: v.kind, folder, ...(v.repo ? { repo: v.repo } : {}), slug: await open(path.join(folder, '.wye')), mine,
+    address: links().addressOf(here, folder), project, doc: existsSync(path.join(folder, '.wye/projects', project, 'docs/decisions.md')) ? 'decisions' : project };
 }
 
 export function askedBy(idx: Pick<GraphIndex, 'byId'>, id: string): { by: string; from: string } | null {

@@ -1015,6 +1015,16 @@ Every operation the UI, the wye CLI and agents call, by area; the CLI commands a
   source: packages/web/src/app/api/[product]/vaults/route.ts
   status: proposed
   part-of: module:api
+- id: op:api.vaults.resolve
+  args: POST /api/<product>/vaults/resolve
+  does: >
+    POST { name } | { address } → the other vault, looked up from this product's links on this machine — what wye
+    ask --vault, wye request and wye request done|decline use, so they work from an agent on another machine
+    (plan:vault-links)
+  gate: none (local app)
+  source: packages/web/src/app/api/[product]/vaults/resolve/route.ts
+  status: proposed
+  part-of: module:api
 ```
 
 <!-- /list:op -->
