@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import * as Y from 'yjs';
-import { collab, storePage } from '@/lib/collab/collab-server';
+import { collab, storePage, presence } from '@/lib/collab/collab-server';
 
 // POST { name, update } — store a live page now (plan:collaboration): the editor's state (base64 Yjs update) is merged
 // into the server's live document first, so the store holds every edit the editor made, then it is written and the
@@ -13,3 +13,6 @@ export async function POST(req: Request) {
   const result = await storePage(page, doc as unknown as Y.Doc);
   return NextResponse.json({ ok: result === 'stored' || result === 'same', result });
 }
+
+// GET → { pages: { <product/project/slug>: [{ name, color }] } } — who is on which live page (the rail marks them)
+export async function GET() { return NextResponse.json({ pages: presence() }); }

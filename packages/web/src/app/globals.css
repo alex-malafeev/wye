@@ -1757,3 +1757,19 @@ p.q-why.muted { border-left-color: var(--line); font-style: italic; }
 .cleanup-why { font: 10px var(--font-m); text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 4px; background: var(--sunk); }
 .cleanup-why.duplicate { color: var(--accent); }
 .shipped-notice { flex-wrap: wrap; } .shipped-diff { flex-basis: 100%; } .shipped-diff pre { max-height: 320px; overflow: auto; white-space: pre-wrap; font: 12px var(--font-m); background: var(--sunk); padding: 8px 10px; border-radius: 8px; }
+
+/* plan:collaboration — who is on a page (PagePresence), who is on which page (DocTree), the name asked on a server (WhoAmI) */
+.page-presence { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; vertical-align: middle; }
+.pp-chip { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--surface); color: #fff; font: 600 11px/18px system-ui, sans-serif; text-align: center; padding: 0; cursor: default; }
+.pp-chip.self { cursor: pointer; outline: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
+.pp-chip + .pp-chip { margin-left: -6px; }
+.pp-count { font-size: 11px; margin-left: 4px; }
+.pp-rename input { width: 130px; font-size: 12px; padding: 2px 6px; }
+.pg-here { display: inline-flex; gap: 2px; margin-left: 6px; vertical-align: middle; }
+.pg-here i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.whoami-veil { position: fixed; inset: 0; z-index: 1000; background: color-mix(in srgb, #000 35%, transparent); display: grid; place-items: center; padding: 16px; }
+.whoami { background: var(--surface); color: var(--ink); border-radius: 10px; padding: 22px; width: min(380px, 100%); display: grid; gap: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+.whoami h2 { margin: 0; font-size: 18px; }
+.whoami p { margin: 0; font-size: 13px; }
+.whoami input { font-size: 15px; padding: 8px 10px; }
+.whoami button { justify-self: end; padding: 6px 14px; }

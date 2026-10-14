@@ -1035,6 +1035,15 @@ Every operation the UI, the wye CLI and agents call, by area; the CLI commands a
   source: packages/web/src/app/api/system/collab/route.ts
   status: proposed
   part-of: module:api
+- id: op:api.system.me
+  args: GET /api/system/me
+  does: >
+    GET → { name } — who the person on this machine is (git's user.name, else the account name): the name presence
+    shows for them when the app runs on their own laptop, where nobody is asked (plan:collaboration names)
+  gate: none (local app)
+  source: packages/web/src/app/api/system/me/route.ts
+  status: proposed
+  part-of: module:api
 ```
 
 <!-- /list:op -->

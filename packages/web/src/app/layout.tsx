@@ -3,6 +3,7 @@ import './globals.css';
 import type { ReactNode } from 'react';
 import { ThemeSync } from '@/components/ThemeSync';
 import { ExternalLinks } from '@/components/ExternalLinks';
+import { WhoAmI } from '@/components/WhoAmI';
 
 export const metadata = { title: 'Wye' };
 // Every page reads the products on disk when it is asked for, never at build time: a prerendered page would show the
@@ -15,7 +16,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const choice = (await cookies()).get('wf-theme')?.value;
   return (
     <html lang="en" suppressHydrationWarning data-theme={choice === 'dark' || choice === 'light' ? choice : undefined}>
-      <body><ThemeSync /><ExternalLinks />{children}</body>
+      <body><ThemeSync /><ExternalLinks /><WhoAmI />{children}</body>
     </html>
   );
 }

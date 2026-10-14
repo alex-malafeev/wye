@@ -14,7 +14,7 @@ type Menu = { d: TreeItem; x: number; y: number; above?: number; rename?: string
 // What every row shares with the tree. Rows are a module-level component (Row) on purpose: a component defined
 // inside DocTree's render would take a new identity on every state change, so setDrag on dragstart would remount
 // every row — and Chrome ends a native drag the moment its source node leaves the document (bug:dnd-remount).
-type Tree = { product: string; path: string; closed: Record<string, boolean>; hit: (d: TreeItem) => boolean; filtering: boolean; toggle: (slug: string) => void; drag: Drag | null; over: Over | null;
+type Tree = { here: Record<string, { name: string; color: string }[]>; product: string; path: string; closed: Record<string, boolean>; hit: (d: TreeItem) => boolean; filtering: boolean; toggle: (slug: string) => void; drag: Drag | null; over: Over | null;
   setDrag: (d: Drag | null) => void; setOver: (o: Over | null) => void; move: (id: string, parent: string | null, rel?: { before?: string; after?: string }) => void; onAddChild: (parent: TreeItem) => void; openMenu: (m: Menu) => void };
 
 // Docmost-style document tree: chevron for documents with children, a dot for leaves, an emoji icon, the title.
@@ -22,6 +22,13 @@ type Tree = { product: string; path: string; closed: Record<string, boolean>; hi
 // right-click (or the hover "⋯") opens a menu: duplicate the document, delete it with everything under it.
 export function DocTree({ product, roots, onAddChild, pinned = [], filter = '' }: { product: string; roots: TreeItem[]; onAddChild: (parent: TreeItem) => void; pinned?: string[]; /** the rail's filter field: a document shows when its title holds the text, or one under it does; folders stay open meanwhile */ filter?: string }) {
   const path = usePathname(); const router = useRouter();
+  // who is on which live page now (plan:collaboration presence): asked every 5 s while the window is in view
+  const [here, setHere] = useState<Record<string, { name: string; color: string }[]>>({});
+  useEffect(() => {
+    let on = true;
+    const ask = () => { if (document.visibilityState !== 'visible') return; fetch('/api/system/collab').then(r => r.json()).then(j => { if (on) setHere(j.pages ?? {}); }).catch(() => {}); };
+    ask(); const t = setInterval(ask, 5000); return () => { on = false; clearInterval(t); };
+  }, []);
   const [closed, setClosed] = useState<Record<string, boolean>>({});
   const [drag, setDrag] = useState<Drag | null>(null);
   const [over, setOver] = useState<Over | null>(null);
@@ -103,7 +110,7 @@ export function DocTree({ product, roots, onAddChild, pinned = [], filter = '' }
   useLayoutEffect(() => { if (menu) fitMenu(menuEl.current, menu.x, menu.y, menu.above); }, [menu]);   // near the window's bottom it opens upward
   const q = filter.trim().toLowerCase();
   const hit = (d: TreeItem): boolean => !q || d.title.toLowerCase().includes(q) || d.slug.includes(q) || d.children.some(hit);
-  const tree: Tree = { product, path, closed, hit, filtering: !!q, toggle, drag, over, setDrag, setOver, move, onAddChild, openMenu: setMenu };
+  const tree: Tree = { here, product, path, closed, hit, filtering: !!q, toggle, drag, over, setDrag, setOver, move, onAddChild, openMenu: setMenu };
   return (
     <div className="pg-wrap" ref={box}>
       {menu && menu.rename !== undefined && <div ref={menuEl} className="pg-menu pg-rename" style={{ left: menu.x, top: menu.y }}>
@@ -132,7 +139,7 @@ export function DocTree({ product, roots, onAddChild, pinned = [], filter = '' }
 const zoneOf = (e: DragEvent<HTMLDivElement>): Zone => { const r = e.currentTarget.getBoundingClientRect(); const y = (e.clientY - r.top) / r.height; return y < 0.25 ? 'before' : y > 0.75 ? 'after' : 'into'; };
 
 function Row({ d, depth, parent, tree }: { d: TreeItem; depth: number; parent: TreeItem | null; tree: Tree }) {
-  const { product, path, closed, hit, filtering, toggle, drag, over, setDrag, setOver, move, onAddChild, openMenu } = tree;
+  const { here, product, path, closed, hit, filtering, toggle, drag, over, setDrag, setOver, move, onAddChild, openMenu } = tree;
   const href = `/${product}/${d.project}/d/${d.slug}`; const on = path === href;
   const open = filtering || !closed[d.slug];
   const id = d.node;
@@ -151,7 +158,7 @@ function Row({ d, depth, parent, tree }: { d: TreeItem; depth: number; parent: T
              if (zone === 'into') move(src, id); else move(src, parent ? parent.node : null, zone === 'before' ? { before: id } : { after: id });
            }}>
         {d.children.length ? <button className="pg-caret" onClick={() => toggle(d.slug)} aria-label={open ? 'collapse' : 'expand'}>{open ? '▾' : '▸'}</button> : <span className="pg-dot">•</span>}
-        <Link href={href} className="pg-link" draggable={false} title={d.tasks?.total ? `${d.tasks.done}/${d.tasks.total} tasks done` : undefined}><span className="pg-icon">{d.icon}</span><span className="pg-title">{d.title}</span>{!!d.tasks?.total && <span className="pg-prog">{d.tasks.done}/{d.tasks.total}</span>}</Link>
+        <Link href={href} className="pg-link" draggable={false} title={d.tasks?.total ? `${d.tasks.done}/${d.tasks.total} tasks done` : undefined}><span className="pg-icon">{d.icon}</span><span className="pg-title">{d.title}</span>{(here[`${product}/${d.project}/${d.slug}`] ?? []).length > 0 && <span className="pg-here" title={`on this page: ${here[`${product}/${d.project}/${d.slug}`].map(x => x.name).join(', ')}`}>{here[`${product}/${d.project}/${d.slug}`].slice(0, 3).map((x, i) => <i key={i} style={{ background: x.color }} />)}</span>}{!!d.tasks?.total && <span className="pg-prog">{d.tasks.done}/{d.tasks.total}</span>}</Link>
         <button className="pg-more" title="More…" aria-label="More" onClick={onMenu}><IconMore /></button>
         <button className="pg-add" title="Add a sub-document" aria-label="Add a sub-document" onClick={() => onAddChild(d)}><IconPlus size={16} /></button>
       </div>

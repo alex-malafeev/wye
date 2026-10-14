@@ -1266,6 +1266,24 @@ The editor's blocks and the components the pages are made of, by area.
     them with `wye ask --vault <name>` and send them work with `wye request <name>`.
   status: proposed
   part-of: module:components
+- id: component:page-presence
+  file: packages/web/src/components/PagePresence.tsx
+  side: client
+  purpose: >
+    Who is on this live page (plan:collaboration req&#58;waterfall.collaboration.presence): one chip per person,
+    their colour and name; the block each is in is marked in their colour. This browser's own chip renames it.
+  status: proposed
+  part-of: module:components
+- id: component:who-am-i
+  file: packages/web/src/components/WhoAmI.tsx
+  side: client
+  purpose: >
+    Who is at this browser (plan:collaboration, decision&#58;waterfall.collab-sign-in-later-names-first). On the
+    person's own laptop nobody is asked: presence shows git's name, and writes stay "person" as before. On a server
+    a new browser is asked for a name once; it is kept here, shown to the others on a page, and sent with every
+    write this browser makes (x-wf-by), so the change history says who.
+  status: proposed
+  part-of: module:components
 ```
 
 <!-- /list:component -->

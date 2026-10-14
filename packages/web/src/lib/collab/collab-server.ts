@@ -16,10 +16,11 @@ import { pageBySlug } from '../doc';
 import { bodyOf, followHeading, hashOf, rebuild, replaceBody, withFileLock, writeAtomic } from '../write';
 import { markdownToDoc, docToMarkdown, mergeIntoDoc } from './collab-blocks';
 import { realpathSync } from 'node:fs';
+import { claimWrite } from '../changes';
 
 // a page held live: its file, the markdown the live document last read from or wrote to it (`fileBody`), and the
 // markdown the live document gave then (`stored`) — a store with nothing new writes nothing
-export interface LivePage { name: string; file: string; productDir: string; fileBody: string; stored: string }
+export interface LivePage { name: string; file: string; productDir: string; fileBody: string; stored: string; editors: Set<string> }
 export interface Collab { hocuspocus: Hocuspocus; live: Map<string, LivePage>; upgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void; written(file: string, text: string): void; changedOnDisk(file: string): void }
 const g = globalThis as { __wyeCollab?: Collab };
 
@@ -55,6 +56,8 @@ export async function storePage(p: LivePage, doc: Y.Doc): Promise<'stored' | 'sa
     if (md === p.stored && body === p.fileBody) return 'same' as const;
     if ((squeeze(p.stored) > 0 && squeeze(md) === 0) || (squeeze(p.stored) > 200 && squeeze(md) < squeeze(p.stored) / 2)) { console.error(`wye collab: ${p.file} — a store that drops more than half the page was refused`); return 'shrunk' as const; }
     if (md === body) { p.stored = md; return 'same' as const; }
+    // the people who changed it since the last store are who wrote it (plan:collaboration names)
+    if (p.editors.size) { claimWrite(p.file, { by: [...p.editors].join(', ') }); p.editors.clear(); }
     const w = replaceBody(cur, hashOf(body), md);
     const out = followHeading(cur, w.md);
     await writeAtomic(abs, out, { live: true });
@@ -70,6 +73,16 @@ export function startCollab(): Collab {
   const live = new Map<string, LivePage>();
   const hocuspocus = new Hocuspocus({
     quiet: true, debounce: 2000, maxDebounce: 10_000, unloadImmediately: false,
+    // who connected: the name and colour the editor sends (lib/collab/collab-client); `by` when the name is to be
+    // credited with what they write (a server — on the person's own laptop writes stay "person", as before)
+    async onConnect({ requestParameters, context }) {
+      const c = context as { name?: string; by?: boolean };
+      c.name = (requestParameters.get('name') ?? '').trim().slice(0, 60) || 'Someone'; c.by = requestParameters.get('by') === '1';
+    },
+    async onChange({ documentName, context }) {
+      const c = context as { name?: string; by?: boolean } | undefined;
+      if (c?.by && c.name) live.get(documentName)?.editors.add(c.name);
+    },
     async onLoadDocument({ documentName, document }) {
       try { return await load(documentName, document as unknown as Y.Doc); }
       catch (e) { console.error(`wye collab: could not load ${documentName}: ${(e as Error).message}`); throw e; }
@@ -85,7 +98,7 @@ export function startCollab(): Collab {
       const hit = await locate(documentName); if (!hit) throw new Error(`no page ${documentName}`);
       const fileBody = bodyOf(await loadMarkdown(REPO_ROOT, hit.file));
       markdownToDoc(fileBody, document);
-      live.set(documentName, { name: documentName, file: hit.file, productDir: hit.productDir, fileBody, stored: docToMarkdown(document) });
+      live.set(documentName, { name: documentName, file: hit.file, productDir: hit.productDir, fileBody, stored: docToMarkdown(document), editors: new Set() });
       return document;
   }
   const wss = new WebSocketServer({ noServer: true });
@@ -121,3 +134,13 @@ export async function flushLive(): Promise<void> {
   await Promise.all([...c.hocuspocus.documents].map(async ([name, doc]) => { const p = c.live.get(name); if (p) await storePage(p, doc as unknown as Y.Doc).catch(e => console.error(`wye collab: could not store ${name}: ${(e as Error).message}`)); }));
 }
 export const collab = (): Collab | undefined => g.__wyeCollab;
+
+// who is on which live page now: page ref → the people (name, colour) whose editors have it open
+export function presence(): Record<string, { name: string; color: string }[]> {
+  const c = g.__wyeCollab; const out: Record<string, { name: string; color: string }[]> = {}; if (!c) return out;
+  for (const [name, doc] of c.hocuspocus.documents) {
+    const people = [...doc.awareness.getStates().values()].map(st => (st as { user?: { name?: string; color?: string } }).user).filter((u): u is { name: string; color: string } => !!u?.name);
+    if (people.length) out[name] = people.map(u => ({ name: u.name, color: u.color ?? '#888' }));
+  }
+  return out;
+}

@@ -17,7 +17,8 @@ export function openLive(name: string): LiveDoc {
 // and a closed provider takes its awareness with it
 export function connectLive(live: LiveDoc): HocuspocusProvider {
   if (live.closing) { clearTimeout(live.closing); live.closing = undefined; }
-  const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/collab`;
+  const who = me(); const q = new URLSearchParams({ name: who.name, ...(onLaptop() ? {} : { by: '1' }) });
+  const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/collab?${q}`;
   return (live.provider ??= new HocuspocusProvider({ url, name: live.name, document: live.doc, awareness: live.awareness }));
 }
 export function closeLive(live: LiveDoc): void {
@@ -34,12 +35,19 @@ export async function storeNow(live: LiveDoc): Promise<{ ok: boolean; result?: s
   return r.json().catch(() => ({ ok: false }));
 }
 
-// who this browser is to the others on a page: the name a person gave (plan:collaboration names-first), else a
-// placeholder, and a colour kept with it
+// who this browser is to the others on a page (plan:collaboration, decision:waterfall.collab-sign-in-later-names-first):
+// the name the person gave on a server — or, on their own laptop, git's name, asked of nobody — and a colour kept with it
 const COLOURS = ['#e8590c', '#1c7ed6', '#2f9e44', '#ae3ec9', '#f08c00', '#0c8599', '#e03131', '#5f3dc4'];
+export const onLaptop = () => ['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname);
+const read = (k: string) => { try { return localStorage.getItem(k) ?? ''; } catch { return ''; } };
+const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* no storage */ } };
 export function me(): { name: string; color: string } {
-  let name = '', color = '';
-  try { name = localStorage.getItem('wye-name') ?? ''; color = localStorage.getItem('wye-colour') ?? ''; } catch { /* no storage */ }
-  if (!color) { color = COLOURS[Math.floor(Math.random() * COLOURS.length)]; try { localStorage.setItem('wye-colour', color); } catch { /* no storage */ } }
-  return { name: name || 'Someone', color };
+  let color = read('wye-colour'); if (!color) { color = COLOURS[Math.floor(Math.random() * COLOURS.length)]; write('wye-colour', color); }
+  return { name: read('wye-name') || 'Someone', color };
 }
+export const hasName = () => !!read('wye-name');
+export function setMe(name: string, color?: string): void {
+  write('wye-name', name.trim().slice(0, 60)); if (color) write('wye-colour', color);
+  window.dispatchEvent(new CustomEvent('wye:me'));
+}
+export { COLOURS };

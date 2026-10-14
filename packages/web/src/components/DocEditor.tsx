@@ -41,6 +41,7 @@ import { tagInlineConfig, imgInlineConfig, collectionBlockConfig, nodeBlockConfi
 import { CollaborationExtension } from '@blocknote/core/yjs';
 import { openLive, connectLive, closeLive, storeNow, me, type LiveDoc } from '@/lib/collab/collab-client';
 import { docName } from '@/lib/collab/collab-name';
+import { PagePresence } from './PagePresence';
 
 
 // kind:slug as inline content: a clickable tag in the editor, plain id text when serialised.
@@ -1018,6 +1019,8 @@ function PageEditor({ product, project, slug, body, ifMatch, fallback, scope = n
     } });
   };
   useEditorSelectionChange(publishContext, editor);
+  // the block this person is in, for the others on the page (PagePresence marks it in their colour)
+  useEditorSelectionChange(() => { if (!live) return; try { live.awareness.setLocalStateField('block', String(editor.getTextCursorPosition().block.id)); } catch { /* no cursor */ } }, editor);
   useEditorChange(publishContext, editor);
   useEffect(() => { const h = () => publishContext(); window.addEventListener('wf:publish', h); return () => window.removeEventListener('wf:publish', h); }); // eslint-disable-line react-hooks/exhaustive-deps
   // The context column is always there on a document page; it leaves with the editor.
@@ -1547,7 +1550,7 @@ function PageEditor({ product, project, slug, body, ifMatch, fallback, scope = n
       {tagMenu && <TagContextMenu menu={tagMenu} onClose={closeTagMenu} act={tagAct} />}
       {blockMenu && <BlockContextMenu menu={blockMenu} onClose={closeBlockMenu} act={blockAct} canPaste={!!CLIP || typeof navigator !== 'undefined' && !!navigator.clipboard?.readText} />}
       {commentPop && <CommentPop at={commentPop} on={commentPop.on} product={product} words={commentPop.words} onClose={closeCommentPop} />}
-      <div className="doc-editor-bar"><span className={`save-state ${state}`}>{state === 'saving' ? 'saving…' : state === 'saved' ? 'saved' : state === 'conflict' ? 'changed on disk — reload' : state === 'error' ? 'save failed' : state === 'offline' ? 'offline — what you type is kept and sent when the connection is back' : ready ? 'live' : 'loading…'}</span>{lintMsg && <span className="notice">Lint: {lintMsg}</span>}{!lintMsg && elsewhere > 0 && <span className="muted" title="ctx check finds an error in another document of the product — not in this one">{elsewhere} check error{elsewhere === 1 ? '' : 's'} elsewhere</span>}</div>
+      <div className="doc-editor-bar">{live && <PagePresence awareness={live.awareness} />}<span className={`save-state ${state}`}>{state === 'saving' ? 'saving…' : state === 'saved' ? 'saved' : state === 'conflict' ? 'changed on disk — reload' : state === 'error' ? 'save failed' : state === 'offline' ? 'offline — what you type is kept and sent when the connection is back' : ready ? 'live' : 'loading…'}</span>{lintMsg && <span className="notice">Lint: {lintMsg}</span>}{!lintMsg && elsewhere > 0 && <span className="muted" title="ctx check finds an error in another document of the product — not in this one">{elsewhere} check error{elsewhere === 1 ? '' : 's'} elsewhere</span>}</div>
       <BlockNoteView editor={editor} theme={theme} onChange={changed} formattingToolbar={false} slashMenu={false} sideMenu={false} emojiPicker={false}>
         <SideMenuController sideMenu={sideMenu} />
         <FormattingToolbarController formattingToolbar={() => <SelectionMenu actions={{
