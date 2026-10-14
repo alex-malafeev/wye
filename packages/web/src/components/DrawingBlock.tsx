@@ -6,6 +6,7 @@ import { createReactBlockSpec } from '@blocknote/react';
 import dynamic from 'next/dynamic';
 import '@excalidraw/excalidraw/index.css';
 import { describeScene } from '@/lib/annotations';
+import { drawingBlockConfig } from '@/lib/editor-schema';
 
 // An embedded Excalidraw drawing. The markdown keeps a plain image link (![Title](drawings/x.excalidraw)); the scene
 // and an SVG export live under docs/drawings/. The page shows the SVG; clicking it opens the full-screen editor.
@@ -80,7 +81,7 @@ function DrawingEditor({ doc, src, title, onClose, onSaved }: { doc: { product: 
 }
 
 export const DrawingBlock = createReactBlockSpec(
-  { type: 'drawing', propSchema: { src: { default: '' }, title: { default: 'Drawing' } }, content: 'none' },
+  drawingBlockConfig,
   {
     render: props => {
       const p = props.block.props as { src: string; title: string };

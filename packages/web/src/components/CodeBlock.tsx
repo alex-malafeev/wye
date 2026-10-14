@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { createReactBlockSpec } from '@blocknote/react';
 import { MonacoEditor } from './CodeView';
 import { useDark } from '@/lib/theme';
+import { codeBlockConfig, codeBlockParse } from '@/lib/editor-schema';
 
 // A code block is Monaco — the editor the column shows files in (req:wf2.editor.code-monaco): highlighting by
 // language, a language picker on hover, the height following the lines. The code lives in the block's `code` prop
@@ -31,7 +32,7 @@ function CodeBlockView({ code, language, editable, onCode, onLanguage }: { code:
 // The block spec, in place of BlockNote's codeBlock (same type name, so every slash item, shortcut and serializer
 // path still says `codeBlock`). `code` holds the text; `language` the fence's info string.
 export const CodeBlock = createReactBlockSpec(
-  { type: 'codeBlock', propSchema: { language: { default: '' }, code: { default: '' } }, content: 'none' },
+  codeBlockConfig,
   {
     render: ({ block, editor }) => {
       const p = block.props as { language: string; code: string };
@@ -41,6 +42,6 @@ export const CodeBlock = createReactBlockSpec(
     },
     // what the clipboard and the markdown export see
     toExternalHTML: ({ block }) => { const p = block.props as { language: string; code: string }; return <pre><code className={p.language ? `language-${p.language}` : undefined}>{p.code}</code></pre>; },
-    parse: el => { if (el.tagName !== 'PRE') return undefined; const c = el.querySelector('code'); const lang = c?.getAttribute('data-language') || (c?.className.match(/language-([\w-]+)/) ?? [])[1] || el.getAttribute('data-language') || ''; return { language: lang, code: (c ?? el).textContent ?? '' }; },
+    parse: codeBlockParse,
   },
 );

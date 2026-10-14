@@ -14,6 +14,7 @@ import { WorkEmpty } from './WorkList';
 import { detailOf, knowledgeChanged } from '@/lib/change';
 import { parseViewQuery, viewQuery, type Filters, type InstanceTable as Table } from '@/lib/instance-table';
 import { KindPicker } from './KindPicker';
+import { viewBlockConfig } from '@/lib/editor-schema';
 
 // the kinds a view can list: the product's own types first, then the base kinds people look at as lists
 const BASE_VIEW_KINDS = KINDS.filter(k => !['field', 'prop', 'block', 'product', 'module', 'type', 'value', 'state', 'flag', 'setting', 'drift', 'tool'].includes(k));
@@ -29,7 +30,7 @@ function stop(el: HTMLElement | null) {
 // A live view of a type's instances inside a document (req:wf2.instances.view-block): the markdown is one line,
 // `<!-- view:<slug> key=value … -->`; the rows come from the graph, the filters from the line and go back to it.
 export const ViewBlock = createReactBlockSpec(
-  { type: 'view', propSchema: { slug: { default: 'task' }, query: { default: '' } }, content: 'none' },
+  viewBlockConfig,
   {
     render: props => {
       const { slug, query: rawQuery } = props.block.props as { slug: string; query: string };

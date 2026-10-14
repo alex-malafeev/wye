@@ -37,18 +37,19 @@ import { DateField } from './DateField';
 import { requestSend } from './CommandBox';
 import { AskAgentBox, type AskRequest } from './AskAgent';
 import { KindPicker } from './KindPicker';
+import { tagInlineConfig, imgInlineConfig, collectionBlockConfig, nodeBlockConfig } from '@/lib/editor-schema';
 
 
 // kind:slug as inline content: a clickable tag in the editor, plain id text when serialised.
 const Tag = createReactInlineContentSpec(
-  { type: 'tag', propSchema: { id: { default: '' } }, content: 'none' },
+  tagInlineConfig,
   { render: props => <ContextLink id={props.inlineContent.props.id} />, toExternalHTML: props => <span>{props.inlineContent.props.id}</span> },
 );
 
 // An image inside a block's text (a bug's screenshot next to its words): the markdown keeps ![alt](assets/x.png) in
 // the line, so the parser's node text carries it and agents find the file. A thumbnail here; click opens the file.
 const InlineImage = createReactInlineContentSpec(
-  { type: 'img', propSchema: { url: { default: '' }, alt: { default: '' } }, content: 'none' },
+  imgInlineConfig,
   {
     render: props => <img className="inline-img" src={props.inlineContent.props.url} alt={props.inlineContent.props.alt} title={props.inlineContent.props.alt || props.inlineContent.props.url} onClick={() => window.open(props.inlineContent.props.url, '_blank')} />,
     toExternalHTML: props => <img src={props.inlineContent.props.url} alt={props.inlineContent.props.alt} />,
@@ -452,7 +453,7 @@ function TypeRowFor({ p, set, contentRef, block, editor }: { p: { kind: string; 
 // to the file as before — but they are not shown as blocks: the table shows what the query returns, and a new row,
 // an edit or a delete of an item this page defines is made here, in the editor that holds the page.
 const CollectionBlock = createReactBlockSpec(
-  { type: 'collection', propSchema: { kind: { default: 'goal' }, query: { default: '' }, view: { default: 'table' } }, content: 'none' },
+  collectionBlockConfig,
   {
     render: props => {
       const { kind, query, view } = props.block.props as { kind: string; query: string; view: string };
@@ -557,7 +558,7 @@ function setBlockAttr(editor: EditorLike, blockId: string, key: string, value: s
 }
 // A typed block (requirement, entity, rule, …): header with kind, id and status; the text is normal inline content.
 const NodeBlock = createReactBlockSpec(
-  { type: 'node', propSchema: { kind: { default: 'req' }, slug: { default: '' }, status: { default: '' }, form: { default: 'prose' }, textKey: { default: 'text' }, body: { default: '' }, extra: { default: '' }, check: { default: '' }, list: { default: '' }, row: { default: '' } }, content: 'inline' },
+  nodeBlockConfig,
   {
     render: props => {
       const p = props.block.props as { kind: string; slug: string; status: string; form: string; body: string; extra: string; check: string; textKey: string; row: string };
