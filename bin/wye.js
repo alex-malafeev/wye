@@ -10,7 +10,7 @@
 //
 //   wye --version                         the version and the install it runs from (is the global wye the latest?)
 //   wye setup                             the home (~/.wye when installed from npm: your products in data/) and the agent skills (Claude Code, Codex)
-//   wye app [folder] [--port 3456] [--browser] [--no-open]   the app in its own window, over the home (--browser: in your browser);
+//   wye app [folder] [--port 3456] [--browser] [--no-open] [--public https://…]   the app in its own window, over the home (--browser: in your browser; --public: on a server behind a TLS proxy, docs/server.md);
 //        with a folder, that folder is opened as the workspace: its vaults are the Documents roots, its files are under Files
 //   wye export <product> [--out file]     the product as one file, <product>.wye.tgz (documents, pages, inbox; not sessions)
 //   wye import <file.wye.tgz> [--slug s]  a new product from an export (markdown into a product: wye import <file|dir> --product p, below)
@@ -307,7 +307,11 @@ const commands = {
     console.log(`Wye on ${url} — home ${dir}  (${up ? 'already running' : electron ? 'close the window or Ctrl+C to stop it' : 'Ctrl+C stops it'})`);
     if (!electron && !flags.browser && !flags['no-open']) console.log('no Electron in this install — opening your browser instead (reinstall with: npm install -g @emlab/wye --include=optional --allow-scripts=electron)');
     // the app's own server (packages/web/server.js): Next, and the websocket the page editors share live pages over
-    const start = () => { const cwd = h.prepareApp(web, dir); return spawn(process.execPath, [path.join(cwd, 'server.js'), '-p', port, '-H', '127.0.0.1'], { cwd, stdio: 'inherit', env: { ...process.env, WYE_HOME: dir, WYE_URL: url } }); };
+    // --public <https URL>: Wye on a server for several people, behind a TLS proxy that answers on that address
+    // (docs/server.md); the app itself still listens on this machine only, for the proxy
+    const pub = flags.public ? String(flags.public) : process.env.WYE_PUBLIC_URL || '';
+    if (pub && !/^https:\/\/[^/]+/.test(pub)) die('wye app --public takes the https address the server is reached at, e.g. https://wye.example.com');
+    const start = () => { const cwd = h.prepareApp(web, dir); return spawn(process.execPath, [path.join(cwd, 'server.js'), '-p', port, '-H', '127.0.0.1'], { cwd, stdio: 'inherit', env: { ...process.env, WYE_HOME: dir, WYE_URL: url, ...(pub ? { WYE_PUBLIC_URL: pub.replace(/\/+$/, '') } : {}) } }); };
     let child = up ? null : start();
     // wye app <folder>: that folder is the workspace (decision:wf2.workspace-is-the-top) — asked of the app once it answers
     if (pos[1]) {

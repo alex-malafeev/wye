@@ -2,7 +2,8 @@
 // the other at the top of the page, the other's labelled cursor and the block they are in, the rail marks the page
 // with both, and a node one of them changes is recorded under their name.
 //   node scripts/collab-presence.mjs <port> <product>/<project>/<slug> <a prose node id on the page>
-// Chrome reaches the app as http://wye.test:<port> (mapped to this machine), so the app takes itself for a server.
+// Chrome reaches the app as http://wye.test:<port> (mapped to this machine), so the app takes itself for a server —
+// or through a TLS proxy: WYE_TEST_BASE=https://wye.test:8443 WYE_TEST_AUTH=<user>:<password> (its basic auth).
 // Needs playwright-core (PLAYWRIGHT_CORE=<its package dir>) and Chrome. Run it against a scratch product.
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -10,12 +11,13 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE ?? 'playwright-core');
 const [port, ref, node] = process.argv.slice(2);
 if (!node) { console.error('node scripts/collab-presence.mjs <port> <product/project/slug> <node id>'); process.exit(2); }
 const [product, project, slug] = ref.split('/');
-const base = `http://wye.test:${port}`, url = `${base}/${product}/${project}/d/${slug}`;
-const b = await chromium.launch({ channel: 'chrome', args: ['--host-resolver-rules=MAP wye.test 127.0.0.1'] });
+const base = process.env.WYE_TEST_BASE ?? `http://wye.test:${port}`, url = `${base}/${product}/${project}/d/${slug}`;
+const b = await chromium.launch({ channel: 'chrome', args: ['--host-resolver-rules=MAP wye.test 127.0.0.1', '--ignore-certificate-errors'] });
 const results = [];
 const check = (what, ok) => { results.push(ok); console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); };
 const join = async name => {
-  const p = await (await b.newContext({ viewport: { width: 1200, height: 900 } })).newPage(); const errors = []; p.on('pageerror', e => errors.push(e.message));
+  const [username, password] = (process.env.WYE_TEST_AUTH ?? '').split(':');
+  const p = await (await b.newContext({ viewport: { width: 1200, height: 900 }, ignoreHTTPSErrors: true, ...(username ? { httpCredentials: { username, password } } : {}) })).newPage(); const errors = []; p.on('pageerror', e => errors.push(e.message));
   await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 180000 });
   const ask = p.getByRole('dialog', { name: 'Your name' }); await ask.waitFor({ timeout: 60000 });
   await ask.getByLabel('Your name').fill(name); await ask.getByRole('button', { name: 'Continue' }).click();

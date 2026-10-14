@@ -508,6 +508,11 @@ anywhere under that folder — by you or by an agent — reads and writes that v
 Products you would rather keep out of a repository go in `~/.wye/data/products/` (`wye init --product shop --repo
 ~/code/shop`, or Add a product in the app). All of this in detail: [docs/workspaces-and-vaults.md](docs/workspaces-and-vaults.md).
 
+**Several people on one vault.** Two people on one page edit it together: each sees the other's typing, cursor and
+name as it happens, edits merge by themselves, and an agent's write lands beside what they type. Run on a server
+behind HTTPS (`wye app --public https://…` and a proxy), a vault is shared with a client or a team:
+[docs/server.md](docs/server.md).
+
 **The first run.** With no products yet, `wye app` opens a Welcome: what Wye is in three steps, whether Claude Code or
 Codex was found, and Add a product, which starts on **From your code** (`wye init` through the app: a folder, and
 its knowledge is kept in that folder's `.wye/` unless you ask for Wye's own data). Every product then has a **Quick start** (`/<product>/start`, in the rail with its count): nine steps that tick
