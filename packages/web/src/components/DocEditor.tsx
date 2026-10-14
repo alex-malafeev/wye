@@ -1105,9 +1105,11 @@ function PageEditor({ product, project, slug, body, ifMatch, fallback, scope = n
     };
     const status = ({ status: st }: { status: string }) => setState(s => st === 'disconnected' ? 'offline' : st === 'connected' && s === 'offline' ? 'idle' : s);
     const provider = connectLive(live);   // connected by DocEditor, synced before this editor was made
-    provider.on('status', status);
+    // the server refused to store a change that would lose most of the page (lib/collab): said here, so it can be undone
+    const told = ({ payload }: { payload: string }) => { try { const m = JSON.parse(payload) as { refused?: boolean; kept?: string }; if (m.refused) { setState('error'); setLintMsg(`not stored: this change would remove most of the page — undo it (⌘Z); the version was kept at ${m.kept}`); } } catch { /* not ours */ } };
+    provider.on('status', status); provider.on('stateless', told);
     opened();
-    return () => { provider.off('status', status); };
+    return () => { provider.off('status', status); provider.off('stateless', told); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, editor]);
 

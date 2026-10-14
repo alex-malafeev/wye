@@ -16,6 +16,7 @@ import { pageBySlug } from '../doc';
 import { bodyOf, followHeading, hashOf, rebuild, replaceBody, withFileLock, writeAtomic } from '../write';
 import { markdownToDoc, docToMarkdown, mergeIntoDoc } from './collab-blocks';
 import { realpathSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { claimWrite } from '../changes';
 
 // a page held live: its file, the markdown the live document last read from or wrote to it (`fileBody`), and the
@@ -43,6 +44,15 @@ function mergeFile(p: LivePage, doc: Y.Doc, body: string): void {
   if (r.kept) console.error(`wye collab: ${p.file} — ${r.kept} block(s) changed both live and by a write; both versions kept`);
 }
 
+// a store that would lose most of a page: not written — the version it would have written is kept in the vault's
+// .refused/ folder and the people editing the page are told, so one of them can undo it (req:waterfall.collaboration.safe-store-live)
+async function refuse(p: LivePage, doc: Y.Doc, md: string): Promise<void> {
+  const kept = path.join(p.productDir, '.refused', `${path.basename(p.file, '.md')}-${new Date().toISOString().replace(/[:.]/g, '-')}.md`);
+  try { await mkdir(path.dirname(kept), { recursive: true }); await writeFile(kept, md, 'utf8'); } catch (e) { console.error(`wye collab: could not keep the refused version of ${p.file}: ${(e as Error).message}`); }
+  console.error(`wye collab: ${p.file} — a store that would lose most of the page was refused; kept at ${kept}`);
+  (doc as unknown as { broadcastStateless?: (s: string) => void }).broadcastStateless?.(JSON.stringify({ refused: true, kept }));
+}
+
 // write a live page to its file. What changed the file since the live document last read or wrote it (a write in this
 // app is merged at once; one from outside — git, an editor — here) is merged in first, so it is kept. Refused when the
 // page would lose more than half its text, or all of it (the editor's own guard, kept on the server).
@@ -54,7 +64,7 @@ export async function storePage(p: LivePage, doc: Y.Doc): Promise<'stored' | 'sa
     mergeFile(p, doc, body);
     const md = docToMarkdown(doc);
     if (md === p.stored && body === p.fileBody) return 'same' as const;
-    if ((squeeze(p.stored) > 0 && squeeze(md) === 0) || (squeeze(p.stored) > 200 && squeeze(md) < squeeze(p.stored) / 2)) { console.error(`wye collab: ${p.file} — a store that drops more than half the page was refused`); return 'shrunk' as const; }
+    if ((squeeze(p.stored) > 0 && squeeze(md) === 0) || (squeeze(p.stored) > 200 && squeeze(md) < squeeze(p.stored) / 2)) { await refuse(p, doc, md); return 'shrunk' as const; }
     if (md === body) { p.stored = md; return 'same' as const; }
     // the people who changed it since the last store are who wrote it (plan:collaboration names)
     if (p.editors.size) { claimWrite(p.file, { by: [...p.editors].join(', ') }); p.editors.clear(); }

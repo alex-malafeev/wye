@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, realpath, rename, writeFile } from 'node:fs/promises';
+import { mkdir, open, realpath, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { buildProduct, checkProduct } from './build';
 import { splitDocument } from './doc';
@@ -123,6 +123,14 @@ export async function writeAtomic(file: string, text: string, opts: { live?: boo
   // and the link stays a link; anywhere else the real folder is the folder
   const real = path.join(await realpath(path.dirname(file)), path.basename(file));
   const tmp = `${real}.tmp-${process.pid}-${++writeSeq}`;
+  if (opts.live) {
+    // a live page is written by the server alone, often: synced to disk before and after the rename, so a crash or a
+    // power cut leaves the last stored page, never a part (req:waterfall.collaboration.safe-store-live)
+    const fh = await open(tmp, 'w'); try { await fh.writeFile(text, 'utf8'); await fh.sync(); } finally { await fh.close(); }
+    await rename(tmp, real);
+    try { const dh = await open(path.dirname(real), 'r'); try { await dh.sync(); } finally { await dh.close(); } } catch { /* a folder that cannot be synced */ }
+    return;
+  }
   await writeFile(tmp, text, 'utf8');
   await rename(tmp, real);
   if (!opts.live) (globalThis as { __wyeCollab?: { written?: (file: string, text: string) => void } }).__wyeCollab?.written?.(real, text);
