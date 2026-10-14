@@ -113,7 +113,9 @@ export const overrideOf = (file: string): string | null => {
   const m = file.match(/^(.*)\/_build\/shipped\/([^/]+)\/([^/]+\.md)$/);
   return m ? path.join(m[1], 'projects', m[2], '.wye', m[3]) : null;
 };
-export async function writeAtomic(file: string, text: string): Promise<void> {
+// `live`: the write is a live page storing itself (lib/collab); any other write of a page that is open live is merged
+// into its live document, so the people editing it see it at once and their next store keeps it (plan:collaboration)
+export async function writeAtomic(file: string, text: string, opts: { live?: boolean } = {}): Promise<void> {
   file = overrideOf(file) ?? file;
   await mkdir(path.dirname(file), { recursive: true }); // a project's .wye/ is made by its first system page
   // rule:install.write-through-link: under a package link (projects/<p>/.wye/packages/<pkg> → the system library) the
@@ -123,6 +125,7 @@ export async function writeAtomic(file: string, text: string): Promise<void> {
   const tmp = `${real}.tmp-${process.pid}-${++writeSeq}`;
   await writeFile(tmp, text, 'utf8');
   await rename(tmp, real);
+  if (!opts.live) (globalThis as { __wyeCollab?: { written?: (file: string, text: string) => void } }).__wyeCollab?.written?.(real, text);
 }
 
 // Rebuild a product's graph.json — in this process, with the parse cache (lib/build, decision:wf2.parse-cache); the

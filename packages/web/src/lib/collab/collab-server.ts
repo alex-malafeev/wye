@@ -14,12 +14,13 @@ import { loadMarkdown } from '../load';
 import { REPO_ROOT } from '../products';
 import { pageBySlug } from '../doc';
 import { bodyOf, followHeading, hashOf, rebuild, replaceBody, withFileLock, writeAtomic } from '../write';
-import { markdownToDoc, docToMarkdown } from './collab-blocks';
+import { markdownToDoc, docToMarkdown, mergeIntoDoc } from './collab-blocks';
+import { realpathSync } from 'node:fs';
 
 // a page held live: its file, the markdown the live document last read from or wrote to it (`fileBody`), and the
 // markdown the live document gave then (`stored`) — a store with nothing new writes nothing
 export interface LivePage { name: string; file: string; productDir: string; fileBody: string; stored: string }
-export interface Collab { hocuspocus: Hocuspocus; live: Map<string, LivePage>; upgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void }
+export interface Collab { hocuspocus: Hocuspocus; live: Map<string, LivePage>; upgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void; written(file: string, text: string): void; changedOnDisk(file: string): void }
 const g = globalThis as { __wyeCollab?: Collab };
 
 async function locate(name: string) {
@@ -31,25 +32,36 @@ async function locate(name: string) {
 }
 
 const squeeze = (s: string) => s.replace(/\s+/g, '').length;
-// write a live page's markdown to its file; refused when the file was changed by something else since the live
-// document last read or wrote it (what changes it is merged into the live document instead — plan:collaboration
-// phase 3), or when the page would lose more than half its text (the editor's own guard, kept on the server) or all of it
-export async function storePage(p: LivePage, md: string): Promise<'stored' | 'same' | 'changed-on-disk' | 'shrunk'> {
-  if (md === p.stored) return 'same';
-  if ((squeeze(p.stored) > 0 && squeeze(md) === 0) || (squeeze(p.stored) > 200 && squeeze(md) < squeeze(p.stored) / 2)) { console.error(`wye collab: ${p.file} — a store that drops more than half the page was refused`); return 'shrunk'; }
+const realOf = (file: string) => { try { return realpathSync(file); } catch { return path.resolve(file); } };
+
+// what something else wrote to a live page's file, merged into its live document (decision:waterfall.outside-writes-merge-into-the-live-page)
+function mergeFile(p: LivePage, doc: Y.Doc, body: string): void {
+  if (body === p.fileBody) return;
+  const r = mergeIntoDoc(doc, p.fileBody, body, 'wye:write');
+  p.fileBody = body;
+  if (r.kept) console.error(`wye collab: ${p.file} — ${r.kept} block(s) changed both live and by a write; both versions kept`);
+}
+
+// write a live page to its file. What changed the file since the live document last read or wrote it (a write in this
+// app is merged at once; one from outside — git, an editor — here) is merged in first, so it is kept. Refused when the
+// page would lose more than half its text, or all of it (the editor's own guard, kept on the server).
+export async function storePage(p: LivePage, doc: Y.Doc): Promise<'stored' | 'same' | 'shrunk'> {
   const abs = path.join(REPO_ROOT, p.file);
   const r = await withFileLock(abs, async () => {
     const cur = await loadMarkdown(REPO_ROOT, p.file);
     const body = bodyOf(cur);
-    if (body !== p.fileBody) return 'changed-on-disk' as const;
-    const w = replaceBody(cur, hashOf(body), md); if (w.error) return 'changed-on-disk' as const;
+    mergeFile(p, doc, body);
+    const md = docToMarkdown(doc);
+    if (md === p.stored && body === p.fileBody) return 'same' as const;
+    if ((squeeze(p.stored) > 0 && squeeze(md) === 0) || (squeeze(p.stored) > 200 && squeeze(md) < squeeze(p.stored) / 2)) { console.error(`wye collab: ${p.file} — a store that drops more than half the page was refused`); return 'shrunk' as const; }
+    if (md === body) { p.stored = md; return 'same' as const; }
+    const w = replaceBody(cur, hashOf(body), md);
     const out = followHeading(cur, w.md);
-    await writeAtomic(abs, out);
+    await writeAtomic(abs, out, { live: true });
     p.fileBody = bodyOf(out); p.stored = md;
     return 'stored' as const;
   });
   if (r === 'stored') await rebuild(p.productDir).catch(e => console.error(`wye collab: rebuild after storing ${p.file}: ${(e as Error).message}`));
-  else console.error(`wye collab: ${p.file} changed on disk while it was live — not overwritten`);
   return r;
 }
 
@@ -64,7 +76,7 @@ export function startCollab(): Collab {
     },
     async onStoreDocument({ documentName, document }) {
       const p = live.get(documentName); if (!p) return;
-      try { await storePage(p, docToMarkdown(document as unknown as Y.Doc)); }
+      try { await storePage(p, document as unknown as Y.Doc); }
       catch (e) { console.error(`wye collab: could not store ${documentName}: ${(e as Error).message}`); }
     },
     async afterUnloadDocument({ documentName }) { live.delete(documentName); },
@@ -77,7 +89,27 @@ export function startCollab(): Collab {
       return document;
   }
   const wss = new WebSocketServer({ noServer: true });
-  const collab: Collab = { hocuspocus, live, upgrade: (req, socket, head) => wss.handleUpgrade(req, socket, head, ws => hocuspocus.handleConnection(ws as never, req)) };
+  const collab: Collab = {
+    hocuspocus, live, upgrade: (req, socket, head) => wss.handleUpgrade(req, socket, head, ws => hocuspocus.handleConnection(ws as never, req)),
+    // a page file written by anything in this app: merged into its live document when the page is live
+    written(file, text) {
+      const real = realOf(file);
+      for (const p of live.values()) {
+        if (realOf(path.join(REPO_ROOT, p.file)) !== real) continue;
+        const doc = hocuspocus.documents.get(p.name); if (!doc) continue;
+        try { mergeFile(p, doc as unknown as Y.Doc, bodyOf(text)); } catch (e) { console.error(`wye collab: could not merge a write into ${p.file}: ${(e as Error).message}`); }
+      }
+    },
+    changedOnDisk(file) {
+      const real = realOf(file);
+      for (const p of live.values()) {
+        const abs = path.join(REPO_ROOT, p.file); if (realOf(abs) !== real) continue;
+        const doc = hocuspocus.documents.get(p.name); if (!doc) continue;
+        void withFileLock(abs, async () => { mergeFile(p, doc as unknown as Y.Doc, bodyOf(await loadMarkdown(REPO_ROOT, p.file))); })
+          .catch(e => console.error(`wye collab: could not merge ${p.file} from disk: ${(e as Error).message}`));
+      }
+    },
+  };
   g.__wyeCollab = collab;
   // a server that stops stores what its live pages hold first: the last 2 s of typing are not lost on a restart
   for (const sig of ['SIGTERM', 'SIGINT'] as const) process.once(sig, () => { flushLive().finally(() => process.exit(0)); });
@@ -86,6 +118,6 @@ export function startCollab(): Collab {
 // every live page stored now, whatever the debounce — before the server stops or restarts (lib/agent-host)
 export async function flushLive(): Promise<void> {
   const c = g.__wyeCollab; if (!c) return;
-  await Promise.all([...c.hocuspocus.documents].map(async ([name, doc]) => { const p = c.live.get(name); if (p) await storePage(p, docToMarkdown(doc as unknown as Y.Doc)).catch(e => console.error(`wye collab: could not store ${name}: ${(e as Error).message}`)); }));
+  await Promise.all([...c.hocuspocus.documents].map(async ([name, doc]) => { const p = c.live.get(name); if (p) await storePage(p, doc as unknown as Y.Doc).catch(e => console.error(`wye collab: could not store ${name}: ${(e as Error).message}`)); }));
 }
 export const collab = (): Collab | undefined => g.__wyeCollab;

@@ -1131,7 +1131,7 @@ function PageEditor({ product, project, slug, body, ifMatch, fallback, scope = n
   async function save(md: string) {
     setState('saving');
     // live: the server stores the page; this asks it to now (a new node must be in the graph at once)
-    if (live) { const r = await storeNow(live); setState(r.ok ? 'saved' : 'error'); if (!r.ok) setLintMsg(r.result === 'shrunk' ? 'not stored: this change would remove more than half of the page' : r.result === 'changed-on-disk' ? 'not stored: the file changed on disk' : 'not stored'); return; }
+    if (live) { const r = await storeNow(live); setState(r.ok ? 'saved' : 'error'); if (!r.ok) setLintMsg(r.result === 'shrunk' ? 'not stored: this change would remove more than half of the page' : 'not stored'); return; }
     // scoped: the first block is the node's text, the rest its content (decision:wf2.text-is-first-block)
     const split = () => { const blocks = editor.document as unknown as AnyBlock[]; const first = blocks[0]; const text = first && Array.isArray(first.content) ? inlineToMarkdown(first.content as Inline[]) : ''; return { text, content: blocksToMarkdown(blocks.slice(1)) }; };
     // textOnly (a card's text in a view or an embed): the editor holds the text line alone; the node's content under

@@ -61,6 +61,8 @@ export function ensureWatch(productDir: string) {
       const kind = classify(rel);
       if (kind === 'other') return;
       if (kind === 'doc') {
+        // a live page changed on disk by something outside the app (git, an editor): merged into its live document (lib/collab)
+        (globalThis as { __wyeCollab?: { changedOnDisk?: (file: string) => void } }).__wyeCollab?.changedOnDisk?.(path.resolve(productDir, rel));
         // one build per burst of writes, unless the app built since the write (a save through the API builds in-process —
         // lib/build — and its listeners already ran); running sessions get the document credit either way
         if (!s.changedDocs.has(productDir)) s.changedDocs.set(productDir, new Set()); s.changedDocs.get(productDir)!.add(rel);
