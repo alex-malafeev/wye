@@ -17,5 +17,6 @@ export function LiveDocument({ product, project, slug, body, ifMatch, shown, chi
   const placeholder = children ? <>{children}{partial && <div className="doc-skeleton muted" aria-busy="true">Loading the rest…</div>}</> : <div className="doc-skeleton muted" aria-busy="true">Loading…</div>;
   if (!Editor) return <>{placeholder}</>;
   const fallback = partial ? <>{children}<pre className="yaml">{body.slice(shown)}</pre></> : placeholder;
-  return <Editor product={product} project={project} slug={slug} body={body} ifMatch={ifMatch} fallback={fallback} />;
+  // one editor per page: a page held live (plan:collaboration) is joined when its editor is made
+  return <Editor key={`${product}/${project}/${slug}`} product={product} project={project} slug={slug} body={body} ifMatch={ifMatch} fallback={fallback} />;
 }

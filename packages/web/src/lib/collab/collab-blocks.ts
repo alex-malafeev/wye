@@ -10,8 +10,8 @@ import { codeBlockConfig, codeBlockParse, embedBlockConfig, collectionBlockConfi
 import { importMarkdown } from '../import';
 import { blocksToMarkdown, type AnyBlock } from '../serialize';
 
-// the Yjs fragment a page's blocks live in — the editor's collaboration option names the same one
-export const FRAGMENT = 'document-store';
+import { FRAGMENT } from './collab-name';
+export { FRAGMENT };
 
 // never drawn: a live document has no view, so a block only needs its type, props and content
 const noView = { render: () => ({ dom: globalThis.document?.createElement('div') as HTMLElement }) };

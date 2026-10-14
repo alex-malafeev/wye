@@ -1245,16 +1245,6 @@ HTTP operations this module serves (`op:` cards); the wf CLI and the UI call the
     machine (decision&#58;waterfall.cross-vault-question-answers-now-else-queues).
   status: proposed
   part-of: module:app-storage
-- id: lib:blocks
-  file: packages/web/src/lib/collab/blocks.ts
-  side: server
-  purpose: >
-    A page as a live document (plan:collaboration, decision&#58;waterfall.collab-is-a-crdt-held-by-the-server): the
-    server holds the editor's blocks in a Yjs document, with the editor's own schema and no view, and turns it to
-    and from the markdown the page is stored as — through the same import and serializer the editor uses, so a page
-    reads and saves the same whether one person edits it or several.
-  status: proposed
-  part-of: module:app-storage
 - id: lib:editor-schema
   file: packages/web/src/lib/editor-schema.ts
   side: server
@@ -1263,6 +1253,44 @@ HTTP operations this module serves (`op:` cards); the wf CLI and the UI call the
     (components, which add how each one looks) and the server's live documents (lib/collab, which hold the same
     blocks with no view): one definition, so a page held live has exactly the schema the editor writes
     (plan:collaboration).
+  status: proposed
+  part-of: module:app-storage
+- id: lib:collab-blocks
+  file: packages/web/src/lib/collab/collab-blocks.ts
+  side: server
+  purpose: >
+    A page as a live document (plan:collaboration, decision&#58;waterfall.collab-is-a-crdt-held-by-the-server): the
+    server holds the editor's blocks in a Yjs document, with the editor's own schema and no view, and turns it to
+    and from the markdown the page is stored as — through the same import and serializer the editor uses, so a page
+    reads and saves the same whether one person edits it or several.
+  status: proposed
+  part-of: module:app-storage
+- id: lib:collab-client
+  file: packages/web/src/lib/collab/collab-client.ts
+  side: client
+  purpose: >
+    The page editor's side of a live page (plan:collaboration): the page's Yjs document, kept in step with the
+    server's over the websocket at /collab on this same address (wss:// behind https).
+  status: proposed
+  part-of: module:app-storage
+- id: lib:collab-name
+  file: packages/web/src/lib/collab/collab-name.ts
+  side: server
+  purpose: >
+    The Yjs fragment a page's blocks live in — the same name on the server (lib/collab/collab-blocks) and in the
+    editor
+  status: proposed
+  part-of: module:app-storage
+- id: lib:collab-server
+  file: packages/web/src/lib/collab/collab-server.ts
+  side: server
+  purpose: >
+    The live documents (plan:collaboration, decision&#58;waterfall.collab-is-a-crdt-held-by-the-server): one Yjs
+    document per page someone has open, served by Hocuspocus over the websocket server.js hands on at /collab. It is
+    loaded from the page's markdown when the first editor joins, and stored back to it — 2 s after the last change,
+    at least every 10 s while people type — through the same lock, atomic write and graph rebuild as any other save.
+    The server is the only writer of a live page's file: the editors no longer save whole pages, so two people never
+    overwrite each other.
   status: proposed
   part-of: module:app-storage
 ```

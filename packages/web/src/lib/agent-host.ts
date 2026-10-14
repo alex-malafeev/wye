@@ -496,6 +496,7 @@ export async function resumeWithAnswer(productDir: string, product: string, id: 
 // The server is restarting (lib/memory-guard): every live process is ended, its session left done with the agent
 // session id kept — Resume continues each with the same context.
 export async function stopAllForRestart(reason: string): Promise<void> {
+  await (await import('./collab/collab-server')).flushLive().catch(() => {});   // the live pages stored before the server goes (plan:collaboration)
   const ids = [...live().values()].filter(l => l.proc && !l.stopped).map(l => l.id);
   for (const id of ids) {
     const l = live().get(id)!;

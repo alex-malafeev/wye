@@ -1025,6 +1025,16 @@ Every operation the UI, the wye CLI and agents call, by area; the CLI commands a
   source: packages/web/src/app/api/[product]/vaults/resolve/route.ts
   status: proposed
   part-of: module:api
+- id: op:api.system.collab
+  args: POST /api/system/collab
+  does: >
+    POST { name, update } — store a live page now (plan:collaboration): the editor's state (base64 Yjs update) is
+    merged into the server's live document first, so the store holds every edit the editor made, then it is written
+    and the graph rebuilt before the answer. → { ok, result: stored | same | changed-on-disk | shrunk }
+  gate: none (local app)
+  source: packages/web/src/app/api/system/collab/route.ts
+  status: proposed
+  part-of: module:api
 ```
 
 <!-- /list:op -->

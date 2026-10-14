@@ -39,6 +39,7 @@
         "packages/desktop/build/icon.png",
         "packages/web/package.json",
         "packages/web/next.config.ts",
+        "packages/web/server.js",
         "packages/web/.next/wye-externals.json",
         "packages/web/.next/",
         "!packages/web/.next/cache/",

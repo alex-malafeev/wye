@@ -11,6 +11,9 @@ export async function register() {
   // the memory cap (lib/memory-guard): past WYE_MAX_MEMORY_GB the server ends its agents and restarts
   const { startMemoryGuard } = await import('./lib/memory-guard');
   startMemoryGuard();
+  // live documents for the page editors, over the websocket server.js hands on (plan:collaboration)
+  const { startCollab } = await import('./lib/collab/collab-server');
+  startCollab();
   // a production server restarts when its build is replaced under it (lib/build-watch)
   if (process.env.NODE_ENV === 'production') { const { startBuildWatch } = await import('./lib/build-watch'); startBuildWatch(); }
   if (process.env.WF_HOOKS === '0') return;

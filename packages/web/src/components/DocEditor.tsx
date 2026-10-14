@@ -38,6 +38,9 @@ import { requestSend } from './CommandBox';
 import { AskAgentBox, type AskRequest } from './AskAgent';
 import { KindPicker } from './KindPicker';
 import { tagInlineConfig, imgInlineConfig, collectionBlockConfig, nodeBlockConfig } from '@/lib/editor-schema';
+import { CollaborationExtension } from '@blocknote/core/yjs';
+import { openLive, connectLive, closeLive, storeNow, me, type LiveDoc } from '@/lib/collab/collab-client';
+import { docName } from '@/lib/collab/collab-name';
 
 
 // kind:slug as inline content: a clickable tag in the editor, plain id text when serialised.
@@ -778,7 +781,28 @@ function LinkNodePicker({ req, onClose, apply, createDoc, createNode, linkEveryw
 // `scope`: the editor edits one node's content (decision:wf2.content-editor-scoped) — the blocks under its defining
 // line in `slug` — loaded and saved through the node's content route instead of the document's; it publishes no
 // editing context, and a click on a child block opens the child in the column (decision:ontology.depth-by-navigation).
-export default function DocEditor({ product, project, slug, body, ifMatch, fallback, scope = null, autoFocus = false, textOnly = false }: { product: string; project: string; slug: string; body: string; ifMatch: string; fallback?: ReactNode; scope?: string | null; autoFocus?: boolean; textOnly?: boolean }) {
+type EditorProps = { product: string; project: string; slug: string; body: string; ifMatch: string; fallback?: ReactNode; scope?: string | null; autoFocus?: boolean; textOnly?: boolean };
+// A page (not one node's content) is edited live with everyone who has it open (plan:collaboration): its blocks are the
+// server's live document. The editor is made only once that document has arrived — an editor made over an empty one
+// writes its own first block into it, and the two first blocks merging can lose the page.
+export default function DocEditor(props: EditorProps) {
+  const scoped = props.scope != null;
+  const [live] = useState<LiveDoc | null>(() => !scoped && typeof window !== 'undefined' ? openLive(docName(props.product, props.project, props.slug)) : null);
+  // synced: the live document is here; alone: no live document could be had (a server with no websocket, a proxy that
+  // drops it) — the page is edited as before, saved whole with its hash check
+  const [phase, setPhase] = useState<'waiting' | 'synced' | 'alone'>('waiting');
+  useEffect(() => {
+    if (!live) return;
+    const provider = connectLive(live); const on = () => setPhase(p => p === 'waiting' ? 'synced' : p);
+    provider.on('synced', on); if (provider.isSynced) on();
+    const t = setTimeout(() => { if (provider.isSynced) return; closeLive(live); console.warn('wye: no live document for this page — editing it on its own'); setPhase('alone'); }, 6000);
+    return () => { clearTimeout(t); provider.off('synced', on); closeLive(live); };
+  }, [live]);
+  if (live && phase === 'waiting') return <>{props.fallback ?? <div className="doc-skeleton muted" aria-busy="true">Loading…</div>}</>;
+  return <PageEditor {...props} live={phase === 'synced' ? live : null} />;
+}
+
+function PageEditor({ product, project, slug, body, ifMatch, fallback, scope = null, autoFocus = false, textOnly = false, live }: EditorProps & { live: LiveDoc | null }) {
   const router = useRouter();
   const { open: openPeek, select, setFocused, followCaret, index, hrefFor, setEditing, setShowContext, ownKinds, ownTypes, nests } = usePeek();
   const scoped = scope !== null;
@@ -821,7 +845,10 @@ export default function DocEditor({ product, project, slug, body, ifMatch, fallb
   // any kind:slug is a link the editor may write: the kinds it knows come from the last build, and a link to a kind
   // this page has not heard of yet — a passage node, a type declared a moment ago — must not be silently dropped
   const isId = (href: string) => new RegExp('^' + ID_RE.source + '$').test(href) || /^[a-z][a-z0-9-]*:[A-Za-z0-9_][A-Za-z0-9_./#-]*$/.test(href);
+  // live: the server's live document holds and stores the page — the editor never saves the whole page itself, so
+  // nobody overwrites anybody (plan:collaboration)
   const editor = useCreateBlockNote({ schema, uploadFile,
+    extensions: live ? [CollaborationExtension({ fragment: live.fragment, user: me(), provider: { awareness: live.awareness } as never })] : undefined,
     // over a table or a list that takes the dragged blocks there is no line between blocks: the table itself lights up
     dropCursor: { hooks: { computeDropPosition: ({ editor: ed, event, defaultPosition }) => collectionDrop(ed as unknown as EditorLike, event.target) ? null : defaultPosition } },
     links: {
@@ -889,7 +916,7 @@ export default function DocEditor({ product, project, slug, body, ifMatch, fallb
   if (typeof window !== 'undefined' && !scoped) { const w = window as unknown as { __wf: unknown; __wfExport: () => string; __wfLink: (id: string) => string }; w.__wf = editor; w.__wfExport = () => blocksToMarkdown(editor.document as unknown as AnyBlock[]); const imp = (md: string) => importMarkdown(md, src => editor.tryParseMarkdownToBlocks(src) as unknown as AnyBlock[]); Object.assign(w, { __wfImport: imp, __wfRoundTrip: (md: string) => blocksToMarkdown(imp(md)) }); w.__wfLink = (id: string) => { const b = editor.getBlock(id) as unknown as AnyBlock; return `${location.origin}/${product}/${project}/d/${slug}#${blockAnchor(b)}`; }; } // dev inspection
   void index;
   const [ready, setReady] = useState(false);
-  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'conflict' | 'error'>('idle');
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'conflict' | 'error' | 'offline'>('idle');
   const [lintMsg, setLintMsg] = useState<string | null>(null);
   const [elsewhere, setElsewhere] = useState(0); // the product check's errors that are not this document's
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -1034,6 +1061,7 @@ export default function DocEditor({ product, project, slug, body, ifMatch, fallb
     } finally { loading.current = false; }
   };
   useEffect(() => {
+    if (live) return;   // a live page's blocks come from its live document (below), not from the page's text
     hash.current = ifMatch;
     if (lastExported.current !== null && norm(lastExported.current) === norm(body)) return;
     if (timer.current) return; // the person is mid-edit: their save goes out first, the next refresh brings the merge
@@ -1053,6 +1081,32 @@ export default function DocEditor({ product, project, slug, body, ifMatch, fallb
     }, 300);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, body, ifMatch]);
+
+  // A live page opens when its live document has arrived from the server; a dropped connection shows as offline, and
+  // what is typed meanwhile is sent when it is back (plan:collaboration)
+  useEffect(() => {
+    if (!live) return;
+    const opened = () => {
+      if (lastExported.current !== null) return;
+      loading.current = true; try { settle(); } finally { loading.current = false; }
+      judged.current = new Map((editor.document as unknown as LinkBlock[]).map(b => [String(b.id), blockText(b)]));
+      lastExported.current = blocksToMarkdown(editor.document as unknown as AnyBlock[]);
+      knownNodes.current = nodeIds();
+      setReady(true);
+      const frag = location.hash.replace(/^#/, '');
+      if (frag) setTimeout(() => {
+        const target = (editor.document as unknown as AnyBlock[]).flatMap(b => [b, ...(b.children ?? [])]).find(b => blockAnchor(b) === frag);
+        const el = target ? (document.querySelector(`[data-id="${String((target as { id?: string }).id)}"]`) as HTMLElement | null) : null;
+        if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2000); }
+      }, 300);
+    };
+    const status = ({ status: st }: { status: string }) => setState(s => st === 'disconnected' ? 'offline' : st === 'connected' && s === 'offline' ? 'idle' : s);
+    const provider = connectLive(live);   // connected by DocEditor, synced before this editor was made
+    provider.on('status', status);
+    opened();
+    return () => { provider.off('status', status); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, editor]);
 
   // The selected words made addressable (decision:wf2.a-comment-can-sit-on-words): they are wrapped in a link to a
   // `text:` node — the link is what defines it — and the document is saved, so the node is in the graph by the time a
@@ -1076,6 +1130,8 @@ export default function DocEditor({ product, project, slug, body, ifMatch, fallb
 
   async function save(md: string) {
     setState('saving');
+    // live: the server stores the page; this asks it to now (a new node must be in the graph at once)
+    if (live) { const r = await storeNow(live); setState(r.ok ? 'saved' : 'error'); if (!r.ok) setLintMsg(r.result === 'shrunk' ? 'not stored: this change would remove more than half of the page' : r.result === 'changed-on-disk' ? 'not stored: the file changed on disk' : 'not stored'); return; }
     // scoped: the first block is the node's text, the rest its content (decision:wf2.text-is-first-block)
     const split = () => { const blocks = editor.document as unknown as AnyBlock[]; const first = blocks[0]; const text = first && Array.isArray(first.content) ? inlineToMarkdown(first.content as Inline[]) : ''; return { text, content: blocksToMarkdown(blocks.slice(1)) }; };
     // textOnly (a card's text in a view or an embed): the editor holds the text line alone; the node's content under
@@ -1097,13 +1153,16 @@ export default function DocEditor({ product, project, slug, body, ifMatch, fallb
     if (norm(md) === norm(lastExported.current)) return;
     lastExported.current = md; save(md);
   };
-  const changed = () => {
+  const changed = (_e?: unknown, ctx?: { getChanges?: () => { source: { type: string } }[] }) => {
     if (loading.current) return;
+    // someone else's edit, arrived over the live document: theirs to settle and store, not this editor's
+    if (live && ctx?.getChanges) { try { const cs = ctx.getChanges(); if (cs.length && cs.every(c => c.source.type === 'yjs-remote')) return; } catch { /* no changes to read */ } }
     if (!settling.current) { settling.current = true; try { settle(); } finally { settling.current = false; } }
     if (!touched.current || lastExported.current === null) return;
     const ids = nodeIds();
     const fresh = knownNodes.current !== null && [...ids].some(x => !knownNodes.current!.has(x));
     knownNodes.current = ids;
+    if (live) { if (fresh) setTimeout(flushSave, 150); return; }   // the server stores a live page; a new node now
     if (fresh) { if (timer.current) { clearTimeout(timer.current); timer.current = null; } setTimeout(flushSave, 150); return; }   // after a menu has taken its trigger text out
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -1130,7 +1189,9 @@ export default function DocEditor({ product, project, slug, body, ifMatch, fallb
     try { const r = await fetch(`/api/${product}/links`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ blocks: stale.map(b => ({ key: String(b.id), text: blockText(b), linked: blockLinked(b) })) }) }); links = (await r.json()).links ?? {}; } catch { return; }
     if (!Object.keys(links).length) return;
     const r = applyLinks(editor.document as unknown as LinkBlock[], links); if (!r.changed) return;
-    loading.current = true; editor.replaceBlocks(editor.document, r.blocks as never); loading.current = false;
+    // live: only the blocks that gained links change — replacing the whole page would undo what others type meanwhile
+    if (live) { loading.current = true; try { for (const b of r.blocks) if (b.id && links[b.id]) { const { id, ...rest } = b as unknown as { id: string }; editor.updateBlock(id, rest as never); } } finally { loading.current = false; } }
+    else { loading.current = true; editor.replaceBlocks(editor.document, r.blocks as never); loading.current = false; }
     for (const b of r.blocks) if (b.id && links[b.id]) judged.current.set(String(b.id), blockText(b));
     touched.current = true; changed(); publishContext();
   };
@@ -1486,7 +1547,7 @@ export default function DocEditor({ product, project, slug, body, ifMatch, fallb
       {tagMenu && <TagContextMenu menu={tagMenu} onClose={closeTagMenu} act={tagAct} />}
       {blockMenu && <BlockContextMenu menu={blockMenu} onClose={closeBlockMenu} act={blockAct} canPaste={!!CLIP || typeof navigator !== 'undefined' && !!navigator.clipboard?.readText} />}
       {commentPop && <CommentPop at={commentPop} on={commentPop.on} product={product} words={commentPop.words} onClose={closeCommentPop} />}
-      <div className="doc-editor-bar"><span className={`save-state ${state}`}>{state === 'saving' ? 'saving…' : state === 'saved' ? 'saved' : state === 'conflict' ? 'changed on disk — reload' : state === 'error' ? 'save failed' : ready ? 'live' : 'loading…'}</span>{lintMsg && <span className="notice">Lint: {lintMsg}</span>}{!lintMsg && elsewhere > 0 && <span className="muted" title="ctx check finds an error in another document of the product — not in this one">{elsewhere} check error{elsewhere === 1 ? '' : 's'} elsewhere</span>}</div>
+      <div className="doc-editor-bar"><span className={`save-state ${state}`}>{state === 'saving' ? 'saving…' : state === 'saved' ? 'saved' : state === 'conflict' ? 'changed on disk — reload' : state === 'error' ? 'save failed' : state === 'offline' ? 'offline — what you type is kept and sent when the connection is back' : ready ? 'live' : 'loading…'}</span>{lintMsg && <span className="notice">Lint: {lintMsg}</span>}{!lintMsg && elsewhere > 0 && <span className="muted" title="ctx check finds an error in another document of the product — not in this one">{elsewhere} check error{elsewhere === 1 ? '' : 's'} elsewhere</span>}</div>
       <BlockNoteView editor={editor} theme={theme} onChange={changed} formattingToolbar={false} slashMenu={false} sideMenu={false} emojiPicker={false}>
         <SideMenuController sideMenu={sideMenu} />
         <FormattingToolbarController formattingToolbar={() => <SelectionMenu actions={{

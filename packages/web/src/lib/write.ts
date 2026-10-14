@@ -137,7 +137,8 @@ export async function lint(productDir: string): Promise<{ code: number; output: 
 }
 
 // Serialise read-modify-write cycles on one file so two quick edits (status, then owner) cannot lose each other.
-const locks = new Map<string, Promise<unknown>>();
+// on globalThis: the live documents (lib/collab) are bundled apart from the routes, and both must share one lock per file
+const locks: Map<string, Promise<unknown>> = ((globalThis as { __wfFileLocks?: Map<string, Promise<unknown>> }).__wfFileLocks ??= new Map());
 export function withFileLock<T>(file: string, fn: () => Promise<T>): Promise<T> {
   const prev = locks.get(file) ?? Promise.resolve();
   const run = prev.catch(() => undefined).then(fn);

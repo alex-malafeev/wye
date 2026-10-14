@@ -101,7 +101,7 @@ function prepareApp(web, homeDir) {
     dir = path.join(homeDir, '.cache', 'app', build);
     if (!fs.existsSync(path.join(dir, '.next', 'BUILD_ID'))) {
       fs.mkdirSync(dir, { recursive: true });
-      for (const f of ['package.json', 'next.config.ts']) fs.copyFileSync(path.join(web, f), path.join(dir, f));
+      for (const f of ['package.json', 'next.config.ts', 'server.js']) fs.copyFileSync(path.join(web, f), path.join(dir, f));
       fs.cpSync(next, path.join(dir, '.next'), { recursive: true });
       fs.symlinkSync(path.join(INSTALL, 'node_modules'), path.join(dir, 'node_modules'));
     }

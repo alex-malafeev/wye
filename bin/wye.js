@@ -283,7 +283,6 @@ const commands = {
     const web = path.join(h.INSTALL, 'packages', 'web');
     if (!fs.existsSync(path.join(web, '.next', 'BUILD_ID'))) die(h.isCheckout() ? 'no build yet: npm run build --workspace=packages/web (or npm run dev for the dev server)' : `the package has no app build (${web}/.next) — reinstall it`);
     const port = String(flags.port || process.env.WYE_PORT || 3456);
-    const next = require.resolve('next/dist/bin/next', { paths: [web] });
     const url = `http://localhost:${port}`;
     const browser = () => { const o = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open'; try { spawn(o, [url], { stdio: 'ignore', detached: true, shell: process.platform === 'win32' }).unref(); } catch { /* no opener */ } };
     // the Electron binary of this install, or null: the package lists it as optional so an install without it still runs
@@ -307,7 +306,8 @@ const commands = {
     const up = await fetch(`${url}/api/products`, { signal: AbortSignal.timeout(1500) }).then(() => true, () => false);
     console.log(`Wye on ${url} — home ${dir}  (${up ? 'already running' : electron ? 'close the window or Ctrl+C to stop it' : 'Ctrl+C stops it'})`);
     if (!electron && !flags.browser && !flags['no-open']) console.log('no Electron in this install — opening your browser instead (reinstall with: npm install -g @emlab/wye --include=optional --allow-scripts=electron)');
-    const start = () => spawn(process.execPath, [next, 'start', '-p', port, '-H', '127.0.0.1'], { cwd: h.prepareApp(web, dir), stdio: 'inherit', env: { ...process.env, WYE_HOME: dir, WYE_URL: url } });
+    // the app's own server (packages/web/server.js): Next, and the websocket the page editors share live pages over
+    const start = () => { const cwd = h.prepareApp(web, dir); return spawn(process.execPath, [path.join(cwd, 'server.js'), '-p', port, '-H', '127.0.0.1'], { cwd, stdio: 'inherit', env: { ...process.env, WYE_HOME: dir, WYE_URL: url } }); };
     let child = up ? null : start();
     // wye app <folder>: that folder is the workspace (decision:wf2.workspace-is-the-top) — asked of the app once it answers
     if (pos[1]) {

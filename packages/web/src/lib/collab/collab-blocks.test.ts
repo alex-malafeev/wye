@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import * as Y from 'yjs';
-import { markdownToBlocks, markdownToDoc, docToMarkdown } from './blocks';
+import { markdownToBlocks, markdownToDoc, docToMarkdown } from './collab-blocks';
 import { blocksToMarkdown } from '../serialize';
 
 // what the editor saves for a page today, and what a live document of it stores, must be the same markdown
