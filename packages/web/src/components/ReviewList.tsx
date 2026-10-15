@@ -28,6 +28,7 @@ function selectOnRow(e: MouseEvent, select: () => void) {
   select();
 }
 
+const PAGE = 40;
 export function ReviewList({ product, items }: { product: string; items: ReviewItem[] }) {
   const { open, openId, select } = usePeek(); const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -124,14 +125,19 @@ export function ReviewList({ product, items }: { product: string; items: ReviewI
     } catch (e) { const m = e instanceof Error ? e.message : String(e); setMsg(m); setCxFor(it.id, { note: m }); setBusy(null); return; }
     setBusy(null); router.refresh();
   };
-  const kinds = [...new Set(items.map(i => i.kind))];
+  // a vault of thousands of proposed blocks renders a page of each group at a time: the counts stay whole, the DOM does not
+  // grow with them (262,000 nodes and 3.4 s blocked for 8,000 blocks before)
+  const [paged, setPaged] = useState<Record<string, number>>({});
+  const shownOf = (kind: string) => paged[kind] ?? PAGE;
+  const counts = items.reduce((m, i) => m.set(i.kind, (m.get(i.kind) ?? 0) + 1), new Map<string, number>());
+  const kinds = [...counts.keys()];
   const shown = items.filter(i => !filter || i.kind === filter);
-  const groups = [...new Map(shown.map(i => [i.kind, shown.filter(x => x.kind === i.kind)]))];
+  const groups = [...shown.reduce((m, i) => { const l = m.get(i.kind); if (l) l.push(i); else m.set(i.kind, [i]); return m; }, new Map<string, ReviewItem[]>())];   // one pass, in first-seen order
   return (
     <div className="review">
       <div className="track-tools"><div className="chips">
         <button className={`chip ${!filter ? 'on' : ''}`} onClick={() => setFilter('')}>All <small>{items.length}</small></button>
-        {kinds.map(k => <button key={k} className={`chip ${filter === k ? 'on' : ''}`} onClick={() => setFilter(filter === k ? '' : k)}>{LABEL[k] ?? k} <small>{items.filter(i => i.kind === k).length}</small></button>)}
+        {kinds.map(k => <button key={k} className={`chip ${filter === k ? 'on' : ''}`} onClick={() => setFilter(filter === k ? '' : k)}>{LABEL[k] ?? k} <small>{counts.get(k) ?? 0}</small></button>)}
       </div></div>
       {msg && <p className="notice">{msg}</p>}
       {undo && <div className="qtoasts undo" aria-live="polite"><div className="qtoast undo"><div className="qtoast-head"><span className="qtoast-dot" />rejected and taken out<button className="qtoast-x" onClick={() => setUndo(null)} title="hide">×</button></div><div className="qtoast-q">{undo.title}</div><div className="qtoast-sub"><button className="linkish" onClick={() => void undoReject()}>Undo</button> <span className="muted">— it goes back where it was</span></div></div></div>}
@@ -140,7 +146,7 @@ export function ReviewList({ product, items }: { product: string; items: ReviewI
         <section key={kind} className="review-group">
           <h4>{LABEL[kind] ?? kind} <span className="muted">{its.length}</span>{kind !== 'question' && its.length > 1 && <button className="mini" disabled={busy === 'all'} onClick={async () => { setBusy('all'); for (const it of its) await fetch(`/api/${product}/node/${encodeURIComponent(it.id)}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status: 'approved' }) }); setBusy(null); router.refresh(); }} title="Approve every item in this group">Approve all {its.length}</button>}</h4>
           <ul className="review-items">
-            {its.map(it => (
+            {its.slice(0, shownOf(kind)).map(it => (
               <li key={it.id} className={`review-item ${openId === it.id ? 'on' : ''}`} onClick={e => selectOnRow(e, () => select(it.id))}>
                 {(() => {
                   const d = describeBlock(it.kind, it.text, it.fields);
@@ -243,6 +249,7 @@ export function ReviewList({ product, items }: { product: string; items: ReviewI
               </li>
             ))}
           </ul>
+          {its.length > shownOf(kind) && <button className="btn sm" style={{ margin: '8px 0' }} onClick={() => setPaged(m => ({ ...m, [kind]: shownOf(kind) + PAGE }))}>Show {Math.min(PAGE, its.length - shownOf(kind))} more of {its.length - shownOf(kind)}</button>}
         </section>
       ))}
     </div>

@@ -25,6 +25,9 @@ export function InstanceTable({ product, table, initial, urlState, onChange, rea
   const across = !!table.vaults && table.vaults.length > 1;
   const foreign = (r: InstanceRow) => !!r.vault && r.vault !== product;
   const [f, setF] = useState<Filters>(initial ?? EMPTY_FILTERS);
+  // the table draws a page of rows and the rest on demand: 3,500 facts were 18,000 DOM nodes and 2 s before
+  const [limit, setLimit] = useState(ROWS);
+  useEffect(() => { setLimit(ROWS); }, [f]);
   useEffect(() => { setF(initial ?? EMPTY_FILTERS); }, [initial]);
   const set = (patch: Partial<Filters>) => {
     const next = { ...f, ...patch, props: { ...(patch.props ?? f.props) } };
@@ -123,8 +126,9 @@ export function InstanceTable({ product, table, initial, urlState, onChange, rea
         </tr></thead>
         <tbody>
           {groups
-            ? groups.map(([k, rs]) => <GroupRows key={k} label={k.startsWith(k.split(':')[0] + ':') && index[k] ? label(k) : k} count={rs.length} span={span}>{rs.map(r => <Row key={`${r.vault ?? ''}/${r.id}`} r={r} />)}</GroupRows>)
-            : rows.map(r => <Row key={`${r.vault ?? ''}/${r.id}`} r={r} />)}
+            ? groups.map(([k, rs]) => <GroupRows key={k} label={k.startsWith(k.split(':')[0] + ':') && index[k] ? label(k) : k} count={rs.length} span={span}>{rs.slice(0, limit).map(r => <Row key={`${r.vault ?? ''}/${r.id}`} r={r} />)}</GroupRows>)
+            : rows.slice(0, limit).map(r => <Row key={`${r.vault ?? ''}/${r.id}`} r={r} />)}
+          {!groups && rows.length > limit && <tr><td colSpan={span}><button className="linkish" onClick={() => setLimit(n => n + ROWS)}>show {Math.min(ROWS, rows.length - limit)} more of {rows.length - limit}</button></td></tr>}
           {!rows.length && <tr><td colSpan={span} className="muted">No {table.slug}s match.</td></tr>}
         </tbody>
       </table></div>)}
@@ -135,6 +139,7 @@ export function InstanceTable({ product, table, initial, urlState, onChange, rea
 // a group of cards: folded when it is the done / retired pile, and never more than PAGE cards at once — every card is
 // a live embed that fetches its node, so a page of 285 tasks would be 285 requests
 const PAGE = 40;
+const ROWS = 150;
 function ListGroup({ label, rows, closed, product }: { label: string; rows: InstanceRow[]; closed: boolean; product: string }) {
   const [open, setOpen] = useState(!closed);
   const [shown, setShown] = useState(PAGE);
