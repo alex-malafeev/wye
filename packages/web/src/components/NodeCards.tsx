@@ -183,7 +183,8 @@ export function QuestionCard({ p, set, host }: { p: CardP; set: (patch: Partial<
         </span>
       </div>
       {host.text('qnode-title nblock-text')}
-      {p.textKey !== 'q' && <div className="qnode-section" contentEditable={false} ref={host.stop}>
+      {/* the title is the question already asked: the `q` field (why it matters) only shows when it has something to say */}
+      {p.textKey !== 'q' && q.trim() && <div className="qnode-section" contentEditable={false} ref={host.stop}>
         <label>question</label>
         <ProseArea value={q} placeholder="the question, and why it matters" onChange={v => set({ body: setBodyField(p.body, 'q', v) })} />
       </div>}
