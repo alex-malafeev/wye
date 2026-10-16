@@ -8,7 +8,7 @@ import { InboxNote } from '@/components/InboxNote';
 import { InboxList } from '@/components/InboxList';
 import { ReviewList } from '@/components/ReviewList';
 import { ChangeList, type ChangeView } from '@/components/ChangeList';
-import { listChanges, changedSince } from '@/lib/changes';
+import { listChanges, changedSince, NOT_YET } from '@/lib/changes';
 import type { ImpactSet } from '@/lib/impact-run';
 import { docRoute } from '@/lib/doc';
 import { InboxProjects } from '@/components/InboxProjects';
@@ -38,7 +38,8 @@ export default async function InboxPage({ params, searchParams }: { params: Prom
   // pending edits of existing blocks (req:exec.change-kept): old and new side by side, with the verdicts the
   // write-time pass left under the node (req:exec.change-validated)
   const log = await verdictLog(scope.product.dir);
-  const changes: ChangeView[] = only ? [] : (await listChanges(scope.product.dir, { state: 'pending', listed: true })).filter(c => inProject(c.file)).map(c => {
+  // only edits of what was approved or shipped (records written before that rule are filtered here too)
+  const changes: ChangeView[] = only ? [] : (await listChanges(scope.product.dir, { state: 'pending', listed: true })).filter(c => inProject(c.file) && (c.removed || !NOT_YET.includes(c.before.status))).map(c => {
     const n = scope.idx.byId.get(c.node);
     const v = n ? attachVerdicts([{ id: c.node, kind: c.kind, title: n.title, text: '', status: n.status, file: n.file, project: '', doc: '', href: '', line: n.line, refs: [], fields: {} }], scope.graph, scope.idx, log, false)[0].verdicts : undefined;
     return { ...c, impact: c.impact as ImpactSet | undefined, stale: changedSince(c, n), exists: !!n?.defined, verdicts: v };

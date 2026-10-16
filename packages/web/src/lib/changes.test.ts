@@ -43,6 +43,12 @@ describe('change records (decision:exec.change-record, decision:exec.changes-fro
     expect(recs[0]).toMatchObject({ kind: 'req', doc: 'module:prd', by: 'agent:s9', session: 's9', changed: ['text', 'then', 'owner'] });
     expect(recs[0].before.text).toBe('The old title'); expect(recs[0].after.props.then).toBe('it opens at once');
   });
+  it('a diff is for what was approved: an open question answered or a proposed decision approved leaves no record to review', () => {
+    const b = graph([node('question:x.q', 'question', 'id: question:x.q\ntitle: Q?\nq: why', 'open'), node('decision:x.d', 'decision', 'id: decision:x.d\ntitle: D\nchoice: keep', 'proposed')]);
+    const a = graph([node('question:x.q', 'question', 'id: question:x.q\ntitle: Q?\nq: why not', 'resolved'), node('decision:x.d', 'decision', 'id: decision:x.d\ntitle: D\nchoice: drop', 'approved')]);
+    const ch = [{ id: 'question:x.q', change: 'changed' }, { id: 'decision:x.d', change: 'changed' }] as never;
+    expect(recordsFromDiff(b, a, ch, () => ({ by: 'agent:s1', session: 's1' }), '2026-10-12T10:00:00Z', 'p')).toEqual([]);
+  });
   it('one pending record per node: a later edit by anyone folds in, keeps the first before, names every writer; back to the start closes it', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'wf-changes-'));
     const later = graph([node('req:x.a', 'req', 'id: req:x.a\ntitle: The newest title\nwhen: a click\nthen: it opens at once\nrefines: req:x.root\nowner: alex', 'approved')]);
