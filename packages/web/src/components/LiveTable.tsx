@@ -31,6 +31,7 @@ const TASKISH = new Set(['goal', 'task', 'commitment']);
 const DUE_WINDOWS = ['', 'late', 'today', '7d', '14d', '30d'];
 const SHOWN = new Set(['id', 'title', 'status', 'kind', 'open']);   // shown by every row of items already
 
+const ROWS = 100;
 export function LiveTable({ product, kind, query, view, type, head, onQuery, page, own }: Props) {
   const { statuses: byKind, open: openNode, index } = usePeek();
   // inside a page's editor a row selects its item (the column follows the editor); elsewhere — a Knowledge page — it opens it
@@ -92,6 +93,11 @@ export function LiveTable({ product, kind, query, view, type, head, onQuery, pag
     return out;
   }, [res, hasId]);
   useEffect(() => { lastIds.current = ids; }, [ids]);
+  // a page of rows at a time: all 3,500 facts of a vault were 18,000 DOM nodes (list view: 3,500 cards); the count says the whole
+  const [limit, setLimit] = useState(ROWS);
+  useEffect(() => { setLimit(ROWS); }, [query, view]);
+  const vis = useMemo(() => ids.slice(0, limit), [ids, limit]);
+  const more = ids.length > limit ? <button type="button" className="linkish ilist-more" onClick={() => setLimit(n => n + ROWS)}>show {Math.min(ROWS, ids.length - limit)} more of {ids.length - limit}</button> : null;
   useEffect(() => { if (pending.length) setPending(p => p.filter(x => !ids.includes(x.id))); }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
   const valuesByRow = useMemo(() => new Map((res?.rows ?? []).map(r => [String(r.id ?? ''), r])), [res]);
   // a query that selects columns shows those (an item's own property stays editable); `SELECT id` shows the kind's own
@@ -152,8 +158,9 @@ export function LiveTable({ product, kind, query, view, type, head, onQuery, pag
       <div className="collection-list-head">{head}{summary}</div>
       {open && bar}
       {err && <p className="notice">{err}</p>}
-      <div className="ilist">{ids.map(id => <div key={id} onClickCapture={e => { if (!inEditor && !(e.target as Element).closest('a, button, select, input, .embed-editor')) openNode(id); }}><EmbeddedCard id={id} className="ilist-item" inEditor={inEditor} /></div>)}
+      <div className="ilist">{vis.map(id => <div key={id} onClickCapture={e => { if (!inEditor && !(e.target as Element).closest('a, button, select, input, .embed-editor')) openNode(id); }}><EmbeddedCard id={id} className="ilist-item" inEditor={inEditor} /></div>)}
         {pending.map(p => <div key={p.id} className="ilist-item muted">{p.title}</div>)}</div>
+      {more}
       {newRow}
       {res && !ids.length && !pending.length && !own && <p className="muted small live-empty">Nothing here right now.</p>}
     </div>
@@ -167,10 +174,11 @@ export function LiveTable({ product, kind, query, view, type, head, onQuery, pag
       </div>
       {open && bar}
       {err && <p className="notice">{err}</p>}
-      {ids.map(id => { const r = rowOf(id, valuesByRow.get(id));
+      {vis.map(id => { const r = rowOf(id, valuesByRow.get(id));
         return <LiveRow key={id} r={r} grid={grid} type={type} dateKey={TASKISH.has(r.kind) ? (r.kind === 'goal' ? 'target' : 'due') : ''} statuses={[...new Set([...statusOptions(byKind, r.kind, r.status), 'done'])]}
           selected={selected.length ? { cols: selected, values: valuesByRow.get(id) ?? {} } : undefined} onEdit={p => edit(r, p)} onOpen={inEditor ? undefined : () => openNode(id)}
           onTitle={own?.has(id) ? t => edit(r, { title: t }) : undefined} onRemove={own?.has(id) === 'table' ? () => { if (own.remove(id)) { touched.current.delete(id); setRes(x => x && { ...x, rows: x.rows.filter(y => y.id !== id) }); } } : undefined} />; })}
+      {more}
       {pending.map(p => <div key={p.id} className="nrow live-row pending" style={{ gridTemplateColumns: grid }}><div className="nrow-cell nrow-name"><span className="nrow-open"><i /></span><span className="nrow-text muted">{p.title}</span></div></div>)}
       {newRow}
       {res && !ids.length && !pending.length && !own && <p className="muted small live-empty">Nothing here right now.</p>}
