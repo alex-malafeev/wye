@@ -11,7 +11,7 @@ import type { Product } from '../products';
 import { REPO_ROOT, DATA_ROOT, productRepo } from '../products';
 import type { GraphData } from '../graph';
 import type { ChunkRow, Source } from './types';
-import { openStore, state, apply, getChunks, saveScopes, tidy, hashOf, type Store, type StoredRow } from './store';
+import { openStore, stateOf, idsByScope, idsNotOfModel, apply, getChunks, saveScopes, tidy, hashOf, type Store, type StoredRow } from './store';
 import { nodeChunks, docChunks, codeChunks, sessionChunks } from './chunk';
 import { getEmbedder, toVector, EMBED_MODEL, EMBED_DIM, type Embed } from './embed';
 
@@ -89,7 +89,8 @@ export async function refresh(p: Product, graph: GraphData, opts: RefreshOpts = 
   for (let i = 0; i === 0 || i < todo.length; i += size) {
     const slice = todo.slice(i, i + size); const last = i + size >= todo.length;
     await withLock(p.dir, async () => {
-      const have = await state(s);
+      // only the rows of this batch's files are read (a first index of 12,000 files read the whole table for each batch of 50)
+      const have = await stateOf(s, slice.filter(f => s.scopes[f.scope]?.mtime !== f.mtime).map(f => f.scope));
       const byScope = new Map<string, string[]>(); for (const [id, x] of have) byScope.set(x.scope, [...(byScope.get(x.scope) ?? []), id]);
       const remove: string[] = []; const add: (ChunkRow & { scope: string; hash: string })[] = []; const scopes = { ...s.scopes };
       for (const f of slice) {
@@ -101,13 +102,14 @@ export async function refresh(p: Product, graph: GraphData, opts: RefreshOpts = 
       }
       if (last) {
         // files of these sources that are gone
-        for (const [sc, ids] of byScope) if (sources.has(sourceOfScope(sc)) && !present.has(sc)) remove.push(...ids);
+        for (const [sc, ids] of await idsByScope(s)) if (sources.has(sourceOfScope(sc)) && !present.has(sc)) remove.push(...ids);
         for (const sc of Object.keys(scopes)) if (sources.has(scopes[sc].source) && !present.has(sc)) delete scopes[sc];
         // rows written earlier without the current model
         if (embed && opts.reembed !== false) {
           const adding = new Set(add.map(a => a.id)); const gone = new Set(remove);
-          const stale = [...have].filter(([id, x]) => x.model !== EMBED_MODEL && !adding.has(id) && !gone.has(id)).map(([id]) => id);
-          for (const c of await getChunks(s, stale)) add.push({ ...c, scope: have.get(c.id)!.scope, hash: have.get(c.id)!.hash });
+          const old = new Map((await idsNotOfModel(s, EMBED_MODEL)).map(x => [x.id, x]));
+          const stale = [...old.keys()].filter(id => !adding.has(id) && !gone.has(id));
+          for (let k = 0; k < stale.length; k += 500) for (const c of await getChunks(s, stale.slice(k, k + 500))) add.push({ ...c, scope: old.get(c.id)!.scope, hash: old.get(c.id)!.hash });
         }
       }
       const rows: StoredRow[] = [];

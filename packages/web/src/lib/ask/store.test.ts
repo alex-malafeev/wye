@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtemp, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { openStore, state, apply, tidy, search, getChunks, chunksMentioning, ftsText, hashOf, type StoredRow } from './store';
+import { openStore, state, stateOf, idsByScope, idsNotOfModel, apply, tidy, search, getChunks, chunksMentioning, ftsText, hashOf, type StoredRow } from './store';
 import type { ChunkRow } from './types';
 
 const DIM = 3;
@@ -22,6 +22,15 @@ describe('store', () => {
     expect([...st.keys()].sort()).toEqual(['doc:a', 'doc:c']);
     expect(st.get('doc:a')).toMatchObject({ scope: 'f1', model: 'm' });
     expect((await getChunks(s, ['doc:a', 'doc:b', 'doc:c'])).map(c => c.id)).toEqual(['doc:a', 'doc:c']);
+  });
+  it('reads only what a batch needs: rows of some scopes, ids by scope, rows of another model', async () => {
+    const s = await openStore(await tmp(), DIM);
+    await apply(s, [], [r('doc', 'a', 'one', { scope: 'f1' }), r('doc', 'b', 'two', { scope: 'f1' }), r('doc', 'c', 'three', { scope: 'f2', model: 'old' }), r('doc', 'd', 'four', { scope: "f'3" })]);
+    expect([...(await stateOf(s, ['f1', "f'3"])).keys()].sort()).toEqual(['doc:a', 'doc:b', 'doc:d']);
+    expect((await stateOf(s, [])).size).toBe(0);
+    const by = await idsByScope(s);
+    expect([...by.keys()].sort()).toEqual(["f'3", 'f1', 'f2']); expect(by.get('f1')!.sort()).toEqual(['doc:a', 'doc:b']);
+    expect((await idsNotOfModel(s, 'm')).map(x => x.id)).toEqual(['doc:c']);
   });
   it('persists across reopen', async () => {
     const dir = await tmp();
