@@ -132,7 +132,7 @@ export function TopBar({ product, docs }: { product: { slug: string; title: stri
     </div>
   );
 }
-function toast(text: string) {
+export function toast(text: string) {
   const el = document.createElement('div'); el.className = 'toast'; el.textContent = text; document.body.appendChild(el);
   setTimeout(() => el.classList.add('on'), 10); setTimeout(() => { el.classList.remove('on'); setTimeout(() => el.remove(), 300); }, 1800);
 }

@@ -3,10 +3,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { fitMenu } from '@/lib/menu-fit';
+import { toast } from './TopBar';
 import { requestSend } from './CommandBox';
 import { IconMore, IconPlus } from './Icons';
 
-export type TreeItem = { slug: string; node: string; title: string; icon: string; project: string; tasks?: { done: number; total: number }; children: TreeItem[] };
+export type TreeItem = { slug: string; node: string; title: string; icon: string; project: string; file?: string; tasks?: { done: number; total: number }; children: TreeItem[] };
+// the document's file on disk, absolute, to the clipboard (a path to open in an editor or hand to a tool)
+async function copyPath(file: string) { try { await navigator.clipboard.writeText(file); toast('File path copied'); } catch { toast(file); } }
 type Zone = 'before' | 'into' | 'after';
 type Drag = { slug: string; node: string }; // the dragged document: its slug and its node id (rule:page-node-line)
 type Over = { slug: string; zone: Zone };
@@ -125,6 +128,7 @@ export function DocTree({ product, roots, onAddChild, pinned = [], filter = '' }
         <button role="menuitem" onClick={() => { const d = menu.d; setMenu(null); requestSend({ refs: [d.node], source: { project: d.project, doc: d.slug, link: `${location.origin}/${product}/${d.project}/d/${d.slug}` } }); }}>Ask an agent…</button>
         <button role="menuitem" onClick={() => { const d = menu.d; setMenu(null); requestSend({ refs: [d.node], source: { project: d.project, doc: d.slug }, mode: 'skill' }); }}>Run a skill…</button>
         <button role="menuitem" onClick={() => { const d = menu.d; setMenu(null); requestSend({ refs: [d.node], source: { project: d.project, doc: d.slug }, mode: 'skill', skill: 'skill:complete' }); }}>Complete…</button>
+        {menu.d.file && <button role="menuitem" title={menu.d.file} onClick={() => { const f = menu.d.file!; setMenu(null); void copyPath(f); }}>Copy file path</button>}
         <button role="menuitem" onClick={() => duplicate(menu.d)}>Duplicate</button>
         <button role="menuitem" className="danger" onClick={() => remove(menu.d)}>Delete{menu.d.children.length ? ` (with ${descendants(menu.d).length} below)` : ''}</button>
       </div>}
