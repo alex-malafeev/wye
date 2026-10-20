@@ -42,6 +42,18 @@ function patch() {
     edit('src/providers/index.ts', 'FullContextProvider', s => s.replace(/(import \{ WyeProvider[^}]*\} from "\.\/wye"\n)/, '$1import { FullContextProvider } from "./wye/fullcontext"\n').replace(/(  wye: WyeProvider,\n)/, '$1  "wye-full": FullContextProvider,\n'));
     edit('src/types/provider.ts', '"wye"', s => s.replace(/(export type ProviderName = [^\n]*)/, '$1 | "wye" | "wye-pages" | "wye-full"'));
     edit('src/utils/config.ts', 'case "wye"', s => s.replace(/(    case "rag":\n)/, '    case "wye":\n    case "wye-pages":\n    case "wye-full":\n      return { apiKey: "" } // the wye CLI against a scratch app (WYE_URL)\n$1'));
+    // a provider that answers for itself (Wye's own Ask, decision:waterfall.memorybench-wye-answers): its answer is the
+    // hypothesis, written with the run's answering model; the judge still grades it
+    edit('src/orchestrator/phases/answer.ts', 'provider answers for itself', s => s.replace(/(        const questionDate = checkpoint\.questions\[question\.questionId\]\?\.questionDate\n)/, `$1        // a provider answers for itself (Wye's Ask): no answering prompt, its own answer is the hypothesis
+        const own = (provider as unknown as { answer?: (q: string, o: { containerTag: string; questionDate?: string; model: string }) => Promise<string> } | undefined)?.answer
+        if (own) {
+          const hypothesis = (await own.call(provider, question.question, { containerTag: checkpoint.questions[question.questionId].containerTag, questionDate, model: modelConfig.id })).trim()
+          const durationMs = Date.now() - startTime
+          checkpointManager.updatePhase(checkpoint, question.questionId, "answer", { status: "completed", hypothesis, promptTokens: 0, basePromptTokens: 0, contextTokens: 0, completedAt: new Date().toISOString(), durationMs })
+          logger.progress(index + 1, total, \`Wye answered \${question.questionId} (\${durationMs}ms)\`)
+          return { questionId: question.questionId, durationMs }
+        }
+`));
     edit('src/utils/models.ts', '"sonnet-5.5"', s => s.replace(/(  "sonnet-4\.5": \{)/, MODELS.map(m => { const [alias, id, name] = m.split(':'); return `  "${alias}": {\n    id: "${id}",\n    provider: "anthropic",\n    displayName: "${name}",\n    supportsTemperature: true,\n    defaultTemperature: 0,\n    maxTokensParam: "maxTokens",\n    defaultMaxTokens: 1000,\n  },\n`; }).join('') + '$1'));
 }
 
@@ -73,7 +85,7 @@ async function scratchApp(log) {
 
 async function runIt(o, log) {
     if (!fs.existsSync(path.join(MB, 'src', 'providers', 'wye', 'index.ts'))) throw new Error('no MemoryBench checkout with the wye provider — run: wye eval public memorybench --fetch');
-    copyProvider();
+    patch();   // idempotent: the provider's files as they are here, and any patch added since the checkout
     const bench = o.set || 'locomo'; if (!['locomo', 'longmemeval', 'convomem'].includes(bench)) throw new Error('--set locomo | longmemeval | convomem');
     const model = o.model || 'sonnet-5.5';
     const runId = o.runId || `${o.provider || 'wye'}-${bench}-${new Date().toISOString().slice(0, 10)}${o.sample ? `-s${o.sample}` : o.limit ? `-l${o.limit}` : ''}`;
@@ -82,7 +94,10 @@ async function runIt(o, log) {
     try {
         await waitFor(() => fetch(`http://127.0.0.1:${SHIM_PORT}/`).then(() => true, () => false), 'the claude shim', 10000);
         const provider = o.provider || 'wye'; if (!['wye', 'wye-pages', 'wye-full'].includes(provider)) throw new Error('--provider wye | wye-pages | wye-full');
-        const args = ['run', 'src/index.ts', 'run', '-p', provider, '-b', bench, '-m', model, '-j', model, '-r', runId];
+        // --from-run: the vaults and the search of an earlier run, answered and judged again (another model, or Wye's own answers)
+        if (o.fromRun && !fs.existsSync(path.join(MB, 'data', 'runs', runId, 'checkpoint.json'))) execFileSync(BUN, ['-e', `import { CheckpointManager } from "./src/orchestrator/checkpoint"; new CheckpointManager().copyCheckpoint(${JSON.stringify(o.fromRun)}, ${JSON.stringify(runId)}, "answer", { judge: ${JSON.stringify(o.judge || 'sonnet-5.5')}, answeringModel: ${JSON.stringify(model)} })`], { cwd: MB, stdio: 'inherit' });
+        const args = ['run', 'src/index.ts', 'run', '-p', provider, '-b', bench, '-m', model, '-j', o.judge || 'sonnet-5.5', '-r', runId];
+        if (o.fromRun) args.push('-f', 'answer');
         if (o.sample) args.push('-s', String(o.sample), '--sample-type', 'consecutive')   // the first n of each type: the same questions for wye and wye-full (random is not seeded); else if (o.limit) args.push('-l', String(o.limit));
         log(`bun ${args.join(' ')}`);
         const env = { ...process.env, ANTHROPIC_BASE_URL: `http://127.0.0.1:${SHIM_PORT}/v1`, ANTHROPIC_API_KEY: 'answered-by-the-claude-cli', WYE_URL: url, WF_URL: url, WYE_PORT: PORT, WYE_HOME: HOME, WYE_BENCH_DIR: BENCH };
@@ -123,7 +138,10 @@ function reportOf(r, base) {
     const rows = [{ name: `${NAMES[r.benchmark] || r.benchmark} overall${r.summary.headline ? ` (without ${r.summary.headline.excludedTypes.join(', ')})` : ''}`, ours: pct(h.accuracy), n: h.totalQuestions, theirs: { ...(same ? { [same]: pct((base.summary.headline || base.summary).accuracy) } : {}), ...pub.overall } }];
     for (const [t, v] of Object.entries(r.byQuestionType || {})) { const b = base && base.byQuestionType && base.byQuestionType[t]; rows.push({ name: `${NAMES[r.benchmark] || r.benchmark} ${t}`, ours: pct(v.accuracy), n: v.total, theirs: { ...(b ? { 'Full context, same model': pct(b.accuracy) } : {}), ...((pub.types || {})[t] || {}) } }); }
     const notes = [
-        `answering and judging: ${r.answeringModel} / ${r.judge} through the claude CLI (no API key here) — the published rows used ${r.benchmark === 'locomo' ? 'gpt-4o-mini' : 'gpt-4o'}; set beside them, not equal to them`,
+        // Wye's own Ask wrote the answers when no answering prompt was sent (decision:waterfall.memorybench-wye-answers)
+        r.provider !== 'wye-full' && r.tokens && r.tokens.totalTokens === 0
+            ? `answered by Wye itself — wye ask with ${r.answeringModel}; judged by ${r.judge} through the claude CLI — the published rows used ${r.benchmark === 'locomo' ? 'gpt-4o-mini' : 'gpt-4o'} over each system's retrieved memories; set beside them, not equal to them`
+            : `answering and judging: ${r.answeringModel} / ${r.judge} through the claude CLI (no API key here), over the retrieved hits — the published rows used ${r.benchmark === 'locomo' ? 'gpt-4o-mini' : 'gpt-4o'}; set beside them, not equal to them`,
         `retrieval@${ret.k || 10}: hit ${pct(ret.hitAtK)}%, recall ${pct(ret.recallAtK)}%, MRR ${ret.mrr !== undefined ? ret.mrr.toFixed(2) : 'n/a'}, NDCG ${ret.ndcg !== undefined ? ret.ndcg.toFixed(2) : 'n/a'} (an LLM marks each hit relevant)`,
         `latency median: search ${r.latency.search.median} ms; context ${r.tokens.avgContextTokens} tokens per question; memscore ${r.memscore}`,
         `all questions${r.summary.headline ? ' with adversarial' : ''}: ${pct(r.summary.accuracy)}% of ${r.summary.totalQuestions}`,

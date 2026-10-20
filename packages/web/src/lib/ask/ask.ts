@@ -75,7 +75,7 @@ export async function* ask(env: AskEnvLike, req: AskRequest, o: { signal: AbortS
     const end = ch.producer();
     (async () => {
       let text = '';
-      try { for await (const t of runFast(fastPrompt(req.q, hits, history), { signal: o.signal })) { text += t; ch.push({ type: 'fast.delta', text: t }); }
+      try { for await (const t of runFast(fastPrompt(req.q, hits, history), { signal: o.signal, model: req.model })) { text += t; ch.push({ type: 'fast.delta', text: t }); }
         if (!o.signal.aborted) ch.push({ type: 'fast.done', citations: citedNumbers(text).map(n => cites.get(n)).filter((c): c is Citation => !!c) }); }
       catch (e) { if (!o.signal.aborted) ch.push({ type: 'error', lane: 'fast', message: String(e instanceof Error ? e.message : e) }); }
       finally { end(); }
@@ -101,14 +101,14 @@ export async function* ask(env: AskEnvLike, req: AskRequest, o: { signal: AbortS
         if (head) ch.push({ type: 'deep.delta', text: head });
       };
       try {
-        for await (const e of runDeep(req.q, history, { signal: o.signal, maxTools: o.maxTools, product, productDir: env.productDir, codeRoot: env.codeRoot, wfUrl: o.wfUrl, known: id => env.ctx.idx.byId.has(id) })) {
+        for await (const e of runDeep(req.q, history, { signal: o.signal, model: req.model, maxTools: o.maxTools, product, productDir: env.productDir, codeRoot: env.codeRoot, wfUrl: o.wfUrl, known: id => env.ctx.idx.byId.has(id) })) {
           if (e.type === 'step') ch.push({ type: 'step', text: e.text });
           else if (e.type === 'refs') for (const r of e.refs) { const c = await resolveRef(r, env); if (!c) continue; const x = cites.add(c); if (!used.includes(x)) { used.push(x); ch.push({ type: 'found', citation: x }); } }
           else if (e.type === 'delta') { pending += e.text; await flush(false); }
           else if (e.type === 'done') {
             await flush(true);
             // stopped at its cap before it wrote: answer now, without tools, from what it found (else from what was retrieved)
-            if (e.cut && !wrote && !o.signal.aborted) { const from = used.length ? used : cites.all().slice(0, 15); if (from.length) for await (const t of runFast(await answerNowPrompt(req.q, from, env), { signal: o.signal })) { wrote = true; ch.push({ type: 'deep.delta', text: t }); } }
+            if (e.cut && !wrote && !o.signal.aborted) { const from = used.length ? used : cites.all().slice(0, 15); if (from.length) for await (const t of runFast(await answerNowPrompt(req.q, from, env), { signal: o.signal, model: req.model })) { wrote = true; ch.push({ type: 'deep.delta', text: t }); } }
             ch.push({ type: 'deep.done', citations: used, ...(e.cut ? { cut: true } : {}) });
           }
         }

@@ -135,6 +135,19 @@ export class WyeProvider implements Provider {
     return this.hits(query, slugOf(options.containerTag), options.limit ?? 10)
   }
 
+  // Wye answers for itself (decision:waterfall.memorybench-wye-answers): `wye ask` — the deep lane, a read-only agent
+  // that searches the vault, or the fast lane over its own retrieval (WYE_BENCH_LANE=fast) — with the run's answering
+  // model. Its answer is what the judge grades; the search phase above only measures retrieval.
+  async answer(question: string, o: { containerTag: string; questionDate?: string; model: string }): Promise<string> {
+    const lane = process.env.WYE_BENCH_LANE === "fast" ? "fast" : "deep"
+    const q = o.questionDate ? `${question}\n\n(Asked on ${o.questionDate}.)` : question
+    const j = JSON.parse(await wye(["ask", q, "--product", slugOf(o.containerTag), `--${lane}`, "--model", o.model, "--json"])) as { fast: string; deep: string; errors: { lane: string; message: string }[] }
+    const text = (lane === "deep" ? j.deep || j.fast : j.fast).trim()
+    if (!text) throw new Error(`wye ask gave no answer: ${(j.errors || []).map((e) => `${e.lane}: ${e.message}`).join("; ").slice(0, 300)}`)
+    // its [n] citations are for a reader, not the judge
+    return text.replace(/\s*\(?\[\d+(?:\s*[,\]\[]\s*\d+)*\]\)?/g, "").replace(/\s*\(\s*\)/g, "")
+  }
+
   async clear(containerTag: string): Promise<void> {
     const slug = slugOf(containerTag)
     rmSync(join(VAULTS, slug), { recursive: true, force: true }); rmSync(join(STAGE, slug), { recursive: true, force: true })

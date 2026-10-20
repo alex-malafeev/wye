@@ -9,11 +9,11 @@ import { ASK_MODEL } from './fast';
 import { stepText, refsFromToolUse, refsFromToolResult } from './refs';
 
 export type DeepEvent = { type: 'step'; text: string } | { type: 'refs'; refs: string[] } | { type: 'delta'; text: string } | { type: 'done'; cut: boolean };
-export type DeepOpts = { signal: AbortSignal; product: string; productDir: string; codeRoot: string; wfUrl: string; known: (id: string) => boolean; maxTools?: number; timeoutMs?: number };
+export type DeepOpts = { signal: AbortSignal; product: string; productDir: string; codeRoot: string; wfUrl: string; known: (id: string) => boolean; maxTools?: number; timeoutMs?: number; model?: string };
 
-export function deepArgs(o: { product: string; productDir: string; codeRoot: string; wfUrl: string }): string[] {
+export function deepArgs(o: { product: string; productDir: string; codeRoot: string; wfUrl: string; model?: string }): string[] {
   const brief = readFileSync(path.join(REPO_ROOT, 'prompts/ask-deep.md'), 'utf8').replaceAll('{{product}}', o.product).replaceAll('{{code}}', o.codeRoot || '(this product names no code folder)').replaceAll('{{docs}}', o.productDir);
-  return ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--model', ASK_MODEL, '--append-system-prompt', brief,
+  return ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--model', o.model || ASK_MODEL, '--append-system-prompt', brief,
     '--tools', 'Bash,Read,Grep,Glob', '--permission-mode', 'default', '--strict-mcp-config',
     ...(o.codeRoot ? ['--add-dir', o.codeRoot] : []), '--add-dir', o.productDir,
     '--allowedTools', 'Bash(wye:*)', 'Read', 'Grep', 'Glob',
