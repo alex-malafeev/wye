@@ -9,9 +9,11 @@ import { fastPrompt, fastBrief, runFast } from './fast';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { runDeep } from './deep';
+import { graphFind, graphNote } from './graphq';
 
 export type AskEnvLike = { ctx: RetrieveCtx; productDir: string; codeRoot: string; degraded?: string; indexing?: boolean };
 export const DEEP_MAX_PER_PRODUCT = 2;
+export const GRAPH_HITS = 20;   // graph nodes added to the search's hits, best reranked first
 const deepRunning = new Map<string, number>();
 
 export async function resolveRef(raw: string, env: AskEnvLike): Promise<Omit<Citation, 'n'> | null> {
@@ -61,15 +63,32 @@ function channel<T>() {
 export async function* ask(env: AskEnvLike, req: AskRequest, o: { signal: AbortSignal; wfUrl: string; maxTools?: number }): AsyncGenerator<AskEvent> {
   const lanes = req.lanes?.length ? req.lanes : ['fast', 'deep'];
   const history = (req.history ?? []).slice(-3).map(h => ({ q: h.q.slice(0, 500), a: h.a.slice(0, 1500) }));
+  const product = env.ctx.product;
   let hits: Hit[] = [];
   try { hits = await retrieve(env.ctx, req.q, { expand: true, rerank: true, limit: 25, budgetChars: 48000 }); }
   catch (e) { yield { type: 'error', lane: 'retrieve', message: String(e instanceof Error ? e.message : e) }; }
+  if (o.signal.aborted) return;
+  // the graph step (decision:waterfall.ask-queries-the-graph): what the question's entities link to, and the graph
+  // queries a planner makes of it, join the search's hits — reranked against the question, always kept
+  let graphLines = '';
+  if (req.graph !== false && hits.length + env.ctx.idx.byId.size > 0) {
+    try {
+      const steps: string[] = [];
+      const found = await graphFind(env.ctx.idx, req.q, hits.flatMap(h => h.nodes), { signal: o.signal, onStep: t => steps.push(t), planner: req.planner !== false });
+      for (const t of steps) yield { type: 'step', text: t };
+      const have = new Set(hits.map(h => h.id));
+      const why = new Map(found.map(f => [`node:${f.id}`, f.why]));
+      let extra = (await getChunks(env.ctx.store, found.map(f => `node:${f.id}`).filter(id => !have.has(id)))).map(c => ({ ...c, score: 0, via: `graph: ${why.get(c.id)}`, href: hrefFor(product, c, env.ctx.idx) }));
+      if (extra.length && env.ctx.rerank) { const s = await env.ctx.rerank(req.q, extra.map(h => `${h.title}\n${h.text}`)); extra = extra.map((h, i) => ({ ...h, score: s[i] })).sort((a, b) => b.score - a.score); }
+      hits = [...hits, ...extra.slice(0, GRAPH_HITS)];
+      graphLines = graphNote(env.ctx.idx, found);
+    } catch (e) { if (!o.signal.aborted) yield { type: 'error', lane: 'retrieve', message: `graph: ${String(e instanceof Error ? e.message : e)}` }; }
+  }
   if (o.signal.aborted) return;
   yield { type: 'results', hits, ...(env.degraded ? { degraded: env.degraded } : {}), ...(env.indexing ? { indexing: true } : {}) };
   if (o.signal.aborted) return;
   const cites = new Citations(); for (const h of hits) cites.add(citationOf(h));
   const ch = channel<AskEvent>();
-  const product = env.ctx.product;
 
   if (lanes.includes('fast')) {
     const end = ch.producer();
@@ -101,7 +120,7 @@ export async function* ask(env: AskEnvLike, req: AskRequest, o: { signal: AbortS
         if (head) ch.push({ type: 'deep.delta', text: head });
       };
       try {
-        for await (const e of runDeep(req.q, history, { signal: o.signal, model: req.model, maxTools: o.maxTools, product, productDir: env.productDir, codeRoot: env.codeRoot, wfUrl: o.wfUrl, known: id => env.ctx.idx.byId.has(id) })) {
+        for await (const e of runDeep(req.q, history, { signal: o.signal, model: req.model, graph: graphLines, maxTools: o.maxTools, product, productDir: env.productDir, codeRoot: env.codeRoot, wfUrl: o.wfUrl, known: id => env.ctx.idx.byId.has(id) })) {
           if (e.type === 'step') ch.push({ type: 'step', text: e.text });
           else if (e.type === 'refs') for (const r of e.refs) { const c = await resolveRef(r, env); if (!c) continue; const x = cites.add(c); if (!used.includes(x)) { used.push(x); ch.push({ type: 'found', citation: x }); } }
           else if (e.type === 'delta') { pending += e.text; await flush(false); }

@@ -78,7 +78,10 @@ async function scratchApp(log) {
     fs.mkdirSync(HOME, { recursive: true });
     log(`starting a scratch Wye app on ${url} (home ${HOME})`);
     const out = fs.openSync(path.join(BENCH, 'app.log'), 'a');
-    spawn(process.execPath, [path.join(REPO, 'bin', 'wye.js'), 'app', '--no-open', '--port', PORT], { detached: true, stdio: ['ignore', out, out], env: { ...process.env, WYE_HOME: HOME, WYE_PORT: PORT } }).unref();
+    // in dev mode, from this checkout: the bench measures the code as it is now, not the last `next build` (which the
+    // live app serves — rebuilding it under the live app is not an option); dev builds into .next/dev, apart from it
+    const web = path.join(REPO, 'packages', 'web');
+    spawn(process.execPath, [path.join(web, 'server.js'), '--dev', '-p', PORT, '-H', '127.0.0.1'], { cwd: web, detached: true, stdio: ['ignore', out, out], env: { ...process.env, WYE_HOME: HOME, WYE_PORT: PORT, WYE_URL: url } }).unref();
     await waitFor(() => up(url), 'the scratch app', 90000);
     return url;
 }
