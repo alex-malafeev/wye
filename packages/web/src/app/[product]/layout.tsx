@@ -48,7 +48,7 @@ export default async function ProductLayout({ children, params }: { children: Re
   const icons = { get: (file: string) => fm.get(file)?.icon ?? '' };
   // how far each document's tasks have got (task:plan-progress): shown on the request rows and on a document that plans work
   const progress = taskProgress(scope.graph.nodes);
-  const toItem = (d: DocNode): TreeItem => ({ slug: d.slug, node: d.module.id, title: d.title, icon: icons.get(d.file) || defaultIcon(d.slug), project: docRoute(d.file)?.project ?? '', tasks: progress.get(d.file), children: d.children.map(toItem) });
+  const toItem = (d: DocNode): TreeItem => ({ slug: d.slug, node: d.module.id, title: d.title, icon: icons.get(d.file) || defaultIcon(d.slug), project: docRoute(d.file)?.project ?? '', file: path.resolve(REPO_ROOT, d.file), tasks: progress.get(d.file), children: d.children.map(toItem) });
   // the project's PRs page is a system folder (rule:prs-folder): it and its sub-documents leave the Documents
   // tree, and the requests go to the rail's PRs folder, every project together, newest first
   const prs: PrItem[] = [];
