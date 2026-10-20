@@ -29,10 +29,17 @@ then `wye doc write … --section …`). A prop that names another type is an ed
   extends: type:node
   purpose: something that happened or will happen, on a date
   props:
-    date: string?
+    date: date?
+    starts: date?
+    ends: date?
     participants: list of person?
     place: place?
 ```
+
+A type for things that happen gets their time as props — `date: date?`, and `starts: date?` / `ends: date?` when
+they last — and, when the material dates them, so does every other type: Wye's timeline and `--as-of` read `date`,
+`starts`, `ends`, `since` and `until`, never a time written only in the text. `since:` / `until:` are on every node already
+(when it holds true); a fact type needs no date prop of its own.
 
 Statements that are neither things nor events (a preference, a plan, a feeling, a rule) stay in the base kinds
 (`fact`, `decision`, `goal`, `req` …). If the product has no `fact` type and the material states facts, add it with
@@ -58,8 +65,10 @@ wye doc write <the import page> --section "How this import is modelled" <<'EOF' 
 ```
 
 Say in a few lines which types to use for what, which ids are the recurring things, how to link (e.g. "a fact about
-a person: `about: person:caroline`; an event: `participants:` and `date:`"), and how to write dates. When the pages
-carry a date, every relative date ("yesterday", "last year") becomes an absolute one. The page agents read this
+a person: `about: person:caroline`; an event: `participants:` and `date:`"), and how to write time: which prop
+carries it on each type (`date`, `starts`/`ends`, `since`/`until`), ISO and only as precise as the source
+(`2023-05-07`, `2023-05`, `2023`), and where each page's own date is (its title, a date line), against which every
+relative time ("yesterday", "last year", "for three years") becomes an absolute one. The page agents read this
 section with the types and ids, and follow it.
 
 Do not analyse the pages themselves: the page agents do that. Every type and node you add is `proposed`, and the

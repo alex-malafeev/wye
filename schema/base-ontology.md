@@ -12,7 +12,7 @@ an error; a prose node only ever warns. Shapes accumulate along `extends`.
 
 A property line is `name: <value type>[?] [-(inverse)-> <name>]`. Value types: `string`, `text`, `number`, `date`,
 `month`, `bool`, `enum [a, b]`, `ref <type>`, `list of <type>` (or `list of string`). A trailing `?` marks the
-property optional; without it `wye check` warns when an instance lacks it. `ref`/`list of` properties are edges
+property optional; without it `wye check` warns when an instance lacks it. A `date` is as precise as what is known: a day, a month or a year. `ref`/`list of` properties are edges
 named by the property; `-(inverse)-> name` is the name of the generated back link on the target. `open: true` on a
 type means instances may carry properties the type does not declare without a warning (all base types are open;
 `schema/kinds.yaml`, generated from this file, still lists their required and recommended keys in prose).
