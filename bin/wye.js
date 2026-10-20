@@ -894,6 +894,8 @@ const commands = {
     const j = await r.json().catch(() => ({}));
     if (!r.ok) die(`import → ${r.status}: ${j.message || j.error}`);
     if (flags.json) return out(j);
+    // several files run as a background import (lib:import-run): its page lists the files and checks each off
+    if (j.requestSlug) { console.log(`${j.total} document(s) importing into ${p}/${proj} — ${WF_URL}/${p}/${proj}/d/${j.requestSlug}${flags['no-analyse'] ? '' : ' (an agent sets up the graph, then analyses each page; the blocks arrive in the Inbox as proposed)'}${j.skipped ? `; ${j.skipped} skipped` : ''}`); return; }
     const docs = j.docs.filter(d => !d.folder);
     console.log(`${docs.length} document(s) imported into ${p}/${proj}${j.docs.length > docs.length ? ` (${j.docs.length - docs.length} folder page(s))` : ''}${j.assets.length ? `, ${j.assets.length} image(s)` : ''}${j.analyse ? ' — an agent analyses each; its blocks arrive in the Inbox as proposed' : ' — not analysed (Analyse on each page)'}`);
     for (const d of docs) console.log(`  ${d.slug.padEnd(32)} ${d.title}${d.from ? `  ← ${d.from}` : ''}`);

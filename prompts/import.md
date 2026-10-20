@@ -58,6 +58,12 @@ statement the text does not make is not knowledge; a guess is a `question:`.
 - Every block you add: `status: proposed` (or `#proposed` on a line), `by: agent:<your name>`, `evidence:
   [session:<your session id>]`. Link to what `wye context` found: `refines` an existing requirement rather than
   restating it, `related-to` the module or entity it is about, `part-of` this page's module.
+- Connect every block to the things it is about — the people, places, projects and other entities of the product
+  (the ids in your brief, or `wye context`): through the type's props (`about:`, `participants:`, `place:` …) or
+  `related-to:`. A block that links to nothing is a loose statement nobody finds from the thing it describes. A thing
+  the page talks about that has no id yet: `wye node add <type>:<slug> --title "…"` first. When the import's page has
+  a section "How this import is modelled", follow it.
+- Dates: when the page carries its own date, write every relative date ("yesterday", "last year") as an absolute one.
 - A statement that contradicts existing knowledge is still written — as a block with a `question:` beside it
   naming the contradiction; the person decides.
 - Front matter: set `status: analysed`; keep `source:`. If the page's title is wrong, fix `title:`.

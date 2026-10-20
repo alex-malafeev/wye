@@ -32,10 +32,11 @@ const MODELS = ['sonnet-5.5:claude-sonnet-5-5:Claude Sonnet 5.5', 'haiku-5.5:cla
 function edit(file, marker, fn) { const f = path.join(MB, file); const s = fs.readFileSync(f, 'utf8'); if (s.includes(marker)) return; const t = fn(s); if (t === s) throw new Error(`memorybench changed: could not patch ${file}`); fs.writeFileSync(f, t); }
 function patch() {
     const dst = path.join(MB, 'src', 'providers', 'wye'); fs.mkdirSync(dst, { recursive: true });
-    for (const f of ['index.ts', 'prompts.ts']) fs.copyFileSync(path.join(__dirname, 'provider', f), path.join(dst, f));
-    edit('src/providers/index.ts', 'WyeProvider', s => s.replace(/(import \{ RAGProvider \} from "\.\/rag"\n)/, '$1import { WyeProvider } from "./wye"\n').replace(/(  rag: RAGProvider,\n)/, '$1  wye: WyeProvider,\n'));
-    edit('src/types/provider.ts', '"wye"', s => s.replace(/(export type ProviderName = [^\n]*)/, '$1 | "wye"'));
-    edit('src/utils/config.ts', 'case "wye"', s => s.replace(/(    case "rag":\n)/, '    case "wye":\n      return { apiKey: "" } // the wye CLI against a scratch app (WYE_URL)\n$1'));
+    for (const f of ['index.ts', 'prompts.ts', 'fullcontext.ts']) fs.copyFileSync(path.join(__dirname, 'provider', f), path.join(dst, f));
+    edit('src/providers/index.ts', 'WyeProvider', s => s.replace(/(import \{ RAGProvider \} from "\.\/rag"\n)/, '$1import { WyeProvider, WyePagesProvider } from "./wye"\n').replace(/(  rag: RAGProvider,\n)/, '$1  wye: WyeProvider,\n  "wye-pages": WyePagesProvider,\n'));
+    edit('src/providers/index.ts', 'FullContextProvider', s => s.replace(/(import \{ WyeProvider[^}]*\} from "\.\/wye"\n)/, '$1import { FullContextProvider } from "./wye/fullcontext"\n').replace(/(  wye: WyeProvider,\n)/, '$1  "wye-full": FullContextProvider,\n'));
+    edit('src/types/provider.ts', '"wye"', s => s.replace(/(export type ProviderName = [^\n]*)/, '$1 | "wye" | "wye-pages" | "wye-full"'));
+    edit('src/utils/config.ts', 'case "wye"', s => s.replace(/(    case "rag":\n)/, '    case "wye":\n    case "wye-pages":\n    case "wye-full":\n      return { apiKey: "" } // the wye CLI against a scratch app (WYE_URL)\n$1'));
     edit('src/utils/models.ts', '"sonnet-5.5"', s => s.replace(/(  "sonnet-4\.5": \{)/, MODELS.map(m => { const [alias, id, name] = m.split(':'); return `  "${alias}": {\n    id: "${id}",\n    provider: "anthropic",\n    displayName: "${name}",\n    supportsTemperature: true,\n    defaultTemperature: 0,\n    maxTokensParam: "maxTokens",\n    defaultMaxTokens: 1000,\n  },\n`; }).join('') + '$1'));
 }
 
@@ -60,7 +61,7 @@ async function scratchApp(log) {
     fs.mkdirSync(HOME, { recursive: true });
     log(`starting a scratch Wye app on ${url} (home ${HOME})`);
     const out = fs.openSync(path.join(BENCH, 'app.log'), 'a');
-    spawn(process.execPath, [path.join(REPO, 'bin', 'wye.js'), 'app', '--no-open', '--port', PORT], { detached: true, stdio: ['ignore', out, out], env: { ...process.env, WYE_HOME: HOME, WYE_PORT: PORT, WF_HOOKS: '0' } }).unref();
+    spawn(process.execPath, [path.join(REPO, 'bin', 'wye.js'), 'app', '--no-open', '--port', PORT], { detached: true, stdio: ['ignore', out, out], env: { ...process.env, WYE_HOME: HOME, WYE_PORT: PORT } }).unref();
     await waitFor(() => up(url), 'the scratch app', 90000);
     return url;
 }
@@ -69,13 +70,14 @@ async function runIt(o, log) {
     if (!fs.existsSync(path.join(MB, 'src', 'providers', 'wye', 'index.ts'))) throw new Error('no MemoryBench checkout with the wye provider — run: wye eval public memorybench --fetch');
     const bench = o.set || 'locomo'; if (!['locomo', 'longmemeval', 'convomem'].includes(bench)) throw new Error('--set locomo | longmemeval | convomem');
     const model = o.model || 'sonnet-5.5';
-    const runId = o.runId || `wye-${bench}-${new Date().toISOString().slice(0, 10)}${o.sample ? `-s${o.sample}` : o.limit ? `-l${o.limit}` : ''}`;
+    const runId = o.runId || `${o.provider || 'wye'}-${bench}-${new Date().toISOString().slice(0, 10)}${o.sample ? `-s${o.sample}` : o.limit ? `-l${o.limit}` : ''}`;
     const url = await scratchApp(log);
-    const shim = spawn(process.execPath, [path.join(__dirname, 'claude-shim.js'), '--port', SHIM_PORT, '--parallel', String(o.parallel || 6), '--log', path.join(BENCH, `claude-${runId}.jsonl`)], { stdio: ['ignore', 'inherit', 'inherit'] });
+    const shim = spawn(process.execPath, [path.join(__dirname, 'claude-shim.js'), '--port', SHIM_PORT, '--parallel', String(o.parallel || 10), '--log', path.join(BENCH, `claude-${runId}.jsonl`)], { stdio: ['ignore', 'inherit', 'inherit'] });
     try {
         await waitFor(() => fetch(`http://127.0.0.1:${SHIM_PORT}/`).then(() => true, () => false), 'the claude shim', 10000);
-        const args = ['run', 'src/index.ts', 'run', '-p', 'wye', '-b', bench, '-m', model, '-j', model, '-r', runId];
-        if (o.sample) args.push('-s', String(o.sample), '--sample-type', 'random'); else if (o.limit) args.push('-l', String(o.limit));
+        const provider = o.provider || 'wye'; if (!['wye', 'wye-pages', 'wye-full'].includes(provider)) throw new Error('--provider wye | wye-pages | wye-full');
+        const args = ['run', 'src/index.ts', 'run', '-p', provider, '-b', bench, '-m', model, '-j', model, '-r', runId];
+        if (o.sample) args.push('-s', String(o.sample), '--sample-type', 'consecutive')   // the first n of each type: the same questions for wye and wye-full (random is not seeded); else if (o.limit) args.push('-l', String(o.limit));
         log(`bun ${args.join(' ')}`);
         const env = { ...process.env, ANTHROPIC_BASE_URL: `http://127.0.0.1:${SHIM_PORT}/v1`, ANTHROPIC_API_KEY: 'answered-by-the-claude-cli', WYE_URL: url, WF_URL: url, WYE_PORT: PORT, WYE_HOME: HOME, WYE_BENCH_DIR: BENCH };
         const code = await new Promise(r => spawn(BUN, args, { cwd: MB, env, stdio: 'inherit' }).on('close', r));
@@ -105,14 +107,15 @@ const pct = x => x === null || x === undefined ? null : Math.round(x * 1000) / 1
 function wyeRuns() {
     const dir = path.join(MB, 'data', 'runs'); if (!fs.existsSync(dir)) return [];
     return fs.readdirSync(dir).map(id => { try { return JSON.parse(fs.readFileSync(path.join(dir, id, 'report.json'), 'utf8')); } catch { return null; } })
-        .filter(r => r && r.provider === 'wye' && !/smoke/.test(r.runId)).sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+        .filter(r => r && ['wye', 'wye-full'].includes(r.provider) && !/smoke/.test(r.runId)).sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
 }
-function reportOf(r) {
+function reportOf(r, base) {
     const pub = PUBLISHED[r.benchmark] || { overall: {}, types: {} };
     const h = r.summary.headline || r.summary;
     const ret = r.retrieval || {};
-    const rows = [{ name: `${NAMES[r.benchmark] || r.benchmark} overall${r.summary.headline ? ` (without ${r.summary.headline.excludedTypes.join(', ')})` : ''}`, ours: pct(h.accuracy), n: h.totalQuestions, theirs: pub.overall }];
-    for (const [t, v] of Object.entries(r.byQuestionType || {})) rows.push({ name: `${NAMES[r.benchmark] || r.benchmark} ${t}`, ours: pct(v.accuracy), n: v.total, theirs: (pub.types || {})[t] || {} });
+    const same = base ? `Full context, same model (${base.answeringModel}, n=${(base.summary.headline || base.summary).totalQuestions})` : null;
+    const rows = [{ name: `${NAMES[r.benchmark] || r.benchmark} overall${r.summary.headline ? ` (without ${r.summary.headline.excludedTypes.join(', ')})` : ''}`, ours: pct(h.accuracy), n: h.totalQuestions, theirs: { ...(same ? { [same]: pct((base.summary.headline || base.summary).accuracy) } : {}), ...pub.overall } }];
+    for (const [t, v] of Object.entries(r.byQuestionType || {})) { const b = base && base.byQuestionType && base.byQuestionType[t]; rows.push({ name: `${NAMES[r.benchmark] || r.benchmark} ${t}`, ours: pct(v.accuracy), n: v.total, theirs: { ...(b ? { 'Full context, same model': pct(b.accuracy) } : {}), ...((pub.types || {})[t] || {}) } }); }
     const notes = [
         `answering and judging: ${r.answeringModel} / ${r.judge} through the claude CLI (no API key here) — the published rows used ${r.benchmark === 'locomo' ? 'gpt-4o-mini' : 'gpt-4o'}; set beside them, not equal to them`,
         `retrieval@${ret.k || 10}: hit ${pct(ret.hitAtK)}%, recall ${pct(ret.recallAtK)}%, MRR ${ret.mrr !== undefined ? ret.mrr.toFixed(2) : 'n/a'}, NDCG ${ret.ndcg !== undefined ? ret.ndcg.toFixed(2) : 'n/a'} (an LLM marks each hit relevant)`,
@@ -130,9 +133,9 @@ async function run(opts) {
     if (opts.reportIt) {
         const runs = wyeRuns().filter(r => !opts.only || r.runId === opts.only); if (!runs.length) return { reports: [] };
         const P = loadProduct('wye'); const out = [];
-        const latest = new Map(); for (const r of runs) if (!latest.has(r.benchmark)) latest.set(r.benchmark, r);
+        const latest = new Map(), bases = new Map(); for (const r of runs) { const m = r.provider === 'wye' ? latest : bases; if (!m.has(r.benchmark)) m.set(r.benchmark, r); }
         for (const r of latest.values()) {
-            const report = reportOf(r);
+            const report = reportOf(r, bases.get(r.benchmark));
             const { file } = writeResult(P.productDir, `public-memorybench-${r.benchmark}`, { gitSha: P.gitSha, live: true, model: r.answeringModel, judge: { model: r.judge }, scores: { [`memorybench.${r.benchmark}`]: { value: (r.summary.headline || r.summary).accuracy, n: (r.summary.headline || r.summary).totalQuestions } }, runs: [], meta: { runId: r.runId, retrieval: r.retrieval, latency: r.latency, tokens: r.tokens }, report }, { baseline: 'public benchmarks are not gated' });
             out.push({ report, file });
         }

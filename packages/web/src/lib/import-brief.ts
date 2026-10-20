@@ -73,9 +73,10 @@ reply with one line per page — \`done <doc> — <n> blocks\` or \`skipped <doc
 \`wye session done\` and do not mark import tasks: the import closes this session and checks each file off itself.`;
 }
 
-export function laneSystem(opts: { product: string; skill: string; nodes: BriefNode[]; example?: { ref: string; text: string } }): string {
+export function laneSystem(opts: { product: string; skill: string; nodes: BriefNode[]; example?: { ref: string; text: string }; guide?: string }): string {
+  const guide = opts.guide?.trim() ? `## How this import is modelled\n\nWritten for this import before its first page (skill:import-setup) — follow it.\n\n${opts.guide.trim()}` : '';
   const ex = opts.example ? `## A page this import already finished (\`${opts.example.ref}\`)\n\n\`\`\`markdown\n${opts.example.text.split('\n').slice(0, 90).join('\n')}\n\`\`\`` : '';
-  return [opts.skill.trim(), laneProtocol(opts.product), typesSection(opts.nodes), idIndex(opts.nodes), ex].filter(Boolean).join('\n\n');
+  return [opts.skill.trim(), laneProtocol(opts.product), guide, typesSection(opts.nodes), idIndex(opts.nodes), ex].filter(Boolean).join('\n\n');
 }
 
 // What a file needs: nothing (a template, a prompt snippet, a drawing, a near-empty note — kept as written), a light
@@ -107,4 +108,32 @@ export function laneMessage(title: string, group: LaneFile[]): string {
   // the page verbatim, in a fence longer than any backtick run inside it
   const fenced = (t: string) => { const f = '`'.repeat(Math.max(2, ...(t.match(/`+/g) ?? []).map(m => m.length)) + 1); return `${f}markdown\n${t}\n${f}`; };
   return [head, ...group.map((f, i) => `### ${i + 1}. ${f.title} — \`${f.ref}\` (from \`${f.from}\`)\n\n${fenced(f.text)}`)].join('\n\n');
+}
+
+// The graph-setup turn (decision:waterfall.import-sets-up-the-graph-first): before any page is analysed, one agent
+// reads the whole batch — every title, and the pages themselves up to `budget` characters, spread over the batch so a
+// long first page does not crowd out the rest — and sets up the types, the recurring entities and the guide.
+export function setupSystem(opts: { skill: string; nodes: BriefNode[] }): string {
+  return [opts.skill.trim(), typesSection(opts.nodes), idIndex(opts.nodes)].filter(Boolean).join('\n\n');
+}
+export function setupMessage(title: string, importRef: string, files: LaneFile[], budget = 60000): string {
+  const per = Math.max(1500, Math.floor(budget / Math.max(1, files.length)));
+  const body = (t: string) => t.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
+  let left = budget; const shown: string[] = [];
+  for (const f of files) {
+    if (left <= 0) break;
+    const t = body(f.text); const cut = t.slice(0, Math.min(per, left));
+    shown.push(`### ${f.title} — \`${f.ref}\`\n\n${cut}${cut.length < t.length ? '\n\n[… the rest of this page is not shown]' : ''}`);
+    left -= cut.length;
+  }
+  return [
+    `${title}: set up the graph before the pages are analysed. The import's page is \`${importRef}\`; write the guide there.`,
+    `## The ${files.length} pages of this import\n\n${files.map(f => `- ${f.title} — \`${f.ref}\``).join('\n')}`,
+    `## Their text${shown.length < files.length ? ` (${shown.length} of ${files.length} pages, as many as fit)` : ''}\n\n${shown.join('\n\n---\n\n')}`,
+  ].join('\n\n');
+}
+// the guide section of the import's page, or ''
+export function guideOf(requestMd: string): string {
+  const m = requestMd.match(/^## How this import is modelled[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
+  return m ? m[1].trim() : '';
 }

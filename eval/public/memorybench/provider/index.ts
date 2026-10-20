@@ -1,15 +1,18 @@
 // Wye as a MemoryBench provider (plan:memorybench, decision:waterfall.memorybench-measures-retrieval-first).
 // Everything goes through the wye CLI against a scratch app (WYE_URL, never the live app on 3456):
 //   ingest        a new vault per container — `wye init <folder> --slug <slug>` — and each session written as a dated
-//                 markdown page, brought in with `wye import <dir> --product <slug> --no-analyse`
-//   awaitIndexing `wye ask-search` until the last session's page comes back (the Ask index is built on first search)
-//   search        `wye ask-search <q> --product <slug> --source doc --rerank --limit n --json`: Wye's full-text +
-//                 vector search over the session pages, reranked by its cross-encoder; no language model
+//                 markdown page into the container's stage folder
+//   awaitIndexing `wye` (decision:waterfall.import-sets-up-the-graph-first): the stage imported in one `wye import`
+//                 with analysis — an agent sets up the types and the recurring entities, then the pages become linked
+//                 cards — and waited on until the import's page has every file checked off;
+//                 `wye-pages`: the stage imported with --no-analyse, plain pages (what the graph adds is the difference)
+//   search        `wye ask-search <q> --product <slug> --rerank [--expand] --limit n --json`: Wye's full-text + vector
+//                 search, reranked by its cross-encoder, over the cards and the pages (`wye-pages`: the pages)
 //   clear         the vault's folder and its registration removed
 // Copied into a MemoryBench checkout as src/providers/wye by `wye eval public memorybench --fetch`.
 import { execFile } from "node:child_process"
 import { createHash } from "node:crypto"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import type { Provider, ProviderConfig, IngestOptions, IngestResult, SearchOptions, IndexingProgressCallback } from "../../types/provider"
@@ -19,6 +22,9 @@ import { WYE_PROMPTS, type WyeHit } from "./prompts"
 
 const BENCH = process.env.WYE_BENCH_DIR || join(homedir(), "wye-bench")
 const VAULTS = join(BENCH, "vaults")
+const STAGE = join(BENCH, "stage")
+// what the material is, as a person importing it would say — the same words for every benchmark, never tuned to its questions
+const BRIEF = process.env.WYE_BENCH_BRIEF || "Dated conversation sessions."
 const WYE = process.env.WYE_BIN || "wye"
 
 function wye(args: string[], cwd?: string): Promise<string> {
@@ -52,9 +58,10 @@ export function sessionPage(s: UnifiedSession): { title: string; md: string } {
 
 export class WyeProvider implements Provider {
   name = "wye"
+  graph = true
   prompts = WYE_PROMPTS
   // sessions of one container are imported one at a time (one vault, one build); searches can overlap
-  concurrency = { default: 4, ingest: 1, indexing: 2, search: 4 }
+  concurrency = { default: 4, ingest: 1, indexing: 2, search: 4, answer: 10, evaluate: 10 }
   private known = new Set<string>()
 
   async initialize(_config: ProviderConfig): Promise<void> {
@@ -82,40 +89,45 @@ export class WyeProvider implements Provider {
 
   async ingest(sessions: UnifiedSession[], options: IngestOptions): Promise<IngestResult> {
     const slug = await this.ensureVault(options.containerTag)
-    const dir = mkdtempSync(join(BENCH, "import-"))
-    try {
-      sessions.forEach((s, i) => writeFileSync(join(dir, `${String(i).padStart(3, "0")}-${s.sessionId.replace(/[^A-Za-z0-9_-]+/g, "-")}.md`), sessionPage(s).md))
-      await wye(["import", dir, "--product", slug, "--no-analyse"])
-    } finally { rmSync(dir, { recursive: true, force: true }) }
-    const ids = sessions.map((s) => s.sessionId)
-    // the last session's first words: awaitIndexing searches for them
-    const last = sessions[sessions.length - 1]
-    const probe = last ? (last.messages.find((m) => m.content.trim().length > 20)?.content || last.messages[0]?.content || "") : ""
-    const file = join(VAULTS, slug, "probe.json")
-    writeFileSync(file, JSON.stringify({ sessionId: last?.sessionId, probe: probe.slice(0, 160) }))
-    return { documentIds: ids }
+    const dir = join(STAGE, slug); mkdirSync(dir, { recursive: true })
+    for (const s of sessions) writeFileSync(join(dir, `${s.sessionId.replace(/[^A-Za-z0-9_-]+/g, "-")}.md`), sessionPage(s).md)
+    return { documentIds: sessions.map((s) => s.sessionId) }
   }
 
+  // the container's sessions go in as one import, once: its page is the record of what is done
   async awaitIndexing(result: IngestResult, containerTag: string, onProgress?: IndexingProgressCallback): Promise<void> {
     const slug = slugOf(containerTag)
-    let p: { sessionId?: string; probe?: string } = {}
-    try { p = JSON.parse(readFileSync(join(VAULTS, slug, "probe.json"), "utf8")) } catch { /* nothing ingested */ }
-    const deadline = Date.now() + 15 * 60_000
-    while (p.sessionId && p.probe && Date.now() < deadline) {
-      const hits = await this.hits(p.probe, slug, 30).catch(() => [] as WyeHit[])
-      if (hits.some((h) => h.sessionId === p.sessionId)) break
-      await new Promise((r) => setTimeout(r, 2000))
+    const docs = join(VAULTS, slug, ".wye", "projects", slug, "docs")
+    const page = () => { try { return readdirSync(docs).filter((f) => /^import-/.test(f)).map((f) => readFileSync(join(docs, f), "utf8")).join("\n") } catch { return "" } }
+    if (!page()) {
+      const args = ["import", join(STAGE, slug), "--product", slug]
+      if (this.graph) args.push("--brief", BRIEF); else args.push("--no-analyse")
+      await wye(args)
     }
+    const deadline = Date.now() + 4 * 60 * 60_000
+    while (Date.now() < deadline) {
+      const md = page()
+      const total = (md.match(/^- \[[ x]\] task:import-\d+ /gm) || []).length, done = (md.match(/^- \[x\] task:import-\d+ /gm) || []).length
+      if (!this.graph || (total && done === total)) break
+      await new Promise((r) => setTimeout(r, 10_000))
+    }
+    // the Ask index is built on the first search: one search, so the questions do not wait on it one by one
+    await this.hits("warm up", slug, 5).catch(() => [])
     onProgress?.({ completedIds: result.documentIds, failedIds: [], total: result.documentIds.length })
   }
 
   private async hits(query: string, slug: string, limit: number): Promise<WyeHit[]> {
-    const out = await wye(["ask-search", query.slice(0, 1000), "--product", slug, "--source", "doc", "--rerank", "--limit", String(Math.min(60, limit)), "--json"])
-    const j = JSON.parse(out) as { hits: { title: string; text: string; score: number; ref: string }[] }
-    return (j.hits || []).map((h) => {
-      const page = h.title.split(" › ")[0].replace(/^"(.*)"$/, "$1")
-      const [sessionId, date] = page.split(" · ")
-      return { content: h.text, sessionId, date: date || undefined, score: h.score, ref: h.ref }
+    const args = ["ask-search", query.slice(0, 1000), "--product", slug, "--rerank", "--limit", String(Math.min(60, limit)), "--json"]
+    if (this.graph) args.push("--expand"); else args.push("--source", "doc")
+    const j = JSON.parse(await wye(args)) as { hits: { title: string; text: string; score: number; ref: string; source: string }[] }
+    return (j.hits || []).filter((h) => h.source === "doc" || h.source === "node").map((h) => {
+      // a page passage names its session and date in its title; a card is its own statement, its id its source
+      if (h.source === "doc") {
+        const page = h.title.split(" › ")[0].replace(/^"(.*)"$/, "$1")
+        const [sessionId, date] = page.split(" · ")
+        return { content: h.text, sessionId, date: date || undefined, score: h.score, ref: h.ref }
+      }
+      return { content: h.title && !h.text.startsWith(h.title) ? `${h.title}. ${h.text}` : h.text, sessionId: h.ref, score: h.score, ref: h.ref }
     })
   }
 
@@ -125,11 +137,17 @@ export class WyeProvider implements Provider {
 
   async clear(containerTag: string): Promise<void> {
     const slug = slugOf(containerTag)
-    rmSync(join(VAULTS, slug), { recursive: true, force: true })
+    rmSync(join(VAULTS, slug), { recursive: true, force: true }); rmSync(join(STAGE, slug), { recursive: true, force: true })
     const home = process.env.WYE_HOME
     if (home) rmSync(join(home, "data", "products", slug), { recursive: true, force: true })
     this.known.delete(slug)
   }
+}
+
+// the same vaults with the pages only, no analysis: the baseline that shows what the graph adds
+export class WyePagesProvider extends WyeProvider {
+  name = "wye-pages"
+  graph = false
 }
 
 export default WyeProvider
