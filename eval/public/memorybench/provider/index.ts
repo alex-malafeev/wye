@@ -61,7 +61,7 @@ export class WyeProvider implements Provider {
   graph = true
   prompts = WYE_PROMPTS
   // sessions of one container are imported one at a time (one vault, one build); searches can overlap
-  concurrency = { default: 4, ingest: 1, indexing: 2, search: 4, answer: 10, evaluate: 10 }
+  concurrency = { default: 4, ingest: 1, indexing: 4, search: 4, answer: 10, evaluate: 10 }
   private known = new Set<string>()
 
   async initialize(_config: ProviderConfig): Promise<void> {

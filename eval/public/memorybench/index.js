@@ -30,9 +30,14 @@ const SOURCE = 'github.com/supermemoryai/memorybench (MIT); supermemory.ai/resea
 const MODELS = ['sonnet-5.5:claude-sonnet-5-5:Claude Sonnet 5.5', 'haiku-5.5:claude-haiku-5-5:Claude Haiku 5.5', 'opus-5.5:claude-opus-5-5:Claude Opus 5.5'];
 
 function edit(file, marker, fn) { const f = path.join(MB, file); const s = fs.readFileSync(f, 'utf8'); if (s.includes(marker)) return; const t = fn(s); if (t === s) throw new Error(`memorybench changed: could not patch ${file}`); fs.writeFileSync(f, t); }
-function patch() {
+// the provider's files as they are in this repo — on --fetch and before every run, so an edit here is what runs
+function copyProvider() {
     const dst = path.join(MB, 'src', 'providers', 'wye'); fs.mkdirSync(dst, { recursive: true });
     for (const f of ['index.ts', 'prompts.ts', 'fullcontext.ts']) fs.copyFileSync(path.join(__dirname, 'provider', f), path.join(dst, f));
+}
+
+function patch() {
+    copyProvider();
     edit('src/providers/index.ts', 'WyeProvider', s => s.replace(/(import \{ RAGProvider \} from "\.\/rag"\n)/, '$1import { WyeProvider, WyePagesProvider } from "./wye"\n').replace(/(  rag: RAGProvider,\n)/, '$1  wye: WyeProvider,\n  "wye-pages": WyePagesProvider,\n'));
     edit('src/providers/index.ts', 'FullContextProvider', s => s.replace(/(import \{ WyeProvider[^}]*\} from "\.\/wye"\n)/, '$1import { FullContextProvider } from "./wye/fullcontext"\n').replace(/(  wye: WyeProvider,\n)/, '$1  "wye-full": FullContextProvider,\n'));
     edit('src/types/provider.ts', '"wye"', s => s.replace(/(export type ProviderName = [^\n]*)/, '$1 | "wye" | "wye-pages" | "wye-full"'));
@@ -68,6 +73,7 @@ async function scratchApp(log) {
 
 async function runIt(o, log) {
     if (!fs.existsSync(path.join(MB, 'src', 'providers', 'wye', 'index.ts'))) throw new Error('no MemoryBench checkout with the wye provider — run: wye eval public memorybench --fetch');
+    copyProvider();
     const bench = o.set || 'locomo'; if (!['locomo', 'longmemeval', 'convomem'].includes(bench)) throw new Error('--set locomo | longmemeval | convomem');
     const model = o.model || 'sonnet-5.5';
     const runId = o.runId || `${o.provider || 'wye'}-${bench}-${new Date().toISOString().slice(0, 10)}${o.sample ? `-s${o.sample}` : o.limit ? `-l${o.limit}` : ''}`;
@@ -121,9 +127,9 @@ function reportOf(r, base) {
         `retrieval@${ret.k || 10}: hit ${pct(ret.hitAtK)}%, recall ${pct(ret.recallAtK)}%, MRR ${ret.mrr !== undefined ? ret.mrr.toFixed(2) : 'n/a'}, NDCG ${ret.ndcg !== undefined ? ret.ndcg.toFixed(2) : 'n/a'} (an LLM marks each hit relevant)`,
         `latency median: search ${r.latency.search.median} ms; context ${r.tokens.avgContextTokens} tokens per question; memscore ${r.memscore}`,
         `all questions${r.summary.headline ? ' with adversarial' : ''}: ${pct(r.summary.accuracy)}% of ${r.summary.totalQuestions}`,
-        `MemoryBench ${PIN}, run ${r.runId}, ${r.timestamp}; Wye: each session a dated page in a new vault (wye init, wye import --no-analyse), searched with wye ask-search --rerank (no language model)`,
+        `MemoryBench ${PIN}, run ${r.runId}, ${r.timestamp}; Wye: ${r.provider === 'wye-pages' ? 'each session a dated page in a new vault (wye init, wye import --no-analyse), searched with wye ask-search --rerank --source doc' : 'each container one analysed wye import into a new vault (a setup turn adds types and recurring entities, then an agent per page writes linked cards), searched with wye ask-search --rerank --expand over cards and pages'}`,
     ];
-    return { title: `MemoryBench — ${NAMES[r.benchmark] || r.benchmark}, Wye retrieval mode`, source: `${SOURCE}; published: ${pub.source}`, published: pub.source, rows, notes };
+    return { title: `MemoryBench — ${NAMES[r.benchmark] || r.benchmark}, ${r.provider === 'wye-pages' ? 'Wye, plain pages' : 'Wye, graph import'}`, source: `${SOURCE}; published: ${pub.source}`, published: pub.source, rows, notes };
 }
 
 async function run(opts) {
