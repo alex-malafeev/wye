@@ -33,8 +33,9 @@
 //   wye impact <id> --after "<new text>" --product p [--no-judge] [--json]   what an edit would reach and what each reached node
 //        needs (unaffected | update | rework | contradicts | ask) — run it before editing an approved node; nothing is written
 //   wye context "<text>" --product p [--all | --as-of d]   knowledge closest to a text (local semantic search; ended nodes hidden)
-//   wye ask "<question>" [--vault <name>] --product p [--fast | --deep] [--json]   a cited answer from the product's knowledge, documents,
+//   wye ask "<question>" [--vault <name>] --product p [--fast | --deep] [--model m] [--json]   a cited answer from the product's knowledge, documents,
 //        code and sessions: a fast answer, the sources a deeper search opens as it works, then its answer
+//        --model m: the claude model both lanes answer with (an alias or id), else the app's (WYE_ASK_MODEL)
 //        --vault <name>: another vault answers — parent, a vault below by its name, or a linked repo (wye links); when it
 //        cannot, the question is filed there as open (asked-by this vault) and its answer comes back to this inbox [--no-queue]
 //   wye ask-search "<words>" --product p [--source node|doc|code|session] [--limit n] [--expand] [--rerank] [--json]
@@ -472,12 +473,12 @@ const commands = {
     if (j.candidates.some(c => c.verdict && c.verdict !== 'unaffected')) console.log('\nList the updates you make and the tasks you leave (wye work add) in your summary.');
   },
   async ask() {
-    const q = pos.slice(1).join(' ') || (await readStdin()); if (!q.trim()) die('wye ask "<question>" [--fast | --deep] [--json]');
+    const q = pos.slice(1).join(' ') || (await readStdin()); if (!q.trim()) die('wye ask "<question>" [--fast | --deep] [--model m] [--json]');
     const lanes = flags.fast ? ['fast'] : flags.deep ? ['deep'] : ['fast', 'deep'];
     // --vault <name>: another vault answers — the one above (parent), one below, or a linked repo (plan:vault-links)
     const other = flags.vault ? await otherVault(String(flags.vault)) : null;
     if (other && !flags.json) process.stderr.write(`  asking ${other.name} — ${other.folder}\n`);
-    const r = await fetch(`${WF_URL}/api/${other ? other.slug : product()}/ask`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q, lanes }) });
+    const r = await fetch(`${WF_URL}/api/${other ? other.slug : product()}/ask`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q, lanes, ...(flags.model ? { model: String(flags.model) } : {}) }) });
     if (!r.ok) die(`ask → ${r.status}: ${(await r.text()).slice(0, 200)}`);
     const res = { fast: '', deep: '', citations: new Map(), cut: false, errors: [] };
     const show = !flags.json; let section = '';
@@ -894,6 +895,8 @@ const commands = {
     const j = await r.json().catch(() => ({}));
     if (!r.ok) die(`import → ${r.status}: ${j.message || j.error}`);
     if (flags.json) return out(j);
+    // several files run as a background import (lib:import-run): its page lists the files and checks each off
+    if (j.requestSlug) { console.log(`${j.total} document(s) importing into ${p}/${proj} — ${WF_URL}/${p}/${proj}/d/${j.requestSlug}${flags['no-analyse'] ? '' : ' (an agent sets up the graph, then analyses each page; the blocks arrive in the Inbox as proposed)'}${j.skipped ? `; ${j.skipped} skipped` : ''}`); return; }
     const docs = j.docs.filter(d => !d.folder);
     console.log(`${docs.length} document(s) imported into ${p}/${proj}${j.docs.length > docs.length ? ` (${j.docs.length - docs.length} folder page(s))` : ''}${j.assets.length ? `, ${j.assets.length} image(s)` : ''}${j.analyse ? ' — an agent analyses each; its blocks arrive in the Inbox as proposed' : ' — not analysed (Analyse on each page)'}`);
     for (const d of docs) console.log(`  ${d.slug.padEnd(32)} ${d.title}${d.from ? `  ← ${d.from}` : ''}`);

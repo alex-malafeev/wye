@@ -515,6 +515,9 @@ export function stopChat(id: string, note = 'stopped by the user — Resume or a
   clearIdle(l); clearAsks(l); l.stopped = true;
   if (l.proc) { l.proc.stdin?.end(); const p = l.proc; setTimeout(() => { p.kill(); if (hard) setTimeout(() => { try { p.kill('SIGKILL'); } catch { /* gone */ } }, 3000); }, 1500); }
   emit(l, { kind: 'note', text: note });
+  // its slot is free now: a lane that marks its session done before stopping it ran the end hook while it still held
+  // the slot, and the session queued behind it waited forever (a second import's setup, MemoryBench 2026-10-20)
+  if (l.role !== 'librarian') void startQueued().catch(() => undefined);
   return true;
 }
 // Live conversations with no open turn: what "Stop idle" ends.

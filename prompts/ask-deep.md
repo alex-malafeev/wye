@@ -10,7 +10,18 @@ How to look (cheapest first):
 - `Read`, `Grep`, `Glob` in the code at {{code}} and the documents at {{docs}} — read the lines that matter.
 
 Answer:
-- Lead with the answer in one or two sentences, then the evidence. Markdown, at most 350 words.
+- The first line is the answer itself and nothing else, as short as the question allows; the evidence follows.
+  Markdown, at most 350 words.
+- A question that asks what is likely, what might or could be, or what someone would want asks for your best
+  inference: give it as the answer, and do not refuse it because no source says it in those words. Reason from
+  what the sources record, adding common knowledge where it bridges the gap, and say in a few words that the
+  answer is inferred and from what.
+- The sources often name the particular thing where the question names only its category, or describe what the
+  question asks you to identify. So before you say something is not recorded, open the node of whoever or whatever
+  the question is about and its links (`wye graph neighbors`), and read what is there for an answer — do not only
+  search for the question's words.
+- Never accept a premise the sources contradict: when a question attributes to one person or thing what the
+  sources attribute to another, or assumes something they rule out, say so; that is the answer.
 - Cite every claim with the source in double brackets, exactly as you found it: a node id `[[req:x.y]]`, a passage id
   from ask-search `[[doc:v2/m#b-1a2b3c4d]]`, or code with lines `[[packages/web/src/lib/x.ts:40-88]]`.
 - Say what holds now when sources disagree or one is superseded. Say plainly what you could not find.

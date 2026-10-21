@@ -27,6 +27,11 @@ describe('the deep lane process', () => {
     expect(a).toContain('--strict-mcp-config');
     expect(a[a.indexOf('--permission-mode') + 1]).toBe('default');
   });
+  it('answers with the asked model, else the app default', () => {
+    const m = deepArgs({ product: 'p', productDir: '/d', codeRoot: '', wfUrl: 'http://x', model: 'claude-haiku-5-5' });
+    expect(m[m.indexOf('--model') + 1]).toBe('claude-haiku-5-5');
+    expect(a[a.indexOf('--model') + 1]).toBe(process.env.WYE_ASK_MODEL || 'claude-sonnet-5-5');
+  });
   it('runs wye read-only and outside any session', () => {
     const e = deepEnv({ product: 'p', wfUrl: 'http://x' }, { WYE_SESSION: 's1', WF_SESSION: 's1', PATH: '/bin' } as unknown as NodeJS.ProcessEnv);
     expect(e).toMatchObject({ WYE_READONLY: '1', WYE_PRODUCT: 'p', WYE_URL: 'http://x', PATH: '/bin' });

@@ -18,4 +18,6 @@ export type AskEvent =
   | { type: 'error'; lane: 'fast' | 'deep' | 'retrieve'; message: string }
   | { type: 'done' };
 export type Lane = 'fast' | 'deep';
-export interface AskRequest { q: string; history?: { q: string; a: string }[]; lanes?: Lane[] }
+// model: the claude model both lanes answer with (a MemoryBench run sets it); else WYE_ASK_MODEL. graph / planner:
+// false leaves out the graph step / its model planner (the tests; a bench run that measures without them)
+export interface AskRequest { q: string; history?: { q: string; a: string }[]; lanes?: Lane[]; model?: string; graph?: boolean; planner?: boolean }

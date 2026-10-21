@@ -14,7 +14,7 @@ import { rebuild, writeAtomic, patchFrontmatter } from './write';
 import { createSession, getSession, updateSession } from './sessions';
 import { startChat, sendMessage, watchSession, stopChat } from './agent-host';
 import { skillBody } from './skills';
-import { laneSystem, laneMessage, triage, groupFiles, type LaneFile, type BriefNode } from './import-brief';
+import { laneSystem, laneMessage, triage, groupFiles, setupSystem, setupMessage, guideOf, type LaneFile, type BriefNode } from './import-brief';
 import { graphLinks, convertWikilinks } from './wikilinks';
 import { onSessionEnd } from './sessions';
 import { slugify } from './templates';
@@ -151,6 +151,10 @@ async function runBatch(product: string, productDir: string, docsDir: string, re
     const groups = groupFiles(left, f => kinds.get(f.index)!);
     if (w) w.order = groups.flatMap(g => g.files.map(f => f.index));
     await rebuild(productDir);
+    // the graph first: types, recurring entities and a guide over the whole batch — once (a resumed import has its guide)
+    const toAnalyse = groups.flatMap(g => g.files);
+    if (toAnalyse.length && !guideOf(await readFile(reqFile, 'utf8').catch(() => ''))) await runSetup(product, productDir, reqFile, status, toAnalyse);
+    if (status.stopped) return;
     for (const phase of ['small', 'dense'] as const) {
       const gs = groups.filter(g => g.kind === phase).map(g => g.files);
       if (gs.length && !(await runPhase(product, productDir, docsDir, reqFile, real, status, gs, phase === 'small' ? SMALL_MODEL : undefined))) return;   // paused
@@ -160,7 +164,7 @@ async function runBatch(product: string, productDir: string, docsDir: string, re
   finally { status.current = null; if (w) w.running = false; }
 }
 
-async function laneBrief(product: string, docsDir: string, real: Item[]): Promise<string> {
+async function laneBrief(product: string, docsDir: string, real: Item[], reqFile: string): Promise<string> {
   const scope = await loadScope(product);
   const skill = (scope && await skillBody(scope, 'skill:import')) || await readFile(path.join(REPO_ROOT, 'prompts/import.md'), 'utf8').catch(() => '# Import a document');
   // one page this import already finished, as the shape to follow
@@ -170,14 +174,39 @@ async function laneBrief(product: string, docsDir: string, real: Item[]): Promis
     const text = await readFile(path.join(docsDir, d.file), 'utf8').catch(() => '');
     if (/^status:\s*analysed\b/m.test(text.slice(0, 800)) && text.length > 600) { example = { ref: d.slug, text }; break; }
   }
-  return laneSystem({ product, skill, nodes: (scope?.graph.nodes ?? []) as BriefNode[], example });
+  const guide = guideOf(await readFile(reqFile, 'utf8').catch(() => ''));
+  return laneSystem({ product, skill, nodes: (scope?.graph.nodes ?? []) as BriefNode[], example, guide });
+}
+
+// The graph-setup turn (decision:waterfall.import-sets-up-the-graph-first): one session, one turn, skill:import-setup —
+// it adds the types and the recurring entities and writes the guide on the import's page, then the lanes start with
+// all of it in their brief. A setup that fails or is stopped does not stop the import: the lanes go on without it.
+async function runSetup(product: string, productDir: string, reqFile: string, status: BatchStatus, files: LaneFile[]): Promise<void> {
+  const scope = await loadScope(product);
+  const skill = (scope && await skillBody(scope, 'skill:import-setup')) || await readFile(path.join(REPO_ROOT, 'prompts/import-setup.md'), 'utf8').catch(() => '# Set up the graph for an import');
+  const importRef = `${product}/${status.project}/${status.requestSlug}`;
+  const s = await createSession(productDir, product, { agent: 'claude-code', mode: 'chat', instruction: setupMessage(status.title ?? 'Import', importRef, files), refs: [`module:${status.requestSlug}`], source: { link: `/${product}/${status.project}/d/${status.requestSlug}` } as never, system: setupSystem({ skill, nodes: (scope?.graph.nodes ?? []) as BriefNode[] }) });
+  status.lane = s.id; status.current = 'setting up the graph';
+  await new Promise<void>(resolve => {
+    let over = false;
+    const unsub = watchSession(s.id, ev => {
+      if (over || (ev.kind !== 'result' && ev.kind !== 'exit')) return;
+      over = true; unsub();
+      void (async () => {
+        if (ev.kind === 'result') { await updateSession(productDir, s.id, { status: 'done', result: 'graph set up', line: 'graph set up' }).catch(() => undefined); stopChat(s.id, 'graph set up', true); }
+        await rebuild(productDir).catch(() => undefined);
+        resolve();
+      })();
+    });
+    void startChat(productDir, product, s.id, { wfUrl: wfUrl() });
+  });
 }
 
 // One session works `groups` in order, a message each. Resolves true when all are done, false when paused or cancelled.
 async function runPhase(product: string, productDir: string, docsDir: string, reqFile: string, real: Item[], status: BatchStatus, groups: LaneFile[][], model?: string): Promise<boolean> {
   if (!groups.length) return true;
   const title = status.title ?? 'Import';
-  const s = await createSession(productDir, product, { agent: 'claude-code', mode: 'chat', instruction: laneMessage(title, groups[0]), refs: [`module:${status.requestSlug}`], source: { link: `/${product}/${status.project}/d/${status.requestSlug}` } as never, system: await laneBrief(product, docsDir, real), model });
+  const s = await createSession(productDir, product, { agent: 'claude-code', mode: 'chat', instruction: laneMessage(title, groups[0]), refs: [`module:${status.requestSlug}`], source: { link: `/${product}/${status.project}/d/${status.requestSlug}` } as never, system: await laneBrief(product, docsDir, real, reqFile), model });
   status.lane = s.id;
   let gi = 0; let turns = 0; let settled = false; let ending = false;
   return new Promise<boolean>(resolve => {
@@ -198,7 +227,7 @@ async function runPhase(product: string, productDir: string, docsDir: string, re
       if (status.stopped) { await close('paused — the import stops here; Resume goes on with a fresh lane'); settle(false); return; }
       status.current = groups[gi].map(f => f.slug).join(', ');
       const fresh = turns % LANE_RESET === 0;
-      if (fresh) await updateSession(productDir, s.id, { system: await laneBrief(product, docsDir, real) });   // a fresh agent reads a brief with today's ids
+      if (fresh) await updateSession(productDir, s.id, { system: await laneBrief(product, docsDir, real, reqFile) });   // a fresh agent reads a brief with today's ids
       await sendMessage(productDir, s.id, { text: laneMessage(title, groups[gi]), ...(fresh ? { fresh: true } : {}) } as never);
     };
     let byPerson = false;   // Stop or Cancel on the session announces itself with a note before the process ends
