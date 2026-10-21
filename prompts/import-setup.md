@@ -14,7 +14,7 @@ The message lists every page of the batch and carries the text of as many pages 
 
 ## 2. The kinds of things the material talks about
 
-Find the kinds of things the pages mention again and again: people, places, organisations, projects, events, pets,
+Find the kinds of things the pages mention again and again: people, places, organisations, projects, events,
 products, whatever this material is about. A kind that comes up on several pages and has no type becomes one:
 
 ```bash
@@ -65,9 +65,9 @@ wye doc write <the import page> --section "How this import is modelled" <<'EOF' 
 ```
 
 Say in a few lines which types to use for what, which ids are the recurring things, how to link (e.g. "a fact about
-a person: `about: person:caroline`; an event: `participants:` and `date:`"), and how to write time: which prop
+a person: `about: person:<id>`; an event: `participants:` and `date:`"), and how to write time: which prop
 carries it on each type (`date`, `starts`/`ends`, `since`/`until`), ISO and only as precise as the source
-(`2023-05-07`, `2023-05`, `2023`), and where each page's own date is (its title, a date line), against which every
+(`2025-03-14`, `2025-03`, `2025`), and where each page's own date is (its title, a date line), against which every
 relative time ("yesterday", "last year", "for three years") becomes an absolute one. The page agents read this
 section with the types and ids, and follow it.
 

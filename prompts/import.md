@@ -65,15 +65,15 @@ statement the text does not make is not knowledge; a guess is a `question:`.
   a section "How this import is modelled", follow it.
 - Time, always: every block the page places in time carries it as a property, not only in its words — the timeline,
   `--as-of` and questions about when all read the properties:
-  - something that happened or will happen (an event, a trip, a purchase, a meeting): `date:`; a span `starts:` and
+  - something that happened or will happen (a meeting, a release, an incident, a purchase, a trip): `date:`; a span `starts:` and
     `ends:` (or `duration:` when only one end is known);
-  - a state that holds from or until a point (a job, a home, a relationship, a belief, a plan): `since:` and/or
+  - a state that holds from or until a point (a role, an owner, a policy, a plan, a belief): `since:` and/or
     `until:`;
-  - written as precisely as the source allows and no more: `2023-05-07`, `2023-05`, `2023`; a decade or season stays
+  - written as precisely as the source allows and no more: `2025-03-14`, `2025-03`, `2025`; a decade or season stays
     in the words. Never invent a date the page does not give.
   - relative times become absolute against the page's own date (its title, front matter or a date line, else the
-    date a message carries): "yesterday" on 8 May 2023 is `2023-05-07`, "last year" is `2022`, "next month" is
-    `2023-06`, "the week before" is `2023-05-01`; "for three years" is `since: 2020`. Keep the person's phrase in the
+    date a message carries): "yesterday" on 14 March 2025 is `2025-03-13`, "last year" is `2024`, "next month" is
+    `2025-04`, "the week before" is `2025-03-07`; "for three years" is `since: 2022`. Keep the person's phrase in the
     text, the absolute date in the property.
   - a block the page dates only by the page itself (said on that day, no other time): `date:` the page's date.
 - A statement that contradicts existing knowledge is still written — as a block with a `question:` beside it
