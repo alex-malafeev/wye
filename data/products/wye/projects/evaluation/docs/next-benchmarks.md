@@ -10,7 +10,7 @@ order: 41
 
 # Proposed experiments and benchmarks after LoCoMo
 
-The LoCoMo run (module:eval-locomo) gave Wye 90.1% on the usual 1,540 questions. Two questions are still open. How
+The LoCoMo run (module:eval-locomo) gave Wye 93.0% on the usual 1,540 questions. Two questions are still open. How
 much of that score is the vault and how much the model? And how does Wye do where memory has to do the work? This
 page lists what would answer them, in the order we would run them. Nothing here has been run.
 
@@ -24,8 +24,8 @@ need no new import.
 
 | # | Experiment | What it answers | Rough cost |
 |---|---|---|---|
-| A1 | **Full-context control.** Sonnet 5.5 answers with the whole conversation in context, no Wye (the `wye-full` provider). | How much of 90.1% the model alone gets. Every LoCoMo conversation (8–16k words) fits in context, so this is a high bar. | ~1 h, no import |
-| A2 | **Regression check of the Ask fixes** (decision:waterfall.ask-infers-when-asked). Re-answer the 1,747 questions that passed, after the 239 that failed are re-answered. | Whether "give the best inference" costs adversarial or single-hop questions what it gains on open-domain. | ~1.5 h |
+| A1 | **Full-context control.** Sonnet 5.5 answers with the whole conversation in context, no Wye (the `wye-full` provider). | How much of 93.0% the model alone gets. Every LoCoMo conversation (8–16k words) fits in context, so this is a high bar. | ~1 h, no import |
+| A2 | **Regression check of the Ask fixes** (decision:waterfall.ask-infers-when-asked). Re-answer all 1,986 questions in one pass with the current Ask. | Whether "give the best inference" costs adversarial or single-hop questions what it gains on open-domain. | ~1.5 h |
 | A3 | **Ablations**, the same questions each time: pages only (`wye-pages`, no analysed import); Ask without the graph step (`graph: false`); the fast lane instead of the deep one. | What the import, the graph step and the agent each add. | ~1.5 h each; `wye-pages` needs its own plain import |
 | A4 | **Smaller answering models**: Haiku 5.5, and Opus 5.5 for the top end (`--model`). | How much the score rests on the model; the cost against quality curve. | ~1.5 h each |
 | A5 | **Judge variance**: judge the same answers three times, and once with a judge from another family (codex CLI). Hand-check a sample of 50 wrong verdicts, especially adversarial ones where Wye corrected the premise. | How much of the score is the judge; how many "wrong" answers are right. | ~30 min per pass, plus reading |
@@ -97,7 +97,7 @@ These come from the errors, not from a benchmark. Each is measured by re-answeri
 - **Photos.** Record what a shared photo shows when it carries information. 2–4 open-domain misses had their
   evidence only in a photo caption.
 - **Read past the cards.** Before saying something is not recorded, read the source passage of the cards it
-  found. 66 of the 153 non-adversarial misses said "not recorded" although the search had a relevant passage.
+  found. 10 of the 108 non-adversarial misses said "not recorded" although the search had a relevant passage.
 - **Relative dates.** Check how the import resolves a relative date against the session's date ("the Sunday
   before …"); several temporal misses were a day off.
 

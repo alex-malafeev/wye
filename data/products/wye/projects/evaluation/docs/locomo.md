@@ -27,10 +27,10 @@ cards. We then let Wye answer every benchmark question itself with `wye ask`. Th
 vector search, a graph step that follows the question's entities and planner-written graph queries, and a read-only
 answering agent. A Sonnet 5.5 judge graded the answers with MemoryBench's per-type LoCoMo prompts.
 
-On the 1,540 questions usually reported (adversarial category left out), Wye answered **90.1%** correctly; on all
-1,986 questions, **88.0%**. Single-hop recall scored 94.5%, temporal 90.3%, multi-hop 85.5%, adversarial 80.7% and
-open-domain inference 63.5%. Retrieval found a relevant passage in the top 10 for 97.3% of questions. A median
-answer took 48 s. Because the answering and judging model is stronger than the gpt-4o-mini and GPT-4o models behind
+On the 1,540 questions usually reported (adversarial category left out), Wye answered **93.0%** correctly; on all
+1,986 questions, **92.2%**. Single-hop recall scored 96.2%, temporal 92.8%, multi-hop 91.8%, adversarial 89.7% and
+open-domain inference 68.8%. Retrieval found a relevant passage in the top 10 for 97.3% of questions. A median
+answer took 51 s. Because the answering and judging model is stronger than the gpt-4o-mini and GPT-4o models behind
 most published LoCoMo figures, and because we ran no full-context control, this result does not isolate how much the
 memory itself contributes.
 
@@ -109,6 +109,12 @@ against the conversation's vault (decision:waterfall.memorybench-wye-answers). I
    - The nodes reached are reranked against the question, and up to 20 join the search hits.
 3. **Deep lane**: a read-only Claude Sonnet 5.5 agent is given the hits and the graph findings as its starting list.
    It may open pages and nodes with `wye` (at most 20 tool calls, 120 s) and writes the answer with citations.
+   Its brief (`prompts/ask-deep.md`) states general rules, none drawn from the benchmark
+   (constraint:waterfall.prompts-state-rules, decision:waterfall.ask-infers-when-asked):
+   - the answer comes first, alone on its line, then its evidence;
+   - a question about what is likely or might be gets the best inference, marked as inferred;
+   - before saying something is not recorded, the agent opens the subject's node and its links;
+   - a premise the sources contradict is never accepted.
 4. **Post-processing**: the `[n]` citation markers were stripped before judging, and nothing else was changed.
 
 Nothing is exposed beyond a question in and an answer out. The graph step is internal to Ask.
@@ -147,33 +153,33 @@ session was redone or lost. Two imports (conv-41, conv-42) continued from the fi
 
 | Category | n | Correct | Accuracy |
 |---|---:|---:|---:|
-| Single-hop | 841 | 795 | **94.5%** |
-| Temporal | 321 | 290 | **90.3%** |
-| Multi-hop | 282 | 241 | **85.5%** |
-| Open-domain | 96 | 61 | **63.5%** |
-| Adversarial | 446 | 360 | **80.7%** |
-| **Without adversarial (LoCoMo J, as usually reported)** | **1,540** | **1,387** | **90.1%** |
-| **All questions** | **1,986** | **1,747** | **88.0%** |
+| Single-hop | 841 | 809 | **96.2%** |
+| Temporal | 321 | 298 | **92.8%** |
+| Multi-hop | 282 | 259 | **91.8%** |
+| Open-domain | 96 | 66 | **68.8%** |
+| Adversarial | 446 | 400 | **89.7%** |
+| **Without adversarial (LoCoMo J, as usually reported)** | **1,540** | **1,432** | **93.0%** |
+| **All questions** | **1,986** | **1,832** | **92.2%** |
 
-With n = 1,540, the 95% interval on the headline is about ±1.5 points from sampling alone. That does not include
+With n = 1,540, the 95% interval on the headline is about ±1.3 points from sampling alone. That does not include
 judge variance, which we did not measure (§6).
 
 ### 3.2 By conversation
 
 | Conversation | All questions | Without adversarial |
 |---|---:|---:|
-| conv-26 | 89.9% | 94.7% |
-| conv-30 | 88.6% | 90.1% |
-| conv-41 | 94.3% | 95.4% |
-| conv-42 | 86.2% | 86.9% |
-| conv-43 | 81.4% | 83.7% |
-| conv-44 | 89.2% | 90.2% |
-| conv-47 | 83.2% | 88.7% |
-| conv-48 | 89.5% | 90.1% |
-| conv-49 | 89.8% | 92.3% |
-| conv-50 | 89.7% | 90.5% |
+| conv-26 | 94.0% | 95.4% |
+| conv-30 | 94.3% | 96.3% |
+| conv-41 | 96.9% | 96.7% |
+| conv-42 | 91.2% | 92.0% |
+| conv-43 | 86.4% | 87.6% |
+| conv-44 | 91.1% | 91.1% |
+| conv-47 | 90.5% | 92.0% |
+| conv-48 | 93.7% | 93.2% |
+| conv-49 | 92.9% | 94.2% |
+| conv-50 | 93.6% | 93.7% |
 
-The spread is 83.7–95.4% on the headline set. conv-43 is the weakest, at 83.7%.
+The spread is 87.6–96.7% on the headline set. conv-43 is the weakest, at 87.6%.
 
 ### 3.3 Retrieval (search phase, k = 10)
 
@@ -217,7 +223,7 @@ because some sessions reported none, and it is the CLI's price figure, not a bil
 | Phase | Median | p95 | Max |
 |---|---:|---:|---:|
 | Search (`wye ask-search`) | 1.6 s | 3.8 s | 6.8 s |
-| Answer (`wye ask --deep`, incl. graph step) | 47.8 s | 78.5 s | 101 s |
+| Answer (`wye ask --deep`, incl. graph step) | 50.6 s | 99.0 s | 184 s |
 | Judge | 16.1 s | 28.4 s | 46 s |
 
 Wall clock, excluding the 2 h 14 min outage: import about 2 h 30 min at 4 conversations at a time, search 21 min,
@@ -227,49 +233,49 @@ answering 4 h 2 min at 10 at a time, judging 1 h 31 min.
 
 ### 4.1 Where the errors are
 
-Of the 239 wrong answers, 153 are outside the adversarial category.
+Of the 154 wrong answers, 108 are outside the adversarial category: 32 single-hop, 30 open-domain, 23 temporal and
+23 multi-hop.
 
-- **Retrieval is rarely the cause.** For 146 of those 153 (95%), the search phase had a relevant passage in its top
+- **Retrieval is rarely the cause.** For 99 of those 108 (92%), the search phase had a relevant passage in its top
   10. Wye mostly failed after the evidence had been found.
-- **"Not in the vault" despite the evidence.** 66 of the 153 (43%) open by saying the vault does not record the
-  thing asked. The search had found a relevant passage for almost all of them. Two causes are likely:
-  - The import turned the line of chat into no card. Ask still searches the pages, but the deep agent is told to
-    start from the cards and the graph.
-  - The agent did not read far enough within its 20-call budget.
-
-  Examples: John's favourite book series (gold: Harry Potter), and how Nate celebrated a tournament win. We did not
-  separate the two causes.
+- **"Not in the vault" despite the evidence.** 10 of the 108 still say the vault does not record the thing asked,
+  although the search had found a relevant passage. Either the import turned that line of chat into no card, or the
+  agent did not read far enough within its 20-call budget; we did not separate the two.
 - **Temporal off-by-one.** Some temporal misses resolve a relative date one day off. "The Sunday before 25 May" was
   answered as Saturday 20 May. Others give only the month the import kept ("July 2023") where the gold answer is
   "two weekends before 17 July".
-- **Open-domain inference (63.5%)** is the weakest category. The gold answers are speculative judgements ("Would
-  Caroline be considered religious?", gold: "Somewhat"; "What condition might Joanna have?", gold: "asthma"). Wye
-  says the vault does not state the answer, then offers a hedged reading that the judge marks wrong. Its
-  instructions to cite and not invent work against this category.
+- **Open-domain inference (68.8%)** is still the weakest category. Its gold answers are speculative judgements, and
+  Wye now gives its best inference and marks it as such. Where it misses, it usually commits to a different
+  reasonable reading of the same evidence than the gold one:
+  - "Would Caroline be considered religious?": gold "Somewhat, but not extremely", answered "Probably not … more
+    spiritual than religious";
+  - "What might John's financial status be?": gold "Middle-class or wealthy", answered "probably tight", from his
+    job loss.
+
+  Some gold answers rest on a detail only a shared photo shows, which the import keeps as a caption at most.
 
 ### 4.2 Adversarial questions
 
-LoCoMo's adversarial questions mostly swap the speakers: they ask about Caroline what Melanie did. 86 of 446 were
-marked wrong. In some of these Wye answered the premise as asked ("the bowl reminds her of art and
-self-expression"). In others it corrected the premise, for example *"No. Caroline didn't make the bowl. Melanie
-did."* or *"The sources describe camping trips taken by Melanie's family, not Caroline's."*, and was still marked
-wrong against the gold "Not mentioned in the conversation". 28 of the 86 open with that kind of correction or
-abstention. How many of the 86 are judge disagreements, and not real errors, would need a manual read.
+LoCoMo's adversarial questions mostly swap the speakers: they ask about Caroline what Melanie did. 46 of 446 were
+marked wrong. In most of them Wye answered the premise as asked. Where it corrects the premise (*"No. Caroline didn't
+make the bowl. Melanie did."*) the judge mostly accepts it against the gold "Not mentioned in the conversation", but
+not always. How many of the 46 are judge disagreements, and not real errors, would need a manual read.
 
 ### 4.3 Answer form
 
-- **Long answers.** The median answer is 132 words: a direct answer, then its evidence. LoCoMo's gold answers are a
+- **Long answers.** The median answer is 128 words: a direct answer, then its evidence. LoCoMo's gold answers are a
   few words. LLM judges are known to be lenient with long answers that contain the right one (Penfield Labs, 2026),
   so the long form may raise the score as well as lower it. We did not test a short-answer variant.
-- **Leaked working notes.** 95 answers (4.8%) begin with the deep agent's working notes ("Let me check the source
-  session…", "Need Melanie's own statement; search session 14."). These are a defect in the deep lane's output and
-  are being fixed. Some were still judged correct.
+- **Leaked working notes.** 93 answers (4.7%) begin with the deep agent's working notes ("Let me check the source
+  session…", "Need Melanie's own statement; search session 14."), all of them judged correct. These were a defect in
+  the deep lane's output: it now holds back what the agent writes before a tool call, and the answer is the agent's
+  last message (32bfcc7).
 
 ## 5. Comparison with published results
 
 | System | LoCoMo J (without adversarial) | Answering / judge | Source |
 |---|---:|---|---|
-| **Wye (this run)** | **90.1%** | Sonnet 5.5 / Sonnet 5.5 | this report |
+| **Wye (this run)** | **93.0%** | Sonnet 5.5 / Sonnet 5.5 | this report |
 | Mem0 (new algorithm, managed platform) | 92.5% | not stated | Mem0 README, April 2026 |
 | Zep | 94.7% (vendor), 75.1% (corrected earlier figure) | not stated / gpt-4o-mini | vendor pages |
 | Supermemory | 77.1% | GPT-4o / not stated | team reply, GitHub issue #795 |
@@ -283,14 +289,15 @@ What can and cannot be read from this table:
   Supermemory's figure used GPT-4o. A stronger answering model raises the score with any memory behind it. The Mem0
   paper's own full-context row, 72.9% with gpt-4o-mini, shows how much the model alone carries, because every
   LoCoMo conversation (8–16k words) fits in context. We did not run Sonnet 5.5 with the full conversation in context,
-  so we cannot say how much of Wye's 90.1% the vault adds over the model alone.
+  so we cannot say how much of Wye's 93.0% the vault adds over the model alone.
 - **Most recent figures are self-reported** and name neither the answering model nor the judge. Mem0's own October
   2026 review notes that no two published LoCoMo numbers share a model, judge and retrieval setup.
 - **The benchmark has known faults.** An audit found that 6.4% of the 1,540 gold answers are wrong, so a perfect
   system would score about 93.6%. It also found that the judge accepts up to 63% of intentionally wrong answers
-  (Penfield Labs, 2026). Differences of a few points near the top are within that noise.
+  (Penfield Labs, 2026). Wye's 93.0% is close to that ceiling, and differences of a few points near the top are
+  within that noise.
 
-Read with these caveats, Wye's 90.1% is in the range the current memory products report. That is true even though
+Read with these caveats, Wye's 93.0% is in the range the current memory products report. That is true even though
 Wye was given no benchmark-specific tuning, and it used the same import and Ask a person would use on their own
 documents. The table does not show that Wye is better or worse than any of them.
 
@@ -336,6 +343,8 @@ Code at the time of the run:
 | b52cf9e | import tracks time |
 | 68134b8 | graph step in Ask |
 | 2b92dbd | scratch app restart, import resume |
+| 32bfcc7 | Ask's deep lane: the answer is the last message; the brief's answer rules |
+| 6c4b55e | the import and Ask prompts stated as general rules |
 
 ## References
 
