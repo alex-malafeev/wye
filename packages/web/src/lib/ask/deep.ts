@@ -9,7 +9,8 @@ import { ASK_MODEL } from './fast';
 import { stepText, refsFromToolUse, refsFromToolResult } from './refs';
 
 export type DeepEvent = { type: 'step'; text: string } | { type: 'refs'; refs: string[] } | { type: 'delta'; text: string } | { type: 'done'; cut: boolean };
-export type DeepOpts = { signal: AbortSignal; product: string; productDir: string; codeRoot: string; wfUrl: string; known: (id: string) => boolean; maxTools?: number; timeoutMs?: number; model?: string; graph?: string };
+const HOLD = 400;
+export type DeepOpts ={ signal: AbortSignal; product: string; productDir: string; codeRoot: string; wfUrl: string; known: (id: string) => boolean; maxTools?: number; timeoutMs?: number; model?: string; graph?: string };
 
 export function deepArgs(o: { product: string; productDir: string; codeRoot: string; wfUrl: string; model?: string }): string[] {
   const brief = readFileSync(path.join(REPO_ROOT, 'prompts/ask-deep.md'), 'utf8').replaceAll('{{product}}', o.product).replaceAll('{{code}}', o.codeRoot || '(this product names no code folder)').replaceAll('{{docs}}', o.productDir);
@@ -27,7 +28,7 @@ export function deepEnv(o: { product: string; wfUrl: string }, base: NodeJS.Proc
   return e;
 }
 export async function* runDeep(q: string, history: { q: string; a: string }[], o: DeepOpts): AsyncGenerator<DeepEvent> {
-  const max = o.maxTools ?? 20; let tools = 0; let cut = false; let streamed = false;
+  const max = o.maxTools ?? 20; let tools = 0; let cut = false; let streamed = false; let held = ''; let live = false;
   const inner = new AbortController(); const stop = () => inner.abort(); o.signal.addEventListener('abort', stop, { once: true });
   const timer = setTimeout(() => { cut = true; inner.abort(); }, o.timeoutMs ?? 120000);
   const roots = { code: o.codeRoot, product: o.productDir };
@@ -45,10 +46,22 @@ export async function* runDeep(q: string, history: { q: string; a: string }[], o
         const t = typeof c.content === 'string' ? c.content : Array.isArray(c.content) ? (c.content as { text?: string }[]).map(x => x.text ?? '').join('\n') : '';
         const refs = refsFromToolResult(t, o.known); if (refs.length) yield { type: 'refs', refs };
       }
-      const ev = l.event as { type?: string; delta?: { type?: string; text?: string } } | undefined;
-      if (l.type === 'stream_event' && ev?.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) { streamed = true; yield { type: 'delta', text: ev.delta.text }; }
-      else if (l.type === 'result' && !streamed && typeof l.result === 'string') yield { type: 'delta', text: l.result };
+      // the answer is the text of the agent's last message: what it writes before a tool call ("Let me check the
+      // session…") is its working, held back until the message shows it is no tool call (it ends, or runs past
+      // HOLD characters) — 95 of 1,986 LoCoMo answers began with such notes (MemoryBench 2026-10-21)
+      const ev = l.event as { type?: string; delta?: { type?: string; text?: string; stop_reason?: string }; content_block?: { type?: string } } | undefined;
+      if (l.type === 'stream_event' && ev?.type === 'message_start') { held = ''; live = false; }
+      else if (l.type === 'stream_event' && ev?.type === 'content_block_start' && ev.content_block?.type === 'tool_use' && !live) held = '';
+      else if (l.type === 'stream_event' && ev?.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) {
+        if (live) { yield { type: 'delta', text: ev.delta.text }; continue; }
+        held += ev.delta.text;
+        if (held.length > HOLD) { live = streamed = true; yield { type: 'delta', text: held }; held = ''; }
+      }
+      else if (l.type === 'stream_event' && ev?.type === 'message_delta' && ev.delta?.stop_reason && ev.delta.stop_reason !== 'tool_use' && held) { streamed = true; yield { type: 'delta', text: held }; held = ''; }
+      else if (l.type === 'result' && !streamed) { streamed = true; const t = held || (typeof l.result === 'string' ? l.result : ''); held = ''; if (t) yield { type: 'delta', text: t }; }
     }
   } finally { clearTimeout(timer); o.signal.removeEventListener('abort', stop); }
+  // cut off mid-answer: what it had written stands (the partial answer), unless it was a note before a tool call
+  if (!streamed && held.trim() && !o.signal.aborted) yield { type: 'delta', text: held };
   if (!o.signal.aborted) yield { type: 'done', cut };
 }
