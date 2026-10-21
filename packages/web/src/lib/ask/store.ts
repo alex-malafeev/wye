@@ -15,6 +15,13 @@ export type Store = { dir: string; dim: number; db: lancedb.Connection; table: l
 export type Scored = ChunkRow & { score: number };
 
 const TABLE = 'chunks';
+// The index is read from disk: LanceDB's own cache is kept small (WYE_INDEX_CACHE_MB, default 128 MB of index cache and a
+// quarter of that for file metadata) instead of its 6 GB + 1 GB defaults, which a first index of a big folder filled.
+const gs = globalThis as unknown as { __wyeLanceSession?: lancedb.Session };
+function cacheSession(): lancedb.Session {
+  if (!gs.__wyeLanceSession) { const mb = Math.max(16, Number(process.env.WYE_INDEX_CACHE_MB) || 128); gs.__wyeLanceSession = new lancedb.Session(BigInt(mb) * 1048576n, BigInt(Math.ceil(mb / 4)) * 1048576n); }
+  return gs.__wyeLanceSession;
+}
 const ALL = 10_000_000;
 const schema = (dim: number) => new Schema([
   ...['id', 'source', 'scope', 'ref', 'title', 'body', 'nodes', 'hash', 'model'].map(n => new Field(n, new Utf8(), false)),
@@ -25,7 +32,7 @@ const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
 export async function openStore(dir: string, dim: number): Promise<Store> {
   await mkdir(dir, { recursive: true });
-  const db = await lancedb.connect(dir);
+  const db = await lancedb.connect(dir, {}, cacheSession());
   let table = (await db.tableNames()).includes(TABLE) ? await db.openTable(TABLE) : await db.createEmptyTable(TABLE, schema(dim));
   // an index written before the text was stored once is rewritten without its copy, once, keeping its vectors (dropping
   // the column alone leaves its bytes in the data files)
@@ -45,6 +52,26 @@ export const saveScopes = (s: Store) => writeFile(path.join(s.dir, 'scopes.json'
 export async function state(s: Store): Promise<Map<string, { scope: string; hash: string; model: string }>> {
   const rows = await s.table.query().select(['id', 'scope', 'hash', 'model']).limit(ALL).toArray();
   return new Map(rows.map(r => [String(r.id), { scope: String(r.scope), hash: String(r.hash), model: String(r.model) }]));
+}
+
+// The rows of some scopes only (a batch of files): what a refresh has to compare, without reading the whole index.
+export async function stateOf(s: Store, scopes: string[]): Promise<Map<string, { scope: string; hash: string; model: string }>> {
+  const out = new Map<string, { scope: string; hash: string; model: string }>();
+  for (let i = 0; i < scopes.length; i += 200) {
+    const rows = await s.table.query().where(`scope IN (${scopes.slice(i, i + 200).map(lit).join(',')})`).select(['id', 'scope', 'hash', 'model']).limit(ALL).toArray();
+    for (const r of rows) out.set(String(r.id), { scope: String(r.scope), hash: String(r.hash), model: String(r.model) });
+  }
+  return out;
+}
+// Every scope with the ids of its rows (two short columns: no text, no vectors), for finding files that are gone.
+export async function idsByScope(s: Store): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  for (const r of await s.table.query().select(['id', 'scope']).limit(ALL).toArray()) { const k = String(r.scope); const l = out.get(k); if (l) l.push(String(r.id)); else out.set(k, [String(r.id)]); }
+  return out;
+}
+// Ids of rows written with another model than this one (to be embedded again).
+export async function idsNotOfModel(s: Store, model: string): Promise<{ id: string; scope: string; hash: string }[]> {
+  return (await s.table.query().where(`model != ${lit(model)}`).select(['id', 'scope', 'hash']).limit(ALL).toArray()).map(r => ({ id: String(r.id), scope: String(r.scope), hash: String(r.hash) }));
 }
 
 export async function apply(s: Store, remove: string[], add: StoredRow[]): Promise<void> {

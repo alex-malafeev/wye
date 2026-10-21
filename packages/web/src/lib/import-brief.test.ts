@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { triage, groupFiles, idIndex, typesSection, laneMessage, laneSystem, type BriefNode, type LaneFile } from './import-brief';
+import { triage, groupFiles, idIndex, typesSection, laneMessage, laneSystem, setupMessage, setupSystem, guideOf, type BriefNode, type LaneFile } from './import-brief';
 
 const nodes: BriefNode[] = [
   { id: 'type:person', kind: 'type', title: 'someone', defined: true, body: 'id: type:person\npurpose: someone the director works with\nhome: module:persons\nprops:\n  name: string\n  aliases: list of string?   # other names\n  reports-to: ref person? -(inverse)-> reports\nopen: true' },
@@ -49,5 +49,32 @@ describe('sorting the files', () => {
     const m = laneMessage('Import: Vault', [file(1, 'a.md', 'x\n```js\ncode\n```\n')]);
     expect(m).toContain('````markdown\nx\n```js\ncode\n```\n\n````');
     expect(m.startsWith('Import: Vault: the next page.')).toBe(true);
+  });
+});
+
+describe('the graph-setup turn (decision:waterfall.import-sets-up-the-graph-first)', () => {
+  it('lists every page and shows their text within the budget, spread over the batch', () => {
+    const fs = [file(1, 'a.md', '---\ntitle: A\n---\n' + 'a'.repeat(5000)), file(2, 'b.md', 'b'.repeat(5000)), file(3, 'c.md', 'short c')];
+    const m = setupMessage('Import: Chats', 'ea/assistant/import-chats', fs, 6000);
+    expect(m.startsWith('Import: Chats: set up the graph')).toBe(true);
+    expect(m).toContain('`ea/assistant/import-chats`');
+    for (const f of fs) expect(m).toContain(`- ${f.title} — \`${f.ref}\``);
+    expect(m).not.toContain('title: A');                      // front matter left out
+    expect(m).toContain('a'.repeat(2000)); expect(m).not.toContain('a'.repeat(2001));   // each page gets its share
+    expect(m).toContain('b'.repeat(1500));
+    expect(m).toContain('[… the rest of this page is not shown]');
+  });
+  it('briefs the setup with the types and ids the product has', () => {
+    const sys = setupSystem({ skill: '# Set up', nodes });
+    expect(sys).toContain('`type:person`'); expect(sys).toContain('person:ea.jane-roe Jane Roe');
+  });
+  it('reads the guide off the import page, and the lanes carry it', () => {
+    const md = '---\ntitle: Import: Chats\n---\n\n# Import\n\n- [ ] task:import-1 `a.md` → **A**\n\n## How this import is modelled\n\nA fact about a person: `about: person:x`.\n\n## Later\n\nno\n';
+    expect(guideOf(md)).toBe('A fact about a person: `about: person:x`.');
+    expect(guideOf('## How this import is modelled\n\nlast section\n')).toBe('last section');
+    expect(guideOf('# nothing')).toBe('');
+    const sys = laneSystem({ product: 'ea', skill: '# Import', nodes, guide: guideOf(md) });
+    expect(sys).toContain('## How this import is modelled'); expect(sys).toContain('about: person:x');
+    expect(laneSystem({ product: 'ea', skill: '# Import', nodes })).not.toContain('How this import is modelled');
   });
 });

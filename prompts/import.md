@@ -58,6 +58,22 @@ statement the text does not make is not knowledge; a guess is a `question:`.
 - Every block you add: `status: proposed` (or `#proposed` on a line), `by: agent:<your name>`, `evidence:
   [session:<your session id>]`. Link to what `wye context` found: `refines` an existing requirement rather than
   restating it, `related-to` the module or entity it is about, `part-of` this page's module.
+- Connect every block to the things it is about, the product's entities (the ids in your brief, or `wye context`):
+  through the type's props that link, else `related-to:`. A block that links to nothing is a loose statement nobody
+  finds from the thing it describes. A thing the page talks about that has no id yet: `wye node add <type>:<slug>
+  --title "…"` first. When the import's page has a section "How this import is modelled", follow it.
+- Time, always: every block the page places in time carries it as a property, not only in its words — the timeline,
+  `--as-of` and questions about when all read the properties:
+  - what happens at a point in time: `date:`; what lasts: `starts:` and `ends:`, or `duration:` with the one end
+    that is known;
+  - what holds true from or until a point: `since:` and/or `until:`;
+  - ISO (`YYYY-MM-DD`, `YYYY-MM` or `YYYY`), only as precise as the source: never add a day or a month it does not
+    give; a time vaguer than a year stays in the words. Never invent a date.
+  - a relative time is resolved against the page's own date (its title, front matter or a date line, else the date
+    of the message it is in), at the precision of the phrase: one naming a day gives a day, a month gives a month, a
+    year gives a year; a duration up to now gives `since:`. The phrase stays in the text, the resolved date goes in
+    the property.
+  - a block dated only by the page itself: `date:` the page's date.
 - A statement that contradicts existing knowledge is still written — as a block with a `question:` beside it
   naming the contradiction; the person decides.
 - Front matter: set `status: analysed`; keep `source:`. If the page's title is wrong, fix `title:`.

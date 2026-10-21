@@ -15,9 +15,9 @@ export function fastPrompt(q: string, hits: Hit[], history: { q: string; a: stri
   return `${fastBrief()}\n${hist}\n## Sources\n${src || '(none found)'}\n\n## Question\n${q}\n`;
 }
 
-export async function* runFast(prompt: string, opts: { signal: AbortSignal }): AsyncGenerator<string> {
+export async function* runFast(prompt: string, opts: { signal: AbortSignal; model?: string }): AsyncGenerator<string> {
   let streamed = false;
-  for await (const l of spawnClaude(['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--model', ASK_MODEL, '--tools', ''], prompt, { signal: opts.signal, timeoutMs: 90000 })) {
+  for await (const l of spawnClaude(['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--model', opts.model || ASK_MODEL, '--tools', ''], prompt, { signal: opts.signal, timeoutMs: 90000 })) {
     const ev = l.event as { type?: string; delta?: { type?: string; text?: string } } | undefined;
     if (l.type === 'stream_event' && ev?.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) { streamed = true; yield ev.delta.text; }
     else if (l.type === 'result' && !streamed && typeof l.result === 'string') yield l.result;
