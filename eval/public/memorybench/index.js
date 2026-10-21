@@ -81,7 +81,10 @@ async function scratchApp(log) {
     // in dev mode, from this checkout: the bench measures the code as it is now, not the last `next build` (which the
     // live app serves — rebuilding it under the live app is not an option); dev builds into .next/dev, apart from it
     const web = path.join(REPO, 'packages', 'web');
-    spawn(process.execPath, [path.join(web, 'server.js'), '--dev', '-p', PORT, '-H', '127.0.0.1'], { cwd: web, detached: true, stdio: ['ignore', out, out], env: { ...process.env, WYE_HOME: HOME, WYE_PORT: PORT, WYE_URL: url } }).unref();
+    // the server ends itself past its memory cap with exit 77 (lib/memory-guard) and is started again, the way `wye app`
+    // does it — a full run once sat for three hours on an app that had gone (2026-10-21); the providers' imports resume
+    const loop = `while :; do "$0" server.js --dev -p ${PORT} -H 127.0.0.1; [ $? = 77 ] || exit; echo "scratch app: over its memory cap, restarting"; done`;
+    spawn('/bin/sh', ['-c', loop, process.execPath], { cwd: web, detached: true, stdio: ['ignore', out, out], env: { WYE_MAX_MEMORY_GB: '8', ...process.env, WYE_HOME: HOME, WYE_PORT: PORT, WYE_URL: url } }).unref();
     await waitFor(() => up(url), 'the scratch app', 90000);
     return url;
 }

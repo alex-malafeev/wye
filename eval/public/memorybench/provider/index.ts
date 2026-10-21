@@ -109,11 +109,24 @@ export class WyeProvider implements Provider {
       const md = page()
       const total = (md.match(/^- \[[ x]\] task:import-\d+ /gm) || []).length, done = (md.match(/^- \[x\] task:import-\d+ /gm) || []).length
       if (!this.graph || (total && done === total)) break
+      await this.resumeStopped(slug)
       await new Promise((r) => setTimeout(r, 10_000))
     }
     // the Ask index is built on the first search: one search, so the questions do not wait on it one by one
     await this.hits("warm up", slug, 5).catch(() => [])
     onProgress?.({ completedIds: result.documentIds, failedIds: [], total: result.documentIds.length })
+  }
+
+  // a restart of the app (its memory cap) ends the import it was running; the import page still lists the files left
+  // and Resume goes on from the first one not done
+  private async resumeStopped(slug: string): Promise<void> {
+    const url = process.env.WYE_URL
+    const r = await fetch(`${url}/api/${slug}/imports`).then((r) => (r.ok ? r.json() : null), () => null) as { batches: { requestSlug: string; stopped: boolean }[] } | null
+    for (const b of r?.batches || []) {
+      if (!b.stopped) continue
+      logger.info(`${slug}: import ${b.requestSlug} was stopped (the app restarted), resuming`)
+      await fetch(`${url}/api/${slug}/imports`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ slug: b.requestSlug, action: "resume" }) }).catch(() => null)
+    }
   }
 
   private async hits(query: string, slug: string, limit: number): Promise<WyeHit[]> {
