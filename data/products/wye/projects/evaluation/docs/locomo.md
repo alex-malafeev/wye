@@ -18,6 +18,9 @@ sources:
 
 *Run `wye-locomo-full-2`, 21 October 2026. MemoryBench e8d6e1f, LoCoMo-10, all 1,986 questions.*
 
+
+<img width="2400" height="2400" alt="wye-8-locomo" src="https://github.com/user-attachments/assets/996bc770-d01e-4979-8e66-9365cfc4bfaa" />
+
 ## Abstract
 
 Can a knowledge vault built by agents from a conversation answer questions about that conversation as well as a
