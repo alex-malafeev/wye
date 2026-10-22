@@ -23,16 +23,16 @@ test('cycles: six weeks plus cooldown, configurable', () => {
 test('initiative round-trips through Markdown and is a goal node', () => {
   const dir = tmp(), s = new Store(dir);
   s.createProject({ title: 'Web' });
-  const it = s.createInitiative({ project: 'web', title: 'Onboarding: v2', description: 'Line one\n## sneaky heading\nline two', owner: 'Dana', effort: 'L', cycle: 2 });
+  const it = s.createInitiative({ project: 'web', title: 'Onboarding: v2', description: 'Line one\n## sneaky heading\nline two', owner: 'Dana', contributors: 'Lee, Jo, Lee', ships: 'A checklist', risks: 'Analytics events', effort: 'L', cycle: 2, target: '2026-12-01' });
   s.addTask(it.id, { title: 'Checklist', owner: 'Lee' });
   s.addTask(it.id, { title: 'Invite step', status: 'done' });
   s.addLink(it.id, { label: 'Spec [v2]', url: 'https://example.com/a(b)' });
   s.addLog(it.id, { text: 'multi\nline\ttext', source: 'jira ops' });
   const got = s.get(it.id);
   assert.strictEqual(got.title, 'Onboarding: v2');
-  assert.strictEqual(got.cycle, 2); assert.strictEqual(got.approved, true);
-  assert.strictEqual(got.progress, 50);
+  assert.strictEqual(got.cycle, 2); assert.strictEqual(got.approved, false); assert.strictEqual(got.target, '2026-12-01');
   assert.deepStrictEqual(got.tasks.map(t => t.id), ['task:web.onboarding-v2.1', 'task:web.onboarding-v2.2']);
+  assert.deepStrictEqual(got.contributors, ['Lee', 'Jo']); assert.strictEqual(got.ships, 'A checklist'); assert.strictEqual(got.risks, 'Analytics events');
   assert.strictEqual(got.links.length, 1);
   assert.strictEqual(got.log[0].text, 'multi line text'); assert.strictEqual(got.log[0].source, 'jira-ops');
   assert.match(got.description, /sneaky heading/);
@@ -49,7 +49,7 @@ test('a duplicate link is added once; updates keep other sections', () => {
   const got = s.get(it.id);
   assert.strictEqual(got.links.length, 1);
   assert.strictEqual(got.status, 'at-risk');
-  assert.ok(got.log.some(l => /proposed → at-risk/.test(l.text)));
+  assert.ok(got.log.some(l => /none → at-risk/.test(l.text)));
 });
 
 test('validation: bad status, bad url, path traversal', () => {
@@ -74,7 +74,7 @@ test('ingest: generic push and the GitHub adapter', () => {
   const r = ingest.github(s, 'pull_request', { action: 'opened', pull_request: { number: 7, title: 'Fix totals tempo:p/billing', html_url: 'https://github.com/o/r/pull/7' } });
   assert.strictEqual(r.initiative, 'p/billing');
   got = s.get(it.id);
-  assert.ok(got.links.some(l => l.source === 'github'));
+  assert.strictEqual(got.prs.length, 1); assert.match(got.prs[0].title, /PR #7/);
   assert.deepStrictEqual(ingest.github(s, 'pull_request', { pull_request: { number: 8, title: 'unrelated' } }).ignored, 'no tempo:<initiative> reference');
   assert.throws(() => ingest.ingest(s, { initiative: 'nope', kind: 'log', text: 'x' }), /no initiative/);
 });

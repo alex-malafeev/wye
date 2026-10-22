@@ -1,6 +1,6 @@
 'use strict';
 // Data pushed in from other systems. One generic shape for anything that can POST JSON, plus a GitHub adapter.
-//   { source: "jira", initiative: "project/slug" | "slug", kind: "log" | "link" | "status" | "task", ... }
+//   { source: "jira", initiative: "project/slug" | "slug", kind: "log" | "link" | "pr" | "status" | "task", ... }
 const crypto = require('crypto');
 
 function resolve(store, ref) {
@@ -17,13 +17,14 @@ function ingest(store, msg) {
   switch (msg.kind) {
     case 'log': return store.addLog(it.id, { text: msg.text, source });
     case 'link': { const r = store.addLink(it.id, { label: msg.label, url: msg.url, source }); if (msg.text) store.addLog(it.id, { text: msg.text, source }); return r; }
+    case 'pr': { const r = store.addPr(it.id, { title: msg.title || msg.label, url: msg.url }); if (msg.text) store.addLog(it.id, { text: msg.text, source }); return r; }
     case 'status': return store.update(it.id, { status: msg.status, source });
     case 'task': {
       const ex = msg.title && it.tasks.find(t => t.title === msg.title);   // pushing the same task again updates it
       if (ex) return store.updateTask(it.id, ex.id, { status: msg.status || ex.status, owner: msg.owner, due: msg.due });
       return store.addTask(it.id, { title: msg.title, owner: msg.owner, due: msg.due, status: msg.status || 'todo' });
     }
-    default: throw Object.assign(new Error('kind must be log, link, status or task'), { status: 400 });
+    default: throw Object.assign(new Error('kind must be log, link, pr, status or task'), { status: 400 });
   }
 }
 
@@ -35,7 +36,8 @@ function github(store, event, p) {
   if (!m) return { ignored: 'no tempo:<initiative> reference' };
   const it = resolve(store, m[1]), kind = p.pull_request ? 'PR' : 'Issue';
   const state = obj.merged ? 'merged' : (p.action === 'closed' ? 'closed' : (p.action || 'updated'));
-  store.addLink(it.id, { label: `${kind} #${obj.number} ${obj.title}`, url: obj.html_url, source: 'github' });
+  const label = `${kind} #${obj.number} ${obj.title}`;
+  if (p.pull_request) store.addPr(it.id, { title: label, url: obj.html_url }); else store.addLink(it.id, { label, url: obj.html_url, source: 'github' });
   store.addLog(it.id, { text: `${kind} #${obj.number} ${state}: ${obj.title}`, source: 'github' });
   return { initiative: it.id };
 }

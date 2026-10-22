@@ -1,0 +1,193 @@
+// Overview, Projects, Backlog, People, Simulate and the status-agent card. (Plan, History and Settings are in plan.js.)
+import { S, h, chip, bar, muted, label, opts, api, act, render, go, openIt, openPerson, items, cyc, D, fmtDate, range } from './core.js';
+
+const TIER_ORDER = { cycle: 0, plan: 1, next: 2, later: 3, icebox: 4, proposed: 5, carry: 6, done: 7 };
+const STATUS_ORDER = { 'off-track': 0, 'at-risk': 1, 'on-track': 2, 'not-started': 3, paused: 4, complete: 5 };
+const EFFORT_ORDER = { S: 1, M: 2, L: 3, XL: 4 };
+const STATUS_LABELS = ['On Track', 'At Risk', 'Off Track', 'Not Started', 'Paused', 'Shipped', 'No status', 'Planned', 'Proposed', 'Backlog'];
+const TIERS = [['', 'All tiers'], ['cycle', 'Active cycle'], ['plan', 'Planned'], ['next', 'Next cycle'], ['later', 'Later'], ['icebox', 'Icebox'], ['proposed', 'Proposed'], ['carry', 'Carry-over'], ['done', 'Shipped, past cycle']];
+const DIMS = [['project', 'Project'], ['status', 'Status'], ['mission', 'Mission'], ['tier', 'Tier'], ['effort', 'Effort'], ['champion', 'Champion'], ['flag', 'Planner checks']];
+const dimName = d => (DIMS.find(x => x[0] === d) || [0, 'None'])[1];
+const dimVals = (it, d) => ({ project: [it.projectTitle], status: [it.statusLabel], mission: [it.mission || 'No mission'], tier: [it.tierLabel], effort: [it.effort || 'Unsized'], champion: [it.owner || 'No champion'], flag: [it.flags.length ? 'Has flags' : 'Clean'] }[d] || ['All']);
+const uniq = a => [...new Set(a)].sort();
+
+// ---- pieces several views use
+export const pill = i => h('button', { class: 'pill', onClick: () => openIt(i.id) }, h('span', { class: 'chip ' + i.statusClass, style: 'margin-right:6px' }, i.statusLabel), i.title);
+const personPill = n => h('button', { class: 'pill', onClick: () => openPerson(n) }, n);
+export function itemRow(i, sub, selected) {
+  return h('button', { class: 'row' + (selected ? ' sel' : ''), onClick: () => openIt(i.id) },
+    h('div', { style: 'width:34px;font-weight:700;color:var(--muted);flex:none' }, i.rank == null ? '' : i.rank),
+    h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, i.title), h('div', { class: 'muted small' }, sub || `${i.projectTitle} · ${i.mission || 'No mission'} · ${i.owner || 'No champion'}`)),
+    h('div', { style: 'display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex:none' },
+      h('div', { class: 'hrow', style: 'flex-wrap:nowrap;justify-content:flex-end' }, i.flags.length ? chip('s-off', `${i.flags.length} flag`) : null, chip('s-none', i.tierLabel), chip('s-none', i.effort || 'Unsized'), chip(i.statusClass, i.statusLabel)),
+      h('div', { class: 'hrow', style: 'flex-wrap:nowrap;justify-content:flex-end;width:100%' }, h('div', { style: 'width:130px' }, bar(i.progress, i.hot)), h('div', { style: 'font-size:12px;font-weight:600;width:36px;text-align:right' }, i.progress + '%'))));
+}
+const smallRow = (i, why) => h('button', { class: 'row', onClick: () => openIt(i.id) },
+  h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, i.title), h('div', { class: 'muted small' }, `${i.projectTitle} · ${i.owner || 'No champion'}${why ? ' · ' + why : ''}`)), chip(i.statusClass, i.statusLabel));
+const personRow = p => h('button', { class: 'row', onClick: () => openPerson(p.n) }, h('div', { style: 'flex:1 1 auto;font-weight:600' }, p.n), h('div', { class: 'muted', style: 'font-size:12px' }, `${p.load.c} champion, ${p.load.k} contributor`), chip(p.tagClass, p.tag));
+
+// ---- the status agent's portfolio briefing, on any tab
+export function portfolioCard() {
+  const p = S.portfolio; if (!p.show) return null;
+  const flagged = items().filter(i => i.tier === 'cycle' && i.flags.length).length;
+  return h('div', { class: 'card' }, h('div', { class: 'hrow between' }, h('div', { class: 'lbl' }, 'Portfolio status agent'), h('button', { class: 'btn sm', onClick: () => { p.show = false; render(); } }, 'Close')),
+    h('div', { class: 'muted small' }, `Deterministic checks ran on ${flagged} flagged items. The briefing below is written by Claude from those flags.`), h('div', { class: 'agent' }, p.text));
+}
+export async function runPortfolio() {
+  const p = S.portfolio; p.show = true; p.text = 'Thinking…'; render();
+  try { p.text = (await api('POST', '/agent/portfolio', {})).text; } catch (e) { p.text = e.message; }
+  render();
+}
+export async function runItemAgent(id) {
+  S.agents[id] = 'Thinking…'; render();
+  try { S.agents[id] = (await api('POST', '/agent/item', { id })).text; } catch (e) { S.agents[id] = e.message; }
+  render();
+}
+
+// ---- overview
+export function overview() {
+  const d = D(), A = cyc(d.active), all = items(), cy = all.filter(i => i.tier === 'cycle'), n = f => cy.filter(f).length;
+  const avg = cy.length ? Math.round(cy.reduce((s, i) => s + i.progress, 0) / cy.length) : 0;
+  const start = new Date(A.start + 'T00:00:00Z'), end = new Date(A.end + 'T00:00:00Z'), today = new Date(d.today + 'T00:00:00Z');
+  const el = Math.max(0, Math.min(100, Math.round((today - start) / ((end - start) || 1) * 100))), left = Math.max(0, Math.ceil((end - today) / 864e5));
+  const tiles = [['Ranked items', cy.length, 'in ' + A.name], ['Shipped', n(i => i.status === 'complete'), 'done'], ['On track', n(i => i.status === 'on-track'), 'reporting on track'], ['At risk / off track', n(i => i.hot), 'needs a decision'], ['Not started', n(i => i.status === 'not-started'), left + ' days left'], ['No status', n(i => !i.status), 'champion has not updated'], ['Average progress', avg + '%', 'milestones or estimate'], ['Items with flags', n(i => i.flags.length), 'planner checks']];
+  const past = i => i.flags.some(f => /has passed/.test(f));
+  const attention = cy.filter(i => i.hot || past(i)).sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]).slice(0, 14);
+  return [
+    h('div', { class: 'tiles' }, tiles.map(([l, v, s]) => h('div', { class: 'card' }, h('div', { class: 'lbl' }, l), h('div', { class: 'v' }, v), h('div', { class: 'muted', style: 'font-size:12px' }, s)))),
+    h('div', { class: 'card' }, h('div', { class: 'hrow between' }, h('div', { class: 'lbl' }, A.name + ' timeline'), h('div', { class: 'muted' }, `${el}% of the cycle elapsed, ${left} days to close`)), bar(el, false, true),
+      h('div', { class: 'hrow between muted', style: 'font-size:12px' }, h('span', {}, fmtDate(A.start)), h('span', {}, 'Today, ' + fmtDate(d.today)), h('span', {}, fmtDate(A.end)), h('span', {}, d.config.cooldown ? `Cooldown ${d.config.cooldown} days after` : ''))),
+    h('div', { class: 'cols' },
+      h('div', { class: 'card', style: 'flex:2 1 520px;min-width:0' }, h('div', { class: 'lbl' }, 'Needs attention'),
+        ...attention.map(i => smallRow(i, i.status === 'off-track' ? 'Off track' : i.status === 'at-risk' ? 'At risk' : 'Past target date ' + i.target)), attention.length ? null : muted('Nothing flagged.')),
+      h('div', { class: 'card', style: 'flex:1 1 300px;min-width:0' }, h('div', { class: 'lbl' }, 'Most loaded people'), ...d.people.slice(0, 8).map(personRow), d.people.length ? null : muted('No people yet. Name a champion on an initiative or add a roster in People.'))),
+  ];
+}
+
+// ---- projects (the planner's workstreams)
+export function projects() {
+  const d = D();
+  return [
+    h('div', { class: 'hrow' }, h('button', { class: 'btn', onClick: () => { S.modal = { kind: 'project' }; S.err = ''; render(); } }, 'New project')),
+    h('div', { class: 'grid' }, d.projects.map(p => {
+      const all = items().filter(i => i.project === p.slug), cy = all.filter(i => i.tier === 'cycle');
+      const avg = cy.length ? Math.round(cy.reduce((s, i) => s + i.progress, 0) / cy.length) : 0;
+      const mix = {}; all.forEach(i => { mix[i.statusLabel] = (mix[i.statusLabel] || 0) + 1; });
+      const champs = {}; all.forEach(i => { if (i.owner) champs[i.owner] = (champs[i.owner] || 0) + 1; });
+      const top = Object.keys(champs).sort((a, b) => champs[b] - champs[a]).slice(0, 4).join(', ') || 'No champions named';
+      return h('div', { class: 'card' },
+        h('div', { class: 'hrow between' }, h('h3', {}, p.title), h('span', { class: 'muted small' }, `${all.length} items`)),
+        p.description ? muted(p.description, 'small') : null,
+        h('div', {}, h('div', { class: 'hrow between small' }, h('span', { class: 'muted' }, 'Average progress'), h('b', {}, avg + '%')), bar(avg, cy.some(i => i.status === 'off-track'))),
+        h('div', { class: 'hrow' }, STATUS_LABELS.filter(l => mix[l]).map(l => chip(statusClassOf(l), `${mix[l]} ${l.toLowerCase()}`))),
+        muted('People: ' + top, 'small'),
+        h('div', { class: 'stack', style: 'gap:4px' }, cy.filter(i => i.status !== 'complete').slice(0, 4).map(pill)),
+        h('div', { class: 'hrow' }, h('button', { class: 'btn', onClick: () => { Object.assign(S.f, { q: '', project: p.slug, status: '', tier: '' }); go('backlog'); } }, 'Open in backlog'), h('button', { class: 'btn', onClick: () => { S.modal = { kind: 'initiative', project: p.slug }; S.err = ''; render(); } }, 'New initiative')));
+    })),
+    d.projects.length ? null : muted('No projects yet. Create one to start adding initiatives.'),
+  ];
+}
+const statusClassOf = l => ({ 'On Track': 's-on', 'At Risk': 's-risk', 'Off Track': 's-off', 'Not Started': 's-ns', Shipped: 's-ship' }[l] || 's-none');
+
+// ---- backlog: filters, grouping (rows, and optionally columns as a matrix), sorting
+function select(key, name, options, value, set) {
+  return label(name, h('select', { class: 'field', 'data-k': key, onChange: e => { set(e.target.value); render(); } }, opts(options, value)));
+}
+export function backlog() {
+  const f = S.f, q = f.q.trim().toLowerCase(), all = items();
+  const sortKey = it => ({ title: it.title.toLowerCase(), status: STATUS_ORDER[it.status] ?? 9, project: it.projectTitle.toLowerCase(), effort: EFFORT_ORDER[it.effort] || 9, date: it.target ? new Date(it.target).getTime() : 9e15, champion: (it.owner || '~').toLowerCase() }[S.sortKey] ?? (TIER_ORDER[it.tier] * 1000 + (it.rank ?? 999)));
+  const shown = all.filter(it => (!f.project || it.project === f.project) && (!f.status || it.statusLabel === f.status) && (!f.mission || (it.mission || 'No mission') === f.mission) && (!f.tier || it.tier === f.tier) && (!f.effort || (it.effort || 'Unsized') === f.effort) && (!f.champion || it.owner === f.champion)
+    && (!q || [it.title, it.projectTitle, it.owner, it.contributors.join(' '), it.ships, it.risks, it.description].join(' ').toLowerCase().includes(q)))
+    .sort((a, b) => { const x = sortKey(a), y = sortKey(b); return (x < y ? -1 : x > y ? 1 : a.id.localeCompare(b.id)) * S.sortDir; });
+  const groupMap = dim => { const m = {}, order = []; shown.forEach(it => dimVals(it, dim).forEach(k => { if (!m[k]) { m[k] = []; order.push(k); } m[k].push(it); })); return { m, order }; };
+  const sortKeys = (keys, dim) => dim === 'status' ? keys.sort((a, b) => STATUS_LABELS.indexOf(a) - STATUS_LABELS.indexOf(b)) : dim === 'effort' ? keys.sort((a, b) => (EFFORT_ORDER[a] || 9) - (EFFORT_ORDER[b] || 9)) : keys.sort();
+  const gy = groupMap(S.gy), yKeys = sortKeys(gy.order.slice(), S.gy);
+  const filters = h('div', { class: 'card' },
+    h('div', { class: 'hrow', style: 'align-items:flex-end' },
+      label('Search', h('input', { class: 'field', type: 'search', 'data-k': 'q', value: f.q, placeholder: 'Initiative, person, keyword', onInput: e => { f.q = e.target.value; render(); } }), 'flex:1 1 220px'),
+      select('f-project', 'Project', [['', 'All projects'], ...D().projects.map(p => [p.slug, p.title])], f.project, v => { f.project = v; }),
+      select('f-status', 'Status', [['', 'All statuses'], ...STATUS_LABELS.map(s => [s, s])], f.status, v => { f.status = v; }),
+      select('f-mission', 'Mission', [['', 'All missions'], ...uniq(all.map(i => i.mission || 'No mission')).map(m => [m, m])], f.mission, v => { f.mission = v; }),
+      select('f-tier', 'Tier', TIERS, f.tier, v => { f.tier = v; }),
+      select('f-effort', 'Effort', [['', 'All sizes'], ...['S', 'M', 'L', 'XL', 'Unsized'].map(s => [s, s])], f.effort, v => { f.effort = v; }),
+      select('f-champion', 'Champion', [['', 'All champions'], ...uniq(all.map(i => i.owner).filter(Boolean)).map(n => [n, n])], f.champion, v => { f.champion = v; })),
+    h('div', { class: 'hrow', style: 'align-items:flex-end;border-top:1px solid #eef0f3;padding-top:12px' },
+      select('gy', 'Group rows (Y)', DIMS, S.gy, v => { S.gy = v; }),
+      select('gx', 'Group columns (X)', [['none', 'None (list view)'], ...DIMS], S.gx, v => { S.gx = v; }),
+      select('sort', 'Sort by', [['rank', 'Tier and rank'], ['title', 'Title'], ['status', 'Status'], ['project', 'Project'], ['effort', 'Effort'], ['date', 'Target date'], ['champion', 'Champion']], S.sortKey, v => { S.sortKey = v; }),
+      h('button', { class: 'btn', onClick: () => { S.sortDir = -S.sortDir; render(); } }, S.sortDir === 1 ? 'Ascending' : 'Descending'),
+      h('button', { class: 'btn', onClick: () => { Object.assign(f, { q: '', project: '', status: '', mission: '', tier: '', effort: '', champion: '' }); render(); } }, 'Clear filters'),
+      h('div', { style: 'flex:1 1 20px' }), h('div', { class: 'muted', style: 'align-self:center' }, `${shown.length} of ${all.length} initiatives`)));
+  let body;
+  if (S.gx !== 'none') {
+    const gx = groupMap(S.gx), xKeys = sortKeys(gx.order.slice(), S.gx);
+    body = h('div', { class: 'card', style: 'overflow-x:auto;padding:12px' }, h('table', { style: 'border-collapse:separate;border-spacing:6px;min-width:100%' },
+      h('thead', {}, h('tr', {}, h('th', { class: 'lbl', style: 'text-align:left;min-width:150px' }, `${dimName(S.gy)} ↓ / ${dimName(S.gx)} →`), xKeys.map(k => h('th', { class: 'lbl', style: 'text-align:left;min-width:190px' }, `${k} (${gx.m[k].length})`)))),
+      h('tbody', {}, yKeys.map(k => h('tr', {}, h('td', { style: 'vertical-align:top;font-weight:600;padding-top:6px' }, k, h('div', { class: 'muted', style: 'font-weight:400;font-size:12px' }, `${gy.m[k].length} items`)),
+        xKeys.map(xk => h('td', { style: 'vertical-align:top;background:#f8f9fb;border-radius:8px;padding:6px' }, h('div', { class: 'stack', style: 'gap:4px' }, gy.m[k].filter(i => dimVals(i, S.gx).includes(xk)).map(pill)))))))));
+  } else {
+    body = h('div', { class: 'stack', style: 'gap:14px' }, yKeys.map(k => {
+      const its = gy.m[k], c = {}; its.forEach(i => { c[i.statusLabel] = (c[i.statusLabel] || 0) + 1; });
+      return h('div', { class: 'stack', style: 'gap:6px' }, h('div', { class: 'hrow', style: 'align-items:baseline;flex-wrap:nowrap' }, h('div', { style: 'font-size:15px;font-weight:700' }, k), h('div', { class: 'muted small' }, `${its.length} items · ${Object.entries(c).map(([l, n]) => `${n} ${l.toLowerCase()}`).join(', ')}`)), its.map(i => itemRow(i, null, i.id === route0())));
+    }));
+  }
+  return [filters, body, shown.length ? null : muted('Nothing matches.')];
+}
+const route0 = () => new URLSearchParams((location.hash.split('?')[1] || '')).get('i');
+
+// ---- people
+export function people() {
+  const d = D(), pq = S.pq.trim().toLowerCase(), byId = Object.fromEntries(items().map(i => [i.id, i]));
+  const wsText = p => [...new Set(p.ch.concat(p.co).map(id => byId[id] && byId[id].projectTitle).filter(Boolean))].join(', ') || 'Not on any item';
+  const rows = d.people.filter(p => {
+    if (pq && `${p.n} ${wsText(p)}`.toLowerCase().indexOf(pq) < 0) return false;
+    return { over: p.tag === 'Overloaded' || p.tag === 'Heavy', champ: p.ch.length > 0, contrib: !p.ch.length && p.co.length > 0, none: !p.ch.length && !p.co.length }[S.pf] ?? true;
+  });
+  const sp = d.people.find(p => p.n === S.selP);
+  return h('div', { class: 'cols' },
+    h('div', { class: 'grow stack', style: 'gap:12px;flex-basis:560px' },
+      h('div', { class: 'card', style: 'flex-direction:row;flex-wrap:wrap;align-items:flex-end' },
+        label('Search people', h('input', { class: 'field', type: 'search', 'data-k': 'pq', value: S.pq, placeholder: 'Name or project', onInput: e => { S.pq = e.target.value; render(); } }), 'flex:1 1 200px'),
+        select('pf', 'Show', [['all', 'Everyone'], ['over', 'Heavy or overloaded'], ['champ', 'Champions'], ['contrib', 'Contributors only'], ['none', 'Not assigned (roster only)']], S.pf, v => { S.pf = v; }),
+        h('div', { class: 'muted', style: 'align-self:center' }, `${rows.length} people · ${d.people.filter(p => p.tag === 'Overloaded').length} overloaded · ${d.people.filter(p => p.roster).length} on roster only`)),
+      ...rows.map(p => h('button', { class: 'row' + (p.n === S.selP ? ' sel' : ''), onClick: () => { S.selP = p.n; render(); } },
+        h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, p.n), h('div', { class: 'muted small' }, wsText(p))),
+        h('div', { style: 'width:190px;flex:none' }, h('div', { class: 'muted', style: 'font-size:12px;white-space:nowrap' }, `Champion ${p.load.c} · contributor ${p.load.k}`), bar(Math.min(100, p.load.score * 8), p.load.score >= 10)), chip(p.tagClass, p.tag))),
+      rows.length ? null : muted('Nobody matches.')),
+    h('aside', { class: 'card', style: 'flex:1 1 340px;max-width:440px' }, h('div', { class: 'lbl' }, 'Team roster'),
+      muted('One name per line. Everyone named as a champion or contributor is already counted; the roster adds the people who are not on any item, so you can see who has room.', 'small'),
+      h('textarea', { class: 'field', style: 'min-height:110px', placeholder: 'Name per line', onChange: e => act(() => api('PUT', '/roster', { text: e.target.value })) }, d.roster),
+      sp ? h('div', { class: 'stack', style: 'border-top:1px solid #eef0f3;padding-top:12px' }, h('div', { style: 'font-size:16px;font-weight:700' }, sp.n),
+        muted(`${sp.tag} · ${sp.load.c} champion and ${sp.load.k} contributor slots on unshipped items in the active cycle`, 'small'),
+        ...sp.ch.map(id => byId[id]).filter(Boolean).map(i => personItem(i, 'Champion')), ...sp.co.map(id => byId[id]).filter(Boolean).map(i => personItem(i, 'Contributor')),
+        sp.ch.length || sp.co.length ? null : muted('Not on any item.')) : null));
+}
+const personItem = (i, role) => h('button', { class: 'pill', onClick: () => openIt(i.id) }, h('span', { class: 'chip ' + i.statusClass, style: 'margin-right:6px' }, i.statusLabel), `${role} · ${i.title}`);
+
+// ---- simulate
+export function simulate() {
+  const s = S.sim, r = s.result, byId = Object.fromEntries(items().map(i => [i.id, i]));
+  const run = async () => {
+    if (!(s.title + s.description).trim()) { S.err = 'Describe the idea first'; render(); return; }
+    S.err = ''; s.text = 'Thinking…'; s.result = null; render();
+    const input = { title: s.title, description: s.description, effort: s.effort, when: s.when };
+    try { s.result = await api('POST', '/simulate', input); } catch (e) { S.err = e.message; s.text = ''; render(); return; }
+    render();
+    try { s.text = (await api('POST', '/agent/sim', input)).text; } catch (e) { s.text = e.message; }
+    render();
+  };
+  return h('div', { class: 'cols' },
+    h('div', { class: 'card', style: 'flex:1 1 340px;max-width:460px' }, h('div', { class: 'lbl' }, 'New initiative or idea'), S.err ? h('div', { class: 'err' }, S.err) : null,
+      label('Title', h('input', { class: 'field', value: s.title, placeholder: 'e.g. Passenger alerts for school buses', onInput: e => { s.title = e.target.value; } })),
+      label('What it is and why now', h('textarea', { class: 'field', style: 'min-height:110px', placeholder: 'Describe the scope, customers, models or surfaces involved', onInput: e => { s.description = e.target.value; } }, s.description)),
+      h('div', { class: 'hrow' },
+        label('Effort', h('select', { class: 'field', onChange: e => { s.effort = e.target.value; } }, opts([['S', 'S (2-3 days)'], ['M', 'M (1-2 weeks)'], ['L', 'L (3-4 weeks)'], ['XL', 'XL (6+ weeks)']], s.effort))),
+        label('Target', h('select', { class: 'field', onChange: e => { s.when = e.target.value; } }, opts([['cycle2', 'This cycle (swap in)'], ['cycle3', 'Next cycle'], ['later', 'Later']], s.when)))),
+      h('button', { class: 'btn pri', onClick: run }, 'Run simulation')),
+    h('div', { class: 'grow stack', style: 'gap:14px;flex-basis:520px' },
+      r ? [
+        h('div', { class: 'card' }, h('div', { class: 'lbl' }, 'Most relevant people'), ...r.people.map(p => h('button', { class: 'row', onClick: () => openPerson(p.n) }, h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, p.n), h('div', { class: 'muted small' }, p.why)), chip(p.tagClass, `${p.tag} (${p.active} active)`))), r.people.length ? null : muted('Nobody on the plan looks close to this idea.')),
+        h('div', { class: 'card' }, h('div', { class: 'lbl' }, 'Related and affected initiatives'), ...r.items.map(id => byId[id]).filter(Boolean).map(i => smallRow(i)), r.items.length ? null : muted('No related initiatives found.')),
+        h('div', { class: 'card' }, h('div', { class: 'lbl' }, 'Simulation agent'), h('div', { class: 'agent' }, s.text)),
+      ] : h('div', { class: 'card muted' }, S.sim.text === 'Thinking…' ? 'Thinking…' : 'Describe an idea and run the simulation. The agent finds the people closest to the work, the initiatives it touches and who would be stretched.')));
+}

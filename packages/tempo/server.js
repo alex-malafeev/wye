@@ -2,14 +2,16 @@
 // Tempo: a web app over a Wye vault. No dependencies — Node's http, the vault's Markdown, a static page.
 //   node server.js [--vault <folder>] [-p 4400] [-H 127.0.0.1] [--public https://tempo.example.com] [--seed]
 // Reading is open (that is what "public" means); writing needs the token — TEMPO_TOKEN, or one generated at start —
-// except from this machine while the server is bound to loopback only.
+// except from this machine while the server is bound to loopback only. The status agents spend model calls, so they
+// need the token too, even where writing does not.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { Store, STATUSES, TASK_STATUSES, EFFORTS } = require('./lib/store');
-const cycles = require('./lib/cycles');
+const { Store, STATUSES, TASK_STATUSES, EFFORTS, BUCKETS } = require('./lib/store');
+const analysis = require('./lib/analysis');
 const ingest = require('./lib/ingest');
+const agent = require('./lib/agent');
 
 const args = process.argv.slice(2);
 const opt = (f, d) => { const i = args.indexOf(f); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
@@ -43,10 +45,44 @@ function mayWrite(req) {
   if (m && same(m[1], token)) return true;
   return loopbackOnly && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress) && !req.headers['x-forwarded-for'];
 }
+const fail = (status, message) => Object.assign(new Error(message), { status });
+
+// a cycle as the History view shows it: its snapshot once closed, otherwise the initiatives that are in it now
+function cycleRows(a, c) {
+  if (c.status === 'closed' && c.snap.length) return c.snap;
+  return a.items.filter(i => i.cycle === c.n).map(analysis.snapshotOf).map(r => (c.status === 'planned' || c.status === 'released') ? { ...r, status: '', pct: 0 } : r);
+}
 
 function state() {
-  const config = store.config(), current = cycles.cycleAt(config);
-  return { brand: 'Tempo', config, current, cycles: cycles.cycles(config, Math.max(current, 0)), today: cycles.iso(new Date()), projects: store.projects(), initiatives: store.initiatives(), enums: { statuses: STATUSES, taskStatuses: TASK_STATUSES, efforts: EFFORTS } };
+  const a = analysis.analyze(store), { ctx } = a;
+  const cycles = a.cycles.map(c => { const rows = cycleRows(a, c); return { ...c, snap: undefined, snapshot: c.status === 'closed' && c.snap.length > 0, rows, shipped: rows.filter(r => r.status === 'complete').length, avg: rows.length ? Math.round(rows.reduce((s, r) => s + (r.pct || 0), 0) / rows.length) : 0 }; });
+  return {
+    brand: 'Tempo', config: ctx.cfg, today: ctx.todayIso, active: ctx.active, nx: ctx.nx.n, cycles, projects: ctx.projects, initiatives: a.items, people: a.people,
+    checks: a.checks, canRelease: a.canRelease, roster: ctx.roster.join('\n'),
+    enums: { statuses: STATUSES, taskStatuses: TASK_STATUSES, efforts: EFFORTS, buckets: BUCKETS, labels: analysis.LABEL },
+  };
+}
+
+// ---- moving between cycles
+function release() {
+  const a = analysis.analyze(store);
+  if (a.ctx.nx.status !== 'planned') throw fail(409, 'the next cycle is already released');
+  if (!a.canRelease) throw fail(409, 'release needs at least one planned item, and every planned item approved');
+  store.saveCycle(a.ctx.nx.n, { status: 'released', releasedAt: a.ctx.todayIso });
+}
+function reopen() {
+  const a = analysis.analyze(store);
+  if (a.ctx.nx.status !== 'released') throw fail(409, 'the next cycle is not released');
+  store.saveCycle(a.ctx.nx.n, { status: 'planned', releasedAt: '' });
+}
+// closes the active cycle with a snapshot of it; what was not shipped becomes carry-over (its cycle number stays, so it shows as one)
+function startNext() {
+  const a = analysis.analyze(store), n = a.ctx.active;
+  if (a.ctx.nx.status !== 'released') throw fail(409, 'release the next cycle plan first');
+  const live = a.items.filter(i => i.tier === 'cycle');
+  store.saveCycle(n, { status: 'closed', closedAt: a.ctx.todayIso, snap: live.map(analysis.snapshotOf) });
+  live.filter(i => i.status !== 'complete').forEach(i => store.addLog(i.id, { text: `Not shipped in Cycle ${n}; carried over`, source: 'tempo' }));
+  store.saveCycle(n + 1, { status: 'active' });
 }
 
 async function api(req, res, url) {
@@ -55,18 +91,41 @@ async function api(req, res, url) {
   if (method === 'GET' && a === 'state') return json(res, 200, state());
   if (method === 'GET' && a === 'health') return json(res, 200, { ok: true });
 
-  // GitHub signs its own deliveries; everything else needs the token
+  // GitHub signs its own deliveries; everything else that changes something needs the token
   if (method === 'POST' && a === 'ingest' && b === 'github') {
     const raw = await readBody(req);
     if (!ghSecret) return json(res, 503, { error: 'set TEMPO_GITHUB_SECRET to accept GitHub webhooks' });
     if (!ingest.verifySignature(ghSecret, raw, req.headers['x-hub-signature-256'])) return json(res, 401, { error: 'bad signature' });
     return json(res, 200, ingest.github(store, req.headers['x-github-event'], parseJson(raw)));
   }
-  if (method !== 'GET' && !mayWrite(req)) return json(res, 401, { error: 'a token is needed to change anything' });
+  const readOnly = method === 'POST' && a === 'simulate';     // works out who an idea touches; changes nothing
+  if (method !== 'GET' && !readOnly && !mayWrite(req)) return json(res, 401, { error: 'a token is needed to change anything' });
   const body = method === 'GET' || method === 'DELETE' ? {} : parseJson(await readBody(req));
 
   if (a === 'config' && method === 'PATCH') return json(res, 200, store.setConfig(body));
+  if (a === 'roster' && method === 'PUT') { store.setRoster(String(body.text || '').split('\n')); return json(res, 200, { roster: store.roster().join('\n') }); }
   if (a === 'ingest' && method === 'POST') return json(res, 200, ingest.ingest(store, body));
+  if (a === 'cycles') {
+    if (method === 'POST' && b === 'release') { release(); return json(res, 200, { ok: true }); }
+    if (method === 'POST' && b === 'reopen') { reopen(); return json(res, 200, { ok: true }); }
+    if (method === 'POST' && b === 'start-next') { startNext(); return json(res, 200, { ok: true }); }
+    if (method === 'PATCH' && /^\d+$/.test(b || '')) {
+      const cy = store.cycle(+b); if (cy.status === 'closed') throw fail(409, 'a closed cycle is a record; it cannot be edited');
+      store.saveCycle(+b, { theme: body.theme, start: body.start, end: body.end }); return json(res, 200, store.cycle(+b));
+    }
+  }
+  if (a === 'simulate') {
+    if (!String(body.title || body.description || '').trim()) throw fail(400, 'describe the idea first');
+    return json(res, 200, analysis.simulate(analysis.analyze(store), body));
+  }
+  if (a === 'agent' && method === 'POST') {
+    const an = analysis.analyze(store); let prompt;
+    if (b === 'item') prompt = analysis.itemPrompt(an, body.id);
+    else if (b === 'portfolio') prompt = analysis.portfolioPrompt(an);
+    else if (b === 'sim') { if (!String(body.title || body.description || '').trim()) throw fail(400, 'describe the idea first'); prompt = analysis.simPrompt(an, body, analysis.simulate(an, body)); }
+    if (!prompt) throw fail(404, 'nothing to ask the agent about');
+    try { return json(res, 200, { text: await agent.run(prompt) }); } catch (e) { return json(res, 502, { error: `Agent unavailable: ${e.message}` }); }
+  }
   if (a === 'projects') {
     if (method === 'POST') return json(res, 201, store.createProject(body));
     if (method === 'PATCH' && b) return json(res, 200, store.updateProject(b, body));
@@ -76,7 +135,7 @@ async function api(req, res, url) {
     // ids are project/slug, so they take two path segments
     const id = `${b}/${c}`, taskId = parts[4];
     if (b && c) {
-      if (method === 'GET' && !d) return json(res, 200, store.get(id));
+      if (method === 'GET' && !d) return json(res, 200, analysis.analyze(store).items.find(i => i.id === id) || (() => { throw fail(404, 'initiative not found'); })());
       if (method === 'PATCH' && !d) return json(res, 200, store.update(id, body));
       if (method === 'DELETE' && !d) { store.remove(id); return json(res, 200, { ok: true }); }
       if (d === 'tasks') {
@@ -87,6 +146,10 @@ async function api(req, res, url) {
       if (d === 'links') {
         if (method === 'POST') return json(res, 201, store.addLink(id, body));
         if (method === 'DELETE') return json(res, 200, store.removeLink(id, url.searchParams.get('url') || ''));
+      }
+      if (d === 'prs') {
+        if (method === 'POST') return json(res, 201, store.addPr(id, body));
+        if (method === 'DELETE') return json(res, 200, store.removePr(id, url.searchParams.get('url') || ''));
       }
       if (d === 'log' && method === 'POST') return json(res, 201, store.addLog(id, body));
     }

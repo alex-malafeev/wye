@@ -34,7 +34,7 @@ test('public mode: reads are open, writes need the token, webhooks need their si
     assert.strictEqual((await post(s.base + '/api/ingest/github', payload, { 'x-github-event': 'pull_request', 'x-hub-signature-256': 'sha256=00' })).status, 401);
     assert.strictEqual((await post(s.base + '/api/ingest/github', payload, { 'x-github-event': 'pull_request', 'x-hub-signature-256': sig })).status, 200);
     const got = await (await fetch(s.base + '/api/initiatives/p/billing')).json();
-    assert.ok(got.links.some(l => l.source === 'github'));
+    assert.strictEqual(got.prs.length, 1);
 
     for (const p of ['/..%2fserver.js', '/../server.js', '/%2e%2e/package.json']) {   // never a file outside public/
       const r = await fetch(s.base + p); assert.ok(!/require\('http'\)|"@wye\/tempo"/.test(await r.text()), p);
