@@ -1,0 +1,12 @@
+{
+  "name": "@wye/tempo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tempo — cycle planning for projects and initiatives, stored in a Wye vault",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js --seed",
+    "test": "node --test test/"
+  },
+  "license": "Apache-2.0"
+}

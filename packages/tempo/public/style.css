@@ -1,0 +1,58 @@
+/* Tokens and component styles follow the Safety cycle planner prototype. */
+:root{--ink:#14181f;--muted:#5b6573;--line:#e1e5ea;--line2:#c9cfd8;--bg:#f5f6f8;--card:#fff;--pri:#1f5fd1;--pri-d:#184fb0;--hot:#b3261e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg)}
+.app{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);font-size:14px;line-height:1.4;min-height:100vh}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select,textarea{font:inherit;color:var(--ink)}
+a{color:var(--pri)}
+.btn{border:1px solid var(--line2);background:#fff;border-radius:8px;padding:0 12px;min-height:44px;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:#eef1f5}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn.pri:hover{background:var(--pri-d)}
+.btn.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.sm{min-height:32px;padding:0 10px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+.field{border:1px solid var(--line2);border-radius:8px;background:#fff;min-height:44px;padding:0 10px;max-width:100%}
+textarea.field{padding:8px;width:100%}
+.chip{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;white-space:nowrap;border:0}
+.s-on{background:#dff1e5;color:#14532d}.s-risk{background:#fdf0cf;color:#6b4200}.s-off{background:#fde1dd;color:#8a1c12}.s-ns{background:#e9edf2;color:#37414f}.s-ship{background:#dfe8fb;color:#1a3f8f}.s-none{background:#fff;color:var(--muted);border:1px solid #d5dae1}
+.row{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:flex;gap:12px;align-items:center;text-align:left;width:100%}
+button.row:hover,.row.link:hover{border-color:var(--pri)}
+.row.sel{border-color:var(--pri);box-shadow:0 0 0 2px #cfe0fb}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.lbl{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.pill{border:1px solid #d5dae1;background:#fff;border-radius:6px;padding:4px 8px;font-size:12px;text-align:left;max-width:100%}
+.pill:hover{border-color:var(--pri)}
+.bar{height:6px;border-radius:3px;background:#e9edf2;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--pri)}
+.bar.hot>i{background:var(--hot)}
+.bar.big{height:10px}
+.top{background:#fff;border-bottom:1px solid var(--line)}
+.wrap{max-width:1320px;margin:0 auto;padding:16px}
+.top .wrap{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.main{display:flex;flex-direction:column;gap:16px}
+.cols{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.grow{flex:1 1 420px;min-width:0}
+.stack{display:flex;flex-direction:column;gap:8px}
+.hrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.between{justify-content:space-between}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tiles .card{padding:14px;gap:2px}
+.tiles .v{font-size:28px;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+label.f{display:flex;flex-direction:column;gap:2px}
+h1,h2,h3{margin:0}
+.scrim{position:fixed;inset:0;z-index:50;display:flex;justify-content:flex-end}
+.scrim>.back{flex:1 1 auto;background:rgba(20,24,31,.35);border:0;cursor:default}
+.drawer{flex:0 0 auto;width:min(560px,100%);height:100vh;overflow-y:auto;background:#fff;padding:18px 16px;display:flex;flex-direction:column;gap:14px;box-shadow:-8px 0 24px rgba(20,24,31,.18)}
+.modal{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-start;justify-content:center;background:rgba(20,24,31,.4);overflow-y:auto;padding:24px 12px}
+.modal .card{width:min(560px,100%);padding:18px}
+.logline{border-left:2px solid #d5dae1;padding-left:8px}
+.desc{white-space:pre-wrap}
+.err{color:#8a1c12;font-size:12.5px}
+.toast{position:fixed;left:16px;bottom:16px;background:var(--ink);color:#fff;padding:10px 14px;border-radius:8px;z-index:90;max-width:80vw}
+.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:#f3f6fd;border:1px solid #cfe0fb;border-radius:8px;padding:10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.source{font-size:11px;font-weight:600;color:var(--muted);border:1px solid #d5dae1;border-radius:4px;padding:0 5px}
