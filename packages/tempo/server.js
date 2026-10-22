@@ -26,7 +26,7 @@ const ghSecret = process.env.TEMPO_GITHUB_SECRET || '';
 const store = new Store(vault);
 if (args.includes('--seed') && store.isEmpty()) require('./lib/seed')(store);
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.woff2': 'font/woff2', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
 const PUB = path.join(__dirname, 'public');
 
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
@@ -173,7 +173,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   res.setHeader('x-content-type-options', 'nosniff');
   res.setHeader('referrer-policy', 'no-referrer');
-  res.setHeader('content-security-policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'");
+  res.setHeader('content-security-policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; frame-ancestors 'none'");
   if (publicUrl && req.headers['x-forwarded-proto'] === 'http') { res.writeHead(308, { location: new URL(req.url, publicUrl).href }); return res.end(); }
   try {
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
@@ -187,6 +187,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, host, () => {
   console.log(`Tempo on http://${host === '0.0.0.0' ? 'localhost' : host}:${port}${publicUrl ? ` — reached at ${publicUrl}` : ''}`);
   console.log(`vault: ${vault}`);
+  if (!fs.existsSync(path.join(PUB, 'vendor', 'editor.js'))) console.log('block editor not built: rich text fields fall back to plain text. Run: npm run build:editor');
   if (!loopbackOnly) console.log(`write token: ${token}${process.env.TEMPO_TOKEN ? ' (from TEMPO_TOKEN)' : ' (generated; set TEMPO_TOKEN to keep one)'}`);
 });
 module.exports = { server };

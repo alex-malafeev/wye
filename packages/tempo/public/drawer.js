@@ -1,6 +1,7 @@
 // The initiative detail drawer and the two "new" dialogs.
 import { S, h, chip, bar, muted, label, opts, safeUrl, api, act, render, go, route, openIt, openPerson, items, cyc, D } from './core.js';
 import { runItemAgent } from './views.js';
+import { rich, prune } from './rich.js';
 
 const BUCKETS = [['proposed', 'Proposed'], ['next', 'Next cycle'], ['later', 'Later'], ['icebox', 'Icebox']];
 const POOL = ['carry', 'next', 'later', 'icebox', 'proposed'];
@@ -18,7 +19,8 @@ export function drawer(id) {
   const input = (key, ph, style, aria) => h('input', { class: 'field', style, 'aria-label': aria || ph, placeholder: ph, onInput: e => { v[key] = e.target.value; } });
   const planLine = i.tier === 'cycle' ? `In ${A.name} (active)` : i.tier === 'plan' ? `Planned for Cycle ${i.cycle}${i.rank ? ', rank ' + i.rank : ''}` : i.tier === 'done' ? `Shipped in Cycle ${i.cycle}` : i.tier === 'carry' ? `Carried over from Cycle ${i.cycle}, not shipped` : 'Backlog, not in a cycle';
   const cycleOpts = [['', 'Backlog (no cycle)'], ...d.cycles.filter(c => c.status !== 'closed' || c.n === i.cycle).map(c => [String(c.n), `${c.name} (${c.status})`])];
-  const text = (name, key, rows) => section(name, h('textarea', { class: 'field', style: `min-height:${rows * 22}px`, onChange: e => upd({ [key]: e.target.value }) }, i[key]));
+  prune(k => k.startsWith(i.id + ':') || k.startsWith('modal:'));                         // the editors of any other initiative are taken down
+  const text = (name, key, rows) => section(name, rich(`${i.id}:${key}`, i[key], md => upd({ [key]: md }), rows * 30));
   const agent = S.agents[i.id];
   return h('div', { class: 'scrim' }, h('button', { class: 'back', 'aria-label': 'Close detail', onClick: () => openIt(null) }),
     h('aside', { class: 'drawer' },
@@ -82,8 +84,8 @@ const personBtn = n => h('button', { class: 'pill', onClick: () => openPerson(n)
 const linkRow = (label, url, meta, del) => h('div', { class: 'hrow', style: 'flex-wrap:nowrap' }, h('a', { href: safeUrl(url), target: '_blank', rel: 'noopener noreferrer', style: 'flex:1 1 auto;min-width:0;overflow-wrap:anywhere' }, label), h('span', { class: 'source' }, meta), h('button', { class: 'btn sm', 'aria-label': 'Remove', onClick: del }, 'Remove'));
 
 export function modal() {
-  const m = S.modal; if (!m) return null;
-  const d = D(), v = { title: '', description: '', owner: '', effort: '', ships: '', mission: '', project: m.project || (d.projects[0] && d.projects[0].slug) || '', newProject: '' };
+  const m = S.modal; if (!m) { prune(k => !k.startsWith('modal:')); return null; }
+  const d = D(), v = m.v || (m.v = { title: '', description: '', owner: '', effort: '', ships: '', mission: '', project: m.project || (d.projects[0] && d.projects[0].slug) || '', newProject: '' });   // kept on the dialog: it is rebuilt after every change
   const close = () => { S.modal = null; S.err = ''; render(); };
   const submit = () => act(async () => {
     if (m.kind === 'project') { await api('POST', '/projects', v); S.modal = null; return; }
@@ -93,19 +95,19 @@ export function modal() {
     const r = await api('POST', '/initiatives', { ...v, project });
     S.modal = null; go(route().view, r.id);
   });
-  const text = (name, key, rows) => label(name, h('textarea', { class: 'field', style: `min-height:${rows * 22}px`, onInput: e => { v[key] = e.target.value; } }));
+  const text = (name, key, rows) => label(name, rich(`modal:${key}`, v[key], md => { v[key] = md; }, rows * 30));
   return h('div', { class: 'modal' }, h('div', { class: 'card' },
     h('div', { class: 'hrow between' }, h('h3', {}, m.kind === 'project' ? 'New project' : 'New initiative'), h('button', { class: 'btn sm', onClick: close }, 'Cancel')),
     muted(m.kind === 'project' ? 'A project groups related initiatives.' : 'It lands in the backlog as proposed. Approve it on the Plan page to include it in a cycle.', 'small'),
     S.err ? h('div', { class: 'err' }, S.err) : null,
-    label('Title', h('input', { class: 'field', autofocus: true, onInput: e => { v.title = e.target.value; } })),
+    label('Title', h('input', { class: 'field', value: v.title, autofocus: true, onInput: e => { v.title = e.target.value; } })),
     m.kind === 'initiative' ? h('div', { class: 'hrow' },
       label('Project', h('select', { class: 'field', onChange: e => { v.project = e.target.value; } }, d.projects.map(p => h('option', { value: p.slug, selected: p.slug === v.project }, p.title))), 'flex:1 1 180px'),
-      label('Or a new project', h('input', { class: 'field', placeholder: 'Name', onInput: e => { v.newProject = e.target.value; } }), 'flex:1 1 180px')) : null,
+      label('Or a new project', h('input', { class: 'field', value: v.newProject, placeholder: 'Name', onInput: e => { v.newProject = e.target.value; } }), 'flex:1 1 180px')) : null,
     text('Description', 'description', 3),
     m.kind === 'initiative' ? [text('What ships', 'ships', 3), h('div', { class: 'hrow' },
       label('Effort', h('select', { class: 'field', onChange: e => { v.effort = e.target.value; } }, opts([['', 'Unsized'], ...d.enums.efforts.map(s => [s, s])], ''))),
-      label('Mission', h('input', { class: 'field', onInput: e => { v.mission = e.target.value; } }), 'flex:1 1 140px'),
-      label('Champion', h('input', { class: 'field', placeholder: 'One name', onInput: e => { v.owner = e.target.value; } }), 'flex:1 1 160px'))] : label('Owner', h('input', { class: 'field', onInput: e => { v.owner = e.target.value; } })),
+      label('Mission', h('input', { class: 'field', value: v.mission, onInput: e => { v.mission = e.target.value; } }), 'flex:1 1 140px'),
+      label('Champion', h('input', { class: 'field', value: v.owner, placeholder: 'One name', onInput: e => { v.owner = e.target.value; } }), 'flex:1 1 160px'))] : label('Owner', h('input', { class: 'field', value: v.owner, onInput: e => { v.owner = e.target.value; } })),
     h('button', { class: 'btn pri', onClick: submit }, 'Create')));
 }

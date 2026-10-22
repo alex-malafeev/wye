@@ -3,13 +3,20 @@ import { S, TABS, h, muted, load, route, go, render, setRenderer, cyc, items, ra
 import { overview, projects, backlog, people, simulate, portfolioCard, runPortfolio } from './views.js';
 import { plan, history, settings } from './plan.js';
 import { drawer, modal } from './drawer.js';
+import { inEditor, prune } from './rich.js';
 
 const VIEWS = { overview, projects, backlog, people, sim: simulate, plan, history, settings };
 const app = document.getElementById('app');
 
+// While someone types in a rich text field the page is not rebuilt under them (the save that follows would drop their
+// cursor); it is redrawn when they leave the field.
+let pending = false;
 function draw() {
+  if (S.data && inEditor(document.activeElement) && app.contains(document.activeElement)) { pending = true; return; }
+  pending = false;
   if (!S.data) { app.replaceChildren(h('div', { class: 'wrap muted' }, S.err || 'Loading…')); return; }
   const { view, open } = route(), d = S.data, A = cyc(d.active);
+  if (!open) prune(k => k.startsWith('modal:'));
   // a re-render replaces the DOM: keep the drawer's scroll and the field the person is typing in
   const old = app.querySelector('.drawer'), scroll = old ? old.scrollTop : 0, a = document.activeElement, key = a && a.dataset && a.dataset.k, pos = a && a.selectionStart;
   const cy = items().filter(i => i.tier === 'cycle');
@@ -30,5 +37,6 @@ function draw() {
 }
 
 setRenderer(draw);
+app.addEventListener('focusout', () => setTimeout(() => { if (pending && !inEditor(document.activeElement)) draw(); }, 50));
 window.addEventListener('hashchange', () => { S.err = ''; draw(); });
 load().catch(e => { S.err = e.message; draw(); });

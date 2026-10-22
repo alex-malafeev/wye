@@ -1,3 +1,4 @@
 .vault-dev/
 _build/
 *.tmp
+public/vendor/

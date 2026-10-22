@@ -8,6 +8,7 @@ No dependencies, no build: Node's `http`, Markdown files, a static page of ES mo
 
 ```bash
 cd packages/tempo
+npm run build:editor             # once: bundles the block editor (needs the repo's node_modules)
 node server.js --seed            # http://127.0.0.1:4400, a sample vault in ~/.wye/data/products/tempo
 node server.js --vault ../../data/products/work -p 4400
 npm test
@@ -25,6 +26,11 @@ npm test
 | Plan | The next cycle: backlog pool, approve, ranked plan, plan checks, release (locks), reopen, close the active cycle and start it |
 | History | Every cycle; a closed one shows the snapshot taken when it closed |
 | Initiative drawer | Status, effort, cycle, champion, contributors, mission, target date; description, what ships, risks; milestones; update log; pull requests; links; planner checks; approval; "Ask status agent" |
+
+Description, what ships and risks are edited in a Notion-style block editor: BlockNote, the library Wye's own document
+editor is built on (slash menu, headings, lists, checklists, code, formatting). It reads and writes Markdown, so the
+vault keeps plain Markdown. `npm run build:editor` bundles it into `public/vendor/` (not committed); without it those
+fields fall back to a textarea. The page does not redraw while you type in one.
 
 The status agents (per initiative, portfolio, simulation) run through Claude Code: `claude -p` with no tools, from an
 empty folder, on `sonnet` (`TEMPO_AGENT_MODEL`). `TEMPO_AGENT_CMD` replaces the command (prompt on stdin, answer on

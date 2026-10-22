@@ -61,3 +61,6 @@ h1,h2,h3{margin:0}
 .chip-select.s-on{background:#dff1e5;color:#14532d}.chip-select.s-ship{background:#dfe8fb;color:#1a3f8f}.chip-select.s-off{background:#fde1dd;color:#8a1c12}.chip-select.s-risk{background:#fdf0cf;color:#6b4200}.chip-select.s-ns{background:#e9edf2;color:#37414f}
 .on.btn{background:var(--ink);color:#fff;border-color:var(--ink)}
 @media (max-width:640px){.drawer{width:100%}.tiles{grid-template-columns:repeat(2,1fr)}.row{flex-wrap:wrap}}
+.rich{border:1px solid var(--line2);border-radius:8px;background:#fff;padding:6px 0;max-width:100%;overflow:hidden}
+.rich .bn-editor{padding-inline:12px;font-family:inherit}
+.rich .bn-container{--bn-colors-editor-background:#fff}
