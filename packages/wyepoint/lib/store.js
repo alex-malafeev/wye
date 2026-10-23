@@ -183,6 +183,29 @@ class Store {
     fs.unlinkSync(file);
   }
 
+  // ---- drawings: <project>/docs/drawings/<slug>.{excalidraw,svg,png,md} — the scene, its previews and a text description
+  // (the same files Wye writes), so an agent reads what a drawing says and Wye can show it
+  drawingFile(project, file) {
+    const m = /^([a-z0-9][a-z0-9._-]*)\.(excalidraw|svg|png|md)$/.exec(String(file || '')); if (!m) throw bad('that is not a drawing file');
+    if (!this.projects().some(p => p.slug === project)) throw notFound('project');
+    return { slug: m[1], ext: m[2], path: path.join(this.projectsDir(), project, 'docs', 'drawings', file) };
+  }
+  readDrawing(project, file) {
+    const f = this.drawingFile(project, file); if (!fs.existsSync(f.path)) return null;
+    return { buf: fs.readFileSync(f.path), type: { excalidraw: 'application/json', svg: 'image/svg+xml', png: 'image/png', md: 'text/markdown; charset=utf-8' }[f.ext] };
+  }
+  saveDrawing(project, slug, { json, svg = '', png = '', description = '' }) {
+    const base = this.drawingFile(project, `${slug}.excalidraw`);
+    let scene; try { scene = JSON.parse(json); } catch { throw bad('the drawing is not valid JSON'); }
+    if (!scene || !Array.isArray(scene.elements)) throw bad('the drawing has no elements');
+    if (/<script|javascript:|\son[a-z]+\s*=|<foreignObject/i.test(svg)) throw bad('the preview may not contain script');
+    const at = ext => base.path.replace(/\.excalidraw$/, '.' + ext);
+    write(base.path, String(json));
+    if (svg) write(at('svg'), String(svg)); else if (fs.existsSync(at('svg'))) fs.unlinkSync(at('svg'));
+    if (png) { fs.mkdirSync(path.dirname(at('png')), { recursive: true }); fs.writeFileSync(at('png') + '.tmp', Buffer.from(String(png), 'base64')); fs.renameSync(at('png') + '.tmp', at('png')); }
+    write(at('md'), `# Drawing ${base.slug}\n\n${String(description).trim() || '(no text in the drawing)'}\n`);
+  }
+
   // ---- types: WyePoint's entities are Wye types (lib/types.js). types/ontology.md declares the app's own, types/custom.md the
   // ones a person defines; an instance of a custom type is a list line in a page (lib/lines.js).
   customFile() { return path.join(this.dir, 'types', 'custom.md'); }

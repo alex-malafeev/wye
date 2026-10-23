@@ -112,6 +112,12 @@ async function api(req, res, url) {
   const [a, b, c, d] = parts;
   if (method === 'GET' && a === 'state') return json(res, 200, state());
   if (method === 'GET' && a === 'health') return json(res, 200, { ok: true, live });
+  if (method === 'GET' && a === 'drawings') {                 // /api/drawings/<project>/<slug>.<excalidraw|svg|png|md>
+    const d = store.readDrawing(b, c); if (!d) return json(res, 404, { error: 'no such drawing' });
+    // an SVG is a document: it is shown as an image, and a direct visit may not run anything in it
+    res.writeHead(200, { 'content-type': d.type, 'cache-control': 'no-cache', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:", 'x-content-type-options': 'nosniff' });
+    return res.end(d.buf);
+  }
 
   // GitHub signs its own deliveries; everything else that changes something needs the token
   if (method === 'POST' && a === 'ingest' && b === 'github') {
@@ -122,9 +128,10 @@ async function api(req, res, url) {
   }
   const readOnly = method === 'POST' && a === 'simulate';     // works out who an idea touches; changes nothing
   if (method !== 'GET' && !readOnly && !mayWrite(req)) return json(res, 401, { error: 'a token is needed to change anything' });
-  const body = method === 'GET' || method === 'DELETE' ? {} : parseJson(await readBody(req));
+  const body = method === 'GET' || method === 'DELETE' ? {} : parseJson(await readBody(req, a === 'drawings' ? 30 << 20 : undefined));
 
   if (a === 'config' && method === 'PATCH') return json(res, 200, store.setConfig(body));
+  if (a === 'drawings' && method === 'PUT') { store.saveDrawing(b, String(c || '').replace(/\.excalidraw$/, ''), body); return json(res, 200, { ok: true }); }
   if (a === 'types') {                                     // the types a person defines: a risk, a decision, a customer ask …
     if (method === 'POST' && !b) return json(res, 201, store.createType(body));
     if (method === 'PUT' && b) return json(res, 200, store.updateType(b, body));

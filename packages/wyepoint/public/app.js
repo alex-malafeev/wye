@@ -17,7 +17,7 @@ function subtitle(view, d, A) {
   const nx = cyc(d.nx);
   return {
     overview: `${A.name} · ${range(A)}${A.theme ? ' · ' + A.theme : ''}`,
-    projects: 'Initiatives grouped by project. Open a project to edit its page, details and links.',
+    projects: 'Every initiative, grouped by project. Open a project to edit its page, details and links.',
     backlog: `${items().length} initiatives. Filter, group and sort them any way you like.`,
     people: 'Who is carrying what in the active cycle, and who has room.',
     plan: `${nx.name} · ${range(nx)}. Pick from the pool, rank, check and release.`,
@@ -33,6 +33,9 @@ function cycleProgress(d, A) {
   return { pct: Math.round(el / total * 100), week: Math.min(d.config.weeks, Math.max(1, Math.ceil(el / 7))) };
 }
 
+// a new initiative goes in the first project; with no project yet, the dialog starts with a project
+const newInitiative = d => () => { const p = d.projects[0]; S.modal = p ? { kind: 'initiative', project: p.slug } : { kind: 'project' }; S.err = ''; render(); };
+
 function header(view, d, A) {
   const cp = cycleProgress(d, A);
   const search = h('input', { class: 'search', type: 'search', 'data-k': 'gsearch', placeholder: 'Search', 'aria-label': 'Search initiatives', value: S.f.q,
@@ -43,7 +46,7 @@ function header(view, d, A) {
     h('div', { class: 'top-right' },
       h('div', { class: 'cycle-pill', title: `${A.name}: ${range(A)}` }, h('span', {}, h('b', {}, A.name), ` · week ${cp.week} of ${d.config.weeks}`), h('span', { class: 'cycle-bar' }, h('i', { style: `width:${cp.pct}%` }))),
       h('button', { class: 'btn', onClick: runPortfolio }, '✦ Status agent'),
-      h('button', { class: 'btn pri', onClick: () => { const p = d.projects[0]; S.modal = p ? { kind: 'initiative', project: p.slug } : { kind: 'project' }; S.err = ''; render(); } }, '+ New initiative'),
+      h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New initiative'),
       h('div', { class: 'search-wrap' }, search, h('kbd', { class: 'kbd', 'aria-hidden': 'true' }, '/')))));
 }
 
@@ -67,7 +70,8 @@ function draw() {
   app.replaceChildren(...[
     header(view, d, A),
     isFull ? fullView(full) : h('main', { class: 'wrap' }, h('div', { class: 'panel' },
-      h('div', { class: 'page-head' }, h('h1', {}, TABS.find(t => t[0] === view)[1]), h('div', { class: 'muted' }, subtitle(view, d, A))),
+      h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, TABS.find(t => t[0] === view)[1]), h('div', { class: 'muted' }, subtitle(view, d, A))),
+        view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New initiative') : null),
       h('div', { class: 'main' }, portfolioCard(), S.err && !open && !project && !person && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](),
         muted(`Stored in a Wye vault: every initiative and project is a Markdown page. Cycles are ${d.config.weeks} weeks${d.config.cooldown ? ` plus ${d.config.cooldown} days cooldown` : ''}.`, 'small')))),
     !isFull && open ? drawer(open) : !isFull && project ? projectDrawer(project) : !isFull && person ? personDrawer(person) : null, modal(), simulateModal(),

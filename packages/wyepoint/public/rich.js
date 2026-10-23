@@ -2,7 +2,7 @@
 // The drawer is rebuilt after every change, so an editor is made once per page and the same element is handed back
 // each time; and the page does not redraw while the person is typing in one (see app.js). If the editor's bundle is
 // missing (npm run build:editor was not run) the field is a plain textarea, so nothing is ever uneditable.
-import { h } from './core.js';
+import { h, D } from './core.js';
 
 const cache = new Map();                                       // key → { el, api, saved, base, onSave, opts }
 let bundle;
@@ -24,7 +24,8 @@ export function rich(key, markdown, onSave, opts = {}) {
   c = { el, api: null, saved: markdown, base: markdown, onSave, opts };
   cache.set(key, c);
   const save = md => { if (md.trim() !== c.saved.trim()) { const base = c.base; c.saved = md; c.base = md; c.onSave(md, base); } };
-  loadBundle().then(m => { el.replaceChildren(); c.api = m.mountEditor(el, { markdown: c.saved, onChange: save, node: opts.node, idPrefix: opts.idPrefix, kinds: opts.kinds }); })
+  loadBundle().then(m => { el.replaceChildren(); c.api = m.mountEditor(el, { markdown: c.saved, onChange: save, node: opts.node, idPrefix: opts.idPrefix, kinds: opts.kinds,
+    types: D().types, people: D().people.filter(p => p.inDirectory).map(p => ({ slug: p.slug, name: p.n })), scope: opts.scope, project: opts.project }); })
     .catch(() => { el.replaceChildren(h('textarea', { class: 'field', style: `min-height:${opts.minHeight || 90}px`, 'aria-label': 'Page', onChange: e => save(e.target.value) }, c.saved)); });
   return el;
 }

@@ -24,7 +24,7 @@ export function drawer(id) {
   const key = `${i.id}:body`;
   prune(k => k.startsWith(i.id + ':') || k.startsWith('modal:'));   // the editors of any other initiative are taken down
   const agent = S.agents[i.id];
-  const page = rich(key, i.body, (md, base) => upd({ body: md, base }), { minHeight: 280, node: i.node, idPrefix: `task:${i.project}.${i.slug}.` });
+  const page = rich(key, i.body, (md, base) => upd({ body: md, base }), { minHeight: 280, node: i.node, idPrefix: `task:${i.project}.${i.slug}.`, scope: `${i.project}.${i.slug}`, project: i.project });
   return shell(
     h('div', { class: 'hrow between drawer-head', style: 'align-items:flex-start;flex-wrap:nowrap' }, h('h2', { class: 'drawer-title' }, i.title),
       h('div', { class: 'hrow', style: 'gap:6px;flex-wrap:nowrap' }, h('button', { class: 'btn sm', onClick: () => openFull('initiative', i.id) }, 'Open full view ↗'), h('button', { class: 'btn sm', 'aria-label': 'Close', onClick: () => openIt(null) }, '✕ Close'))),
@@ -44,7 +44,7 @@ export function drawer(id) {
       i.contributors.length || i.owner ? prop('People', h('div', { class: 'hrow' }, ...[i.owner, ...i.contributors].filter(Boolean).map(n => h('button', { class: 'pill', onClick: () => openPerson(n) }, n)))) : null),
 
     h('div', { class: 'page-bar' }, h('div', { class: 'lbl' }, 'Page'), h('div', { class: 'hrow', style: 'gap:4px' }, h('span', { class: 'muted small' }, 'Type / for blocks ·'),
-      ...[['milestone', 'Milestone'], ['link', 'Link'], ['pr', 'PR'], ['update', 'Update']].map(([k, l]) => h('button', { class: 'btn sm', onClick: () => insertInto(key, k) }, '+ ' + l)))),
+      ...[['milestone', 'Milestone'], ['link', 'Link'], ['pr', 'PR'], ['update', 'Update'], ['drawing', 'Drawing'], ...d.types.map(t => ['type:' + t.slug, t.name])].map(([k, l]) => h('button', { class: 'btn sm', onClick: () => insertInto(key, k) }, '+ ' + l)))),
     page,
 
     section('Planner checks', ...i.flags.map(f => h('div', { style: 'color:#8a1c12' }, '• ' + f)), i.flags.length ? null : muted(i.tier === 'cycle' ? 'No issues found.' : 'Checks run on items in the active cycle.', 'small')),
@@ -62,6 +62,7 @@ export function drawer(id) {
 export function modal() {
   const m = S.modal; if (!m) { prune(k => !k.startsWith('modal:')); return null; }
   if (m.kind === 'person') return personModal(m);
+  if (m.kind === 'type') return typeModal(m);
   const d = D(), v = m.v || (m.v = { title: '', description: '', owner: '', effort: '', mission: '', body: TEMPLATE, project: m.project || (d.projects[0] && d.projects[0].slug) || '', newProject: '' });   // kept on the dialog: it is rebuilt after every change
   const close = () => { S.modal = null; S.err = ''; render(); };
   const submit = () => act(async () => {
@@ -83,7 +84,7 @@ export function modal() {
       field('Project', h('select', { class: 'field', onChange: e => { v.project = e.target.value; } }, d.projects.map(p => h('option', { value: p.slug, selected: p.slug === v.project }, p.title))), 'flex:1 1 180px'),
       field('Or a new project', input('newProject', { placeholder: 'Name' }), 'flex:1 1 180px')) : null,
     m.kind === 'initiative'
-      ? [field('Page', rich('modal:body', v.body, md => { v.body = md; }, { minHeight: 200 })), h('div', { class: 'hrow' },
+      ? [field('Page', rich('modal:body', v.body, md => { v.body = md; }, { minHeight: 200, scope: 'new' })), h('div', { class: 'hrow' },
         field('Effort', h('select', { class: 'field', onChange: e => { v.effort = e.target.value; } }, opts([['', 'Unsized'], ...d.enums.efforts.map(s => [s, s])], v.effort))),
         field('Mission', input('mission'), '1 1 140px'), h('label', { class: 'f', style: 'flex:1 1 200px' }, h('span', { class: 'lbl' }, 'Champion'), personPicker({ value: v.owner, onChange: n => { v.owner = n; render(); }, placeholder: 'Start typing a name', label: 'Champion' })))]
       : [field('Description', h('textarea', { class: 'field', style: 'min-height:70px', onInput: e => { v.description = e.target.value; } }, v.description)), field('Owner', input('owner'))],
@@ -105,4 +106,29 @@ function personModal(m) {
     h('datalist', { id: 'person-teams' }, ...teams.map(t => h('option', { value: t }))),
     field('Email', 'email', 'name@company.com', { type: 'email' }),
     h('button', { class: 'btn pri', type: 'submit' }, 'Add person')));
+}
+
+// A type a person defines: a name, its statuses and its fields. It becomes a Wye type card in the vault, and an
+// instance of it is a block anywhere in a page.
+function typeModal(m) {
+  const kinds = D().fieldKinds, v = m.v || (m.v = { name: '', plural: '', purpose: '', statuses: 'open, done', fields: [] });
+  const close = () => { S.modal = null; S.err = ''; render(); };
+  const payload = () => ({ name: v.name, plural: v.plural, purpose: v.purpose, statuses: v.statuses, fields: v.fields.filter(f => f.name.trim()).map(f => ({ ...f, options: f.kind === 'choice' ? f.options : undefined })) });
+  const submit = () => act(async () => { await api(m.slug ? 'PUT' : 'POST', m.slug ? `/types/${m.slug}` : '/types', payload()); S.modal = null; });
+  const field = (name, key, ph, extra = {}) => h('label', { class: 'f' }, h('span', { class: 'lbl' }, name), h('input', { class: 'field', value: v[key], placeholder: ph, onInput: e => { v[key] = e.target.value; }, ...extra }));
+  return h('div', { class: 'modal' }, h('form', { class: 'card', onSubmit: e => { e.preventDefault(); submit(); } },
+    h('div', { class: 'hrow between' }, h('h3', {}, m.slug ? `Edit ${v.name}` : 'New type'), h('button', { class: 'btn sm', type: 'button', onClick: close }, 'Cancel')),
+    muted('A type is a kind of thing you keep in pages. Once it exists, "/" offers it, and each one you add is a node Wye can query.', 'small'),
+    S.err ? h('div', { class: 'err' }, S.err) : null,
+    h('div', { class: 'hrow' }, h('div', { style: 'flex:1 1 200px' }, field('Name', 'name', 'e.g. Risk', { autofocus: !m.slug, disabled: !!m.slug })), h('div', { style: 'flex:1 1 200px' }, field('Plural', 'plural', 'e.g. Risks'))),
+    field('What it is', 'purpose', 'e.g. Something that could go wrong'),
+    field('Statuses', 'statuses', 'open, mitigated, closed (the first is the one a new one starts in)'),
+    h('div', { class: 'stack' }, h('div', { class: 'lbl' }, 'Fields'),
+      ...v.fields.map((f, k) => h('div', { class: 'hrow', style: 'flex-wrap:nowrap' },
+        h('input', { class: 'field', style: 'flex:1 1 150px', value: f.name, placeholder: 'name, e.g. severity', 'aria-label': 'Field name', onInput: e => { f.name = e.target.value; } }),
+        h('select', { class: 'field', 'aria-label': 'Kind of field', onChange: e => { f.kind = e.target.value; render(); } }, opts(kinds, f.kind)),
+        f.kind === 'choice' ? h('input', { class: 'field', style: 'flex:1 1 150px', value: f.options, placeholder: 'low, medium, high', 'aria-label': 'Options', onInput: e => { f.options = e.target.value; } }) : null,
+        h('button', { class: 'btn sm', type: 'button', 'aria-label': 'Remove field', onClick: () => { v.fields.splice(k, 1); render(); } }, '✕'))),
+      h('div', {}, h('button', { class: 'btn sm', type: 'button', onClick: () => { v.fields.push({ name: '', kind: 'text', options: '' }); render(); } }, '+ Add field'))),
+    h('button', { class: 'btn pri', type: 'submit' }, m.slug ? 'Save' : 'Create type')));
 }

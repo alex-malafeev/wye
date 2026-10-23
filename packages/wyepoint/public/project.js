@@ -16,7 +16,7 @@ export function projectDrawer(slug) {
   const people = [...new Set(mine.flatMap(i => [i.owner, ...i.contributors]).filter(Boolean))];
   const key = `project:${p.slug}:body`;
   prune(k => k.startsWith(`project:${p.slug}:`) || k.startsWith('modal:'));
-  const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 200, kinds: ['link', 'update'] });
+  const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 200, kinds: ['link', 'update'], scope: `${p.slug}`, project: p.slug });
   return shell(
     h('div', { class: 'hrow between drawer-head', style: 'align-items:flex-start;flex-wrap:nowrap' },
       h('input', { class: 'drawer-title-input', value: p.title, 'aria-label': 'Project name', onChange: e => upd({ title: e.target.value }) }),
@@ -29,7 +29,7 @@ export function projectDrawer(slug) {
       people.length ? prop('People', h('div', { class: 'hrow' }, ...people.map(n => h('button', { class: 'pill', onClick: () => openPerson(n) }, n)))) : null),
 
     h('div', { class: 'page-bar' }, h('div', { class: 'lbl' }, 'Page'), h('div', { class: 'hrow', style: 'gap:4px' }, h('span', { class: 'muted small' }, 'Type / for blocks ·'),
-      ...[['link', 'Link'], ['update', 'Update']].map(([k, l]) => h('button', { class: 'btn sm', onClick: () => insertInto(key, k) }, '+ ' + l)))),
+      ...[['link', 'Link'], ['update', 'Update'], ['drawing', 'Drawing'], ...D().types.map(t => ['type:' + t.slug, t.name])].map(([k, l]) => h('button', { class: 'btn sm', onClick: () => insertInto(key, k) }, '+ ' + l)))),
     page,
 
     h('div', { class: 'stack' }, h('div', { class: 'hrow between' }, h('div', { class: 'lbl' }, `Initiatives (${mine.length})`),

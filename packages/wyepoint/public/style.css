@@ -369,3 +369,23 @@ main.wrap{padding:8px 12px 0}
 .kpi-open{font-size:15px;padding:0 2px}
 .kpi-foot{display:flex;flex-direction:column;gap:2px}
 .kpis{grid-auto-rows:1fr;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}
+
+/* a page's title on the left, its main action on the right */
+.page-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+
+/* the full view's properties: close together, each as wide as what it holds */
+.fprops{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px 24px;padding:14px 0}
+.fprop{flex:0 0 auto;min-width:0}
+.fprop .pfield{width:auto;min-width:110px;max-width:240px}
+.fprop input.pfield{width:150px}
+.fprop select.pfield{field-sizing:content}
+.fprop .picker{width:auto;min-width:150px}
+.fprop .picker.multi{min-width:230px;max-width:360px}
+
+.type-core{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.type-row{align-items:flex-start}
+
+.fside .fprops{display:flex;flex-direction:column;flex-wrap:nowrap;gap:12px;padding:0;margin:0;border:0}
+.fside .fprop{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:8px}
+.fside .fprop .pfield,.fside .fprop input.pfield,.fside .fprop .picker,.fside .fprop .picker.multi{width:100%;min-width:0;max-width:none}
+.fside .fprop select.pfield{field-sizing:fixed}

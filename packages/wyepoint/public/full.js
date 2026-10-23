@@ -25,7 +25,7 @@ function fullInitiative(id) {
   const cycleOpts = [['', 'Backlog (no cycle)'], ...d.cycles.filter(c => c.status !== 'closed' || c.n === i.cycle).map(c => [String(c.n), `${c.name} (${c.status})`])];
   const key = `${i.id}:body`;
   prune(k => k.startsWith(i.id + ':') || k.startsWith('modal:'));
-  const page = rich(key, i.body, (md, base) => upd({ body: md, base }), { minHeight: 520, node: i.node, idPrefix: `task:${i.project}.${i.slug}.` });
+  const page = rich(key, i.body, (md, base) => upd({ body: md, base }), { minHeight: 520, node: i.node, idPrefix: `task:${i.project}.${i.slug}.`, scope: `${i.project}.${i.slug}`, project: i.project });
   const agent = S.agents[i.id];
   return h('main', { class: 'wrap' }, h('div', { class: 'panel full' },
     crumbs(h('button', { class: 'link-btn', onClick: () => openFull('project', i.project) }, i.projectTitle), h('span', {}, i.title)),
@@ -33,7 +33,11 @@ function fullInitiative(id) {
       h('div', { class: 'hrow', style: 'flex-wrap:nowrap' }, canSimulate(i) ? h('button', { class: 'btn', onClick: () => openSimulation(i) }, 'Simulate') : null, h('button', { class: 'btn', onClick: () => runItemAgent(i.id) }, '✦ Ask status agent'), h('button', { class: 'btn', 'aria-label': 'Close full view', onClick: closeFull }, '✕ Close'))),
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip(i.statusClass, i.statusLabel), chip('s-none', i.tierLabel), chip('s-none', i.projectTitle), i.flags.length ? chip('s-off', `${i.flags.length} check${i.flags.length > 1 ? 's' : ''}`) : null),
-    h('div', { class: 'fprops' },
+    h('div', { class: 'fcols' },
+      h('div', { class: 'fmain' }, h('div', { class: 'page-bar' }, h('div', { class: 'lbl' }, 'Page'), h('div', { class: 'hrow', style: 'gap:4px' }, h('span', { class: 'muted small' }, 'Type / for blocks ·'),
+        ...[['milestone', 'Milestone'], ['link', 'Link'], ['pr', 'PR'], ['update', 'Update'], ['drawing', 'Drawing'], ...d.types.map(t => ['type:' + t.slug, t.name])].map(([k, l]) => h('button', { class: 'btn sm', onClick: () => insertInto(key, k) }, '+ ' + l)))), page),
+      h('aside', { class: 'fside' },
+        sideCard('Properties', h('div', { class: 'fprops' },
       fprop('Status', sel([['', 'No status'], ...d.enums.statuses.map(s => [s, d.enums.labels[s]])], i.status, v => upd({ status: v }), 'Status')),
       fprop('Champion', personPicker({ value: i.owner, onChange: v => upd({ owner: v }), placeholder: 'No champion', label: 'Champion' })),
       fprop('Contributors', personPicker({ value: i.contributors, multi: true, onChange: v => upd({ contributors: v }), placeholder: 'No contributors', label: 'Contributors' })),
@@ -41,11 +45,7 @@ function fullInitiative(id) {
       fprop('Cycle', sel(cycleOpts, i.cycle == null ? '' : i.cycle, v => upd(v === '' ? { cycle: null, rank: null } : { cycle: +v, approved: true }), 'Cycle')),
       i.cycle == null ? fprop('Bucket', sel(BUCKETS, i.bucket, v => upd({ bucket: v }), 'Backlog bucket')) : null,
       fprop('Mission', txt(i.mission, v => upd({ mission: v }), 'Mission', 'No mission')),
-      fprop('Target', txt(i.target, v => upd({ target: v }), 'Target date', 'YYYY-MM-DD'))),
-    h('div', { class: 'fcols' },
-      h('div', { class: 'fmain' }, h('div', { class: 'page-bar' }, h('div', { class: 'lbl' }, 'Page'), h('div', { class: 'hrow', style: 'gap:4px' }, h('span', { class: 'muted small' }, 'Type / for blocks ·'),
-        ...[['milestone', 'Milestone'], ['link', 'Link'], ['pr', 'PR'], ['update', 'Update']].map(([k, l]) => h('button', { class: 'btn sm', onClick: () => insertInto(key, k) }, '+ ' + l)))), page),
-      h('aside', { class: 'fside' },
+      fprop('Target', txt(i.target, v => upd({ target: v }), 'Target date', 'YYYY-MM-DD')))),
         sideCard('Progress', h('div', { class: 'big' }, i.progress + '%'), bar(i.progress, i.hot), muted(i.progressBasis, 'small')),
         sideCard('Planner checks', ...i.flags.map(f => h('div', { class: 'check' }, '• ' + f)), i.flags.length ? null : muted(i.tier === 'cycle' ? 'No issues found.' : 'Checks run on items in the active cycle.', 'small')),
         sideCard('Planning', muted(planLine, 'small'), h('div', { class: 'hrow' },
@@ -74,18 +74,18 @@ function fullProject(slug) {
   const people = [...new Set(mine.flatMap(i => [i.owner, ...i.contributors]).filter(Boolean))];
   const key = `project:${p.slug}:body`;
   prune(k => k.startsWith(`project:${p.slug}:`) || k.startsWith('modal:'));
-  const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 520, kinds: ['link', 'update'] });
+  const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 520, kinds: ['link', 'update'], scope: `${p.slug}`, project: p.slug });
   return h('main', { class: 'wrap' }, h('div', { class: 'panel full' },
-    crumbs(h('button', { class: 'link-btn', onClick: () => go('projects') }, 'Projects'), h('span', {}, p.title)),
+    crumbs(h('button', { class: 'link-btn', onClick: () => go('projects') }, 'Initiatives'), h('span', {}, p.title)),
     h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: p.title, 'aria-label': 'Project name', onChange: e => upd({ title: e.target.value }) }),
       h('div', { class: 'hrow', style: 'flex-wrap:nowrap' }, h('button', { class: 'btn', onClick: () => { S.modal = { kind: 'initiative', project: p.slug }; S.err = ''; render(); } }, '+ New initiative'), h('button', { class: 'btn', 'aria-label': 'Close full view', onClick: closeFull }, '✕ Close'))),
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip('s-none', `${mine.length} initiative${mine.length === 1 ? '' : 's'}`), chip('s-none', `${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => chip('s-none', `${n} ${l.toLowerCase()}`))),
-    h('div', { class: 'fprops' }, fprop('Owner', h('input', { class: 'pfield', value: p.owner, placeholder: 'No owner', 'aria-label': 'Owner', onChange: e => upd({ owner: e.target.value }) }))),
     h('div', { class: 'fcols' },
       h('div', { class: 'fmain' }, h('div', { class: 'page-bar' }, h('div', { class: 'lbl' }, 'Page'), h('div', { class: 'hrow', style: 'gap:4px' }, h('span', { class: 'muted small' }, 'Type / for blocks ·'),
-        ...[['link', 'Link'], ['update', 'Update']].map(([k, l]) => h('button', { class: 'btn sm', onClick: () => insertInto(key, k) }, '+ ' + l)))), page),
+        ...[['link', 'Link'], ['update', 'Update'], ['drawing', 'Drawing'], ...D().types.map(t => ['type:' + t.slug, t.name])].map(([k, l]) => h('button', { class: 'btn sm', onClick: () => insertInto(key, k) }, '+ ' + l)))), page),
       h('aside', { class: 'fside' },
+        sideCard('Properties', h('div', { class: 'fprops' }, fprop('Owner', h('input', { class: 'pfield', value: p.owner, placeholder: 'No owner', 'aria-label': 'Owner', onChange: e => upd({ owner: e.target.value }) })))),
         sideCard('Progress', h('div', { class: 'big' }, avg + '%'), bar(avg, cy.some(i => i.status === 'off-track')), muted('Average of the active cycle', 'small')),
         sideCard(`Initiatives (${mine.length})`, ...mine.map(i => h('button', { class: 'side-row', onClick: () => openIt(i.id) }, h('span', { class: 'side-row-main' }, h('b', {}, i.title), h('span', { class: 'muted small' }, `${i.owner || 'No champion'} · ${i.cycle == null ? i.tierLabel : 'Cycle ' + i.cycle}`)), chip(i.statusClass, i.statusLabel))), mine.length ? null : muted('No initiatives yet.', 'small')),
         sideCard('Links', ...p.links.map(l => h('a', { class: 'side-link', href: safeUrl(l.url), target: '_blank', rel: 'noopener noreferrer' }, l.label + ' ↗')), p.links.length ? null : muted('None yet. Add one with + Link.', 'small')),
