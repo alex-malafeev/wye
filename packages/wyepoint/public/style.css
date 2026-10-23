@@ -389,3 +389,11 @@ main.wrap{padding:8px 12px 0}
 .fside .fprop{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:8px}
 .fside .fprop .pfield,.fside .fprop input.pfield,.fside .fprop .picker,.fside .fprop .picker.multi{width:100%;min-width:0;max-width:none}
 .fside .fprop select.pfield{field-sizing:fixed}
+.fside .fprops{gap:4px}
+.fside .fprop{grid-template-columns:92px minmax(0,1fr);gap:6px;align-items:center}
+.fside .fprop .prop-name{font-size:11px;letter-spacing:.03em;white-space:nowrap}
+.fside .fprop .pfield,.fside .fprop .picker.multi,.fside .fprop .picker>.pfield{box-sizing:border-box;width:100%;min-height:30px;height:30px;padding:2px 8px;border:1px solid var(--line);background:#fff;border-radius:6px;font-size:13px;appearance:auto}
+.fside .fprop .picker.multi{height:auto;min-height:30px;gap:4px;padding:2px 4px}
+.fside .fprop .picker.multi .picker-input{min-width:60px;flex:1 1 60px;height:24px;padding:0 4px;border:0}
+.fside .fprop .picker{width:100%}
+.fside .fprops{align-items:stretch}
