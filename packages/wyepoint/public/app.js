@@ -1,15 +1,15 @@
 // The page shell: the header, the page title, the active view, the detail drawers and the dialogs.
 import { S, TABS, h, muted, load, route, go, render, setRenderer, cyc, items, range, fmtDate, findKey } from './core.js';
-import { overview, goals, projects, backlog, people, runPortfolio } from './views.js';
+import { overview, goals, library, projects, backlog, people, runPortfolio } from './views.js';
 import { plan, history, settings } from './plan.js';
-import { drawer, modal, newInitiativePage } from './drawer.js';
+import { drawer, modal, newInitiativePage, newDocPage } from './drawer.js';
 import { projectDrawer } from './project.js';
 import { fullView } from './full.js';
 import { personDrawer } from './person.js';
 import { simulateModal } from './simulate.js';
 import { inEditor, prune } from './rich.js';
 
-const VIEWS = { overview, goals, projects, backlog, people, plan, history, settings };
+const VIEWS = { overview, goals, library, projects, backlog, people, plan, history, settings };
 const app = document.getElementById('app');
 
 // what each page is for, under its title
@@ -17,6 +17,7 @@ function subtitle(view, d, A) {
   const nx = cyc(d.nx);
   return {
     overview: `${A.name} · ${range(A)}${A.theme ? ' · ' + A.theme : ''}`,
+    library: 'Product context: customers, the product, research, how you work. Link a document to the goals and projects it affects.',
     goals: 'What the projects are working towards, and how far along each goal is.',
     projects: 'Every project, grouped by area. Open an area to edit its page, details and links.',
     backlog: `${items().length} projects. Filter, group and sort them any way you like.`,
@@ -92,7 +93,7 @@ function draw() {
     header(view, d, A),
     isFull ? fullView(full) : view === 'overview' ? overviewPage(d, A) : h('main', { class: 'wrap' }, h('div', { class: 'panel' },
       h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, TABS.find(t => t[0] === view)[1]), h('div', { class: 'muted' }, subtitle(view, d, A))),
-        view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New project') : view === 'goals' ? h('button', { class: 'btn pri', onClick: () => { S.modal = { kind: 'goal' }; S.err = ''; render(); } }, '+ New goal') : null),
+        view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New project') : view === 'library' ? h('button', { class: 'btn pri', onClick: () => newDocPage(S.lib && S.lib.cat) }, '+ New document') : view === 'goals' ? h('button', { class: 'btn pri', onClick: () => { S.modal = { kind: 'goal' }; S.err = ''; render(); } }, '+ New goal') : null),
       h('div', { class: 'main' }, S.err && !open && !project && !person && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](), footnote(d)))),
     h('button', { class: 'fab', title: 'Status agent: a briefing on the whole portfolio', 'aria-label': 'Status agent', onClick: runPortfolio }, h('img', { src: '/owl.svg', alt: '' })),
     !isFull && open ? drawer(open) : !isFull && project ? projectDrawer(project) : !isFull && person ? personDrawer(person) : null, modal(), simulateModal(),

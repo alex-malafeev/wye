@@ -36,10 +36,10 @@ Goal  →  Project  →  Work item (milestone, risk, or a type of your own)
 | **Area** | Groups projects: a product area or a team's track. Not a level of the hierarchy, a way to slice it. (Called a *project* before; the code still does.) |
 | **Cycle** | The time-box (6 weeks plus cooldown by default). Projects are planned into cycles. |
 
-**Keys.** Every goal, project and work item has a global id, `PREFIX-n` (`GOAL-1`, `PROJ-12`, `TASK-5`, `RISK-2`), so it
+**Keys.** Every goal, project and work item has a global id, `PREFIX-n` (`GOAL-1`, `PROJ-12`, `TASK-5`, `RISK-2`, `DOC-3`), so it
 can be referred to, searched and opened: `#/k/PROJ-12` opens it, and the Backlog's search finds it (Enter on a key goes
 there). The prefix is the `key:` property of the item's type, set on the type's card in the vault (`PROJ`, `RISK`, and
-`key` of each type you define in Settings; Wye's own `goal` and `task` are given `GOAL` and `TASK` by WyePoint). The
+`key` of each type you define in Settings; Wye's own `goal`, `task` and `doc` are given `GOAL`, `TASK` and `DOC` by WyePoint). The
 number is the next one for that prefix, counted in `_keys.json`, so one is never used twice, not after a deletion either.
 
 ## What it does
@@ -51,6 +51,7 @@ number is the next one for that prefix, counted in `_keys.json`, so one is never
 | Projects | One card per area with its links, progress, status mix and open projects. **Edit** opens the area's own page. |
 | Backlog | Search (names, people, tasks and keys) and filters as searchable lookups (area, status, goal, tier, effort, champion), group rows and columns, sort. Every row has a **cycle** to choose; a click opens the project full-page. |
 | People | The directory of people who can be champions and contributors (**+ New person**), with load. A person's drawer lists what they carry, the goals they own, the milestones they own, the risks they are responsible for, and a history: the cycles they championed and the updates that name them. |
+| Library | Documents that are product context: a customer, the product, research, how you work. Each has a category, an owner and an optional list of the goals and projects it is about (a searchable picker), and a page of its own with pictures. Search by words or filter by category. |
 | Plan | The next cycle: pool, approve, ranked plan, plan checks, release (locks), reopen, close the active cycle and start it |
 | History | Every cycle; a closed one shows the snapshot taken when it closed |
 | Settings | Workspace and cycle length; **Cycles** (a theme and own dates for each, and how many are ahead); **Types**; pushing data in; the write token |
@@ -93,6 +94,7 @@ stdout). The prompts are built on the server from the vault; the page cannot sen
 | Area | `areas/<a>/_area.md`: details in the front matter, then a free body |
 | Project | `areas/<a>/docs/<slug>.md`, a `project:<a>.<slug>` node: `key`, `goal: goal:<slug>`, `champion`, `involves`, `cycle: cycle:<n>`, `slack`, … |
 | Page body | free Markdown after the title. Items are lines, wherever they are: `- task:<a>.<slug>.<n> Title #status (owner: …, due: …, part-of: project:…, key: TASK-5)`, `- risk:<a>.<slug>.<n> Text #open (severity: high, responsible: person:lee, key: RISK-2)`, `- [label](url) · link · source`, `- [title](url) · pr · date`, `- 2026-10-22T10:27Z · source · text` |
+| A library document | `library/<slug>.md`, a `doc:<slug>` node (Wye's own page type): `key` (DOC-n), `title`, `category`, `owner`, `related-to: goal:…, project:<area>.<slug>`, then a free page. Pictures in `library/images/` |
 | Types | `types/ontology.md` (person, cycle, project, risk) and `types/custom.md` (yours), as Wye type cards with a `key:` |
 | Drawings, pictures | `areas/<a>/docs/drawings/`, `areas/<a>/docs/images/` |
 
@@ -128,7 +130,7 @@ curl -X POST $URL/api/ingest -H "authorization: Bearer $WYEPOINT_TOKEN" -H 'cont
 same title again updates the task). The GitHub webhook, `POST /api/ingest/github` with `WYEPOINT_GITHUB_SECRET` set,
 adds PRs and issues that carry `wyepoint:<area>/<slug>` in their title, branch or description.
 
-The server's routes keep their earlier names: `/api/initiatives` are projects and `/api/projects` are areas.
+The server's routes keep their earlier names: `/api/initiatives` are projects and `/api/projects` are areas. Goals are `/api/goals` and library documents `/api/docs`.
 
 ## Importing a cycle planning workbook
 
@@ -140,12 +142,12 @@ node scripts/import-cycle-sheet.js plan.json --vault ~/.wye/data/products/safety
 node server.js --vault ~/.wye/data/products/safety-cycle -p 4402
 ```
 
-Each tab is a **goal**; each row is a **project** (the team column is its area). Rows above the plan's cut line are in
+The "How to Use" and "PM Instructions" tabs become Library documents. Each tab is a **goal**; each row is a **project** (the team column is its area). Rows above the plan's cut line are in
 the cycle named in the tab's header; rows below it, and everything on a backlog tab, are in the backlog (a tier of Next
 cycle, Later or Icebox becomes the bucket). A project's champion and contributors become people (initials like "D. Conde"
 and first names are matched to the full names in the sheet; names run together are split; what is not a name stays in
 the page as text), what is shipping, the definition of done, the success metric and the notes become sections of its
-page, and a dependency or risk becomes a Risk. The cycles' dates are the workbook's own timeline. The example tabs, the
+page, and a dependency or risk becomes a Risk. `--docs-only` adds just the library documents to a vault that is already there. The cycles' dates are the workbook's own timeline. The example tabs, the
 instructions and drafts ("… - Proposed") are left out. It refuses a vault that is not empty.
 
 ## Not built yet

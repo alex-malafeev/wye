@@ -17,6 +17,7 @@ const cyclesLib = require('./cycles');
 const L = require('./lines');
 const T = require('./types');
 
+const LIBRARY = '_library';                                                  // the "project" a library document's pictures belong to
 const GOAL_STATUSES = ['proposed', 'on-track', 'at-risk', 'off-track', 'paused', 'complete'];
 const STATUSES = ['not-started', 'on-track', 'at-risk', 'off-track', 'paused', 'complete'];
 const TASK_STATUSES = ['todo', 'in-progress', 'blocked', 'review', 'done'];
@@ -213,6 +214,7 @@ class Store {
   // ---- pictures: a pasted or dropped image is a file in <project>/docs/images; the page holds `![caption](images/<file>)`
   imageFile(project, file) {
     if (!/^[a-z0-9][a-z0-9._-]*\.(png|jpe?g|gif|webp)$/i.test(String(file || ''))) throw bad('that is not a picture file');
+    if (project === LIBRARY) return path.join(this.libraryDir(), 'images', file);                  // the library keeps its pictures with its documents
     if (!this.projects().some(p => p.slug === project)) throw notFound('area');
     return path.join(this.projectsDir(), project, 'docs', 'images', file);
   }
@@ -354,6 +356,48 @@ class Store {
     }
   }
 
+  // ---- the library: documents that are product context (a customer, a product, research, a process). library/<slug>.md is a
+  // `doc:<slug>` node, Wye's own page type; `related-to` points it at goals and projects, so what is known about a customer
+  // is found from the work it affects.
+  libraryDir() { return path.join(this.dir, 'library'); }
+  libFile(slug) { return path.join(this.libraryDir(), String(slug).replace(/[^\w-]/g, '') + '.md'); }
+  docs() {
+    let files = []; try { files = fs.readdirSync(this.libraryDir()).filter(f => f.endsWith('.md') && !f.startsWith('_')); } catch { /* none yet */ }
+    return files.sort().map(f => this.readDoc(f.slice(0, -3)));
+  }
+  readDoc(slug) {
+    const file = this.libFile(slug); if (!fs.existsSync(file)) throw notFound('document');
+    const { fm, body: raw } = splitFm(read(file)), body = raw.replace(/^\s*# .*\n?/, '').trim();
+    return { slug, id: slug, node: `doc:${slug}`, key: fm.key || '', title: fm.title || slug, category: fm.category || '', owner: fm.owner || '', related: names(fm['related-to']), body, description: oneLine(introOf(body)), updated: fm.updated || '' };
+  }
+  saveDoc(d) {
+    if (!d.key) d.key = this.nextKey('doc');
+    write(this.libFile(d.slug), joinFm({ node: `doc:${d.slug}`, key: d.key, title: d.title, category: d.category, owner: d.owner, 'related-to': d.related.join(', '), updated: now() }, `# ${d.title}\n\n${d.body.trim()}\n`));
+    return this.readDoc(d.slug);
+  }
+  createDoc(o) {
+    const title = oneLine(o.title); if (!title) throw bad('title is required');
+    const slug = this.uniqueSlug(slugify(title), s => fs.existsSync(this.libFile(s)));
+    return this.saveDoc(this.applyDoc({ slug, key: '', title, category: '', owner: '', related: [], body: '' }, { ...o, title: undefined }));
+  }
+  applyDoc(d, patch) {
+    if (patch.title !== undefined) { d.title = oneLine(patch.title); if (!d.title) throw bad('title is required'); }
+    if (patch.category !== undefined) d.category = oneLine(patch.category).slice(0, 60);
+    if (patch.owner !== undefined) d.owner = oneLine(patch.owner);
+    if (patch.body !== undefined) d.body = String(patch.body).trim();
+    if (patch.related !== undefined) {
+      d.related = names(patch.related).map(r => {
+        const g = /^goal:([\w-]+)$/.exec(r), p = /^project:([\w-]+)\.([\w-]+)$/.exec(r);
+        if (g && fs.existsSync(this.goalFile(g[1]))) return r;
+        if (p && fs.existsSync(this.docFile(`${p[1]}/${p[2]}`))) return r;
+        throw bad(`${r} is not a goal or project here`);
+      });
+    }
+    return d;
+  }
+  updateDoc(slug, patch) { return this.saveDoc(this.applyDoc(this.readDoc(slug), patch)); }
+  deleteDoc(slug) { this.readDoc(slug); fs.unlinkSync(this.libFile(slug)); }
+
   // ---- keys: every goal, project and work item has a global id, PREFIX-n, the prefix being the `key` of its type. The numbers
   // come from a counter per prefix (_keys.json), so one is never given twice, not even after the item is deleted.
   keyPrefix(kind) { return kind === 'project' ? 'PROJ' : T.BASE_KEYS[kind] || (this.types().find(t => t.slug === kind) || {}).key || String(kind).toUpperCase().slice(0, 4); }
@@ -375,11 +419,12 @@ class Store {
     const customs = this.customTypes(); if (customs.some(t => !T.parseCustom(read(this.customFile())).find(x => x.slug === t.slug && x.key))) this.saveTypes(customs);
     const c = this.readCounters(); let changed = false;
     const seen = key => { const m = /^([A-Z][A-Z0-9]*)-(\d+)$/.exec(String(key || '')); if (m && +m[2] > (c[m[1]] || 0)) { c[m[1]] = +m[2]; changed = true; } };
-    const all = this.initiatives(), goals = this.goals();
-    goals.forEach(g => seen(g.key));
+    const all = this.initiatives(), goals = this.goals(), docs = this.docs();
+    goals.forEach(g => seen(g.key)); docs.forEach(d => seen(d.key));
     for (const it of all) { seen(it.key); it.tasks.forEach(t => seen(t.key)); it.nodes.forEach(n => seen(n.props.key)); }
     if (changed) write(path.join(this.dir, '_keys.json'), JSON.stringify(c, null, 1));
     for (const g of goals) if (!g.key) this.saveGoal(g);
+    for (const d of docs) if (!d.key) this.saveDoc(d);
     for (const it of all) if (!it.key || it.tasks.some(t => !t.key) || it.nodes.some(n => !n.props.key)) this.save(this.get(it.id));
   }
 

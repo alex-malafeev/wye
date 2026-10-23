@@ -6,6 +6,7 @@ import { sel, txt, BUCKETS, POOL, newInitiativePage, goalSel } from './drawer.js
 import { runItemAgent, itemRow, listFilters } from './views.js';
 import { openSimulation, canSimulate } from './simulate.js';
 import { personPicker } from './picker.js';
+import { dropdown } from './dropdown.js';
 
 const fprop = (name, el) => h('div', { class: 'fprop' }, h('div', { class: 'prop-name' }, name), el);
 const sideCard = (title, ...kids) => h('div', { class: 'card' }, h('div', { class: 'card-h' }, title), ...kids);
@@ -13,7 +14,7 @@ const crumbs = (parts = [], actions) => h('div', { class: 'crumbs' }, h('button'
 const owl = () => h('img', { class: 'btn-owl', src: '/owl.svg', alt: '' });
 const missing = what => h('main', { class: 'wrap' }, h('div', { class: 'panel full' }, crumbs(), h('h1', {}, `${what} not found`), muted('It may have been renamed or removed.')));
 
-export function fullView({ kind, id }) { return kind === 'initiative' ? fullInitiative(id) : kind === 'goal' ? fullGoal(id) : fullProject(id); }
+export function fullView({ kind, id }) { return kind === 'initiative' ? fullInitiative(id) : kind === 'goal' ? fullGoal(id) : kind === 'doc' ? fullDoc(id) : fullProject(id); }
 
 // ---- an initiative
 function fullInitiative(id) {
@@ -110,4 +111,33 @@ function fullGoal(slug) {
         fprop('Slack', h('div', { class: 'fval' }, txt(g.slack, v => upd({ slack: v }), 'Slack channel link', 'https://…slack.com/archives/…'), g.slack ? h('a', { class: 'small', href: safeUrl(g.slack), target: '_blank', rel: 'noopener noreferrer' }, 'Open the channel ↗') : null)),
         fprop('Progress', h('div', { class: 'fval' }, h('div', { class: 'fval-line' }, h('b', {}, g.progress + '%'), h('span', { class: 'muted small' }, g.basis)), bar(g.progress, g.hot))))),
       sideCard('Links', ...g.links.map(l => h('a', { class: 'side-link', href: safeUrl(l.url), target: '_blank', rel: 'noopener noreferrer' }, l.label + ' ↗')), g.links.length ? null : muted('None yet. Add one with /link in the page.', 'small')))));
+}
+
+// ---- a library document: its page, and what it is about
+function fullDoc(slug) {
+  const doc = (D().docs || []).find(x => x.slug === slug);
+  if (!doc) return missing('Document');
+  const upd = patch => act(() => api('PATCH', `/docs/${doc.slug}`, patch)), key = `doc:${doc.slug}:body`;
+  prune(k => k.startsWith(`doc:${doc.slug}:`) || k.startsWith('modal:'));
+  const page = rich(key, doc.body, md => upd({ body: md }), { minHeight: 480, kinds: ['link'], scope: `doc-${doc.slug}`, project: '_library', plain: true });
+  const remove = () => { if (window.confirm(`Delete the document "${doc.title}"?`)) act(async () => { await api('DELETE', `/docs/${doc.slug}`); go('library'); }); };
+  const cats = [...new Set((D().docs || []).map(x => x.category).filter(Boolean))].sort();
+  // what it is about: goals and projects, each a chip that opens it, and a searchable list to add more
+  const labelOf = ref => { const g = /^goal:(.+)$/.exec(ref), p = /^project:(.+?)\.([^.]+)$/.exec(ref); if (g) { const x = (D().goals || []).find(y => y.slug === g[1]); return x ? { text: `${x.key} · ${x.title}`, open: () => openFull('goal', x.slug) } : { text: ref }; } if (p) { const x = items().find(y => y.id === `${p[1]}/${p[2]}`); return x ? { text: `${x.key} · ${x.title}`, open: () => openFull('initiative', x.id) } : { text: ref }; } return { text: ref }; };
+  const addable = [...(D().goals || []).map(g => [`goal:${g.slug}`, `${g.key} · ${g.title}`]), ...items().map(i => [`project:${i.project}.${i.slug}`, `${i.key} · ${i.title}`])].filter(o => !doc.related.includes(o[0]));
+  const related = h('div', { class: 'fval' },
+    ...doc.related.map(ref => { const l = labelOf(ref); return h('span', { class: 'pchip rel-chip' }, h('button', { type: 'button', class: 'pchip-name', title: 'Open', onClick: l.open }, l.text), h('button', { type: 'button', 'aria-label': `Remove ${l.text}`, onClick: () => upd({ related: doc.related.filter(r => r !== ref) }) }, '✕')); }),
+    dropdown(addable, '', v => upd({ related: [...doc.related, v] }), 'Add a goal or project', { search: true, placeholder: doc.related.length ? 'Add another…' : 'Link a goal or project…' }));
+  return h('main', { class: 'wrap' }, h('div', { class: 'fwrap' }, h('div', { class: 'panel full' },
+    crumbs([h('button', { class: 'link-btn', onClick: () => go('library') }, 'Library'), h('span', {}, doc.title)], [h('button', { class: 'btn', onClick: remove }, 'Delete')]),
+    h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: doc.title, 'aria-label': 'Title', onChange: e => upd({ title: e.target.value }) })),
+    S.err ? h('div', { class: 'err' }, S.err) : null,
+    h('div', { class: 'hrow' }, h('span', { class: 'key-chip', title: 'Global id: #/k/' + doc.key }, doc.key), doc.category ? chip('s-none', doc.category) : null),
+    h('div', { class: 'fmain' }, page)),
+    h('aside', { class: 'panel fside' },
+      sideCard('Properties', h('div', { class: 'fprops' },
+        fprop('Category', h('div', { class: 'fval' }, h('input', { class: 'pfield', list: 'doc-cats', value: doc.category, placeholder: 'e.g. Customer, Product, Research', 'aria-label': 'Category', onChange: e => upd({ category: e.target.value }) }), h('datalist', { id: 'doc-cats' }, ...cats.map(c => h('option', { value: c }))))),
+        fprop('Owner', personPicker({ value: doc.owner, onChange: v => upd({ owner: v }), placeholder: 'No owner', label: 'Owner' })),
+        fprop('About', related),
+        fprop('Updated', h('span', { class: 'muted' }, doc.updated ? doc.updated.replace('T', ' ').replace('Z', '') : '–')))))));
 }

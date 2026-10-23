@@ -202,3 +202,8 @@ function goalModal(m) {
     field('What it is', h('textarea', { class: 'field', style: 'min-height:70px', onInput: e => { v.description = e.target.value; } }, v.description)),
     h('button', { class: 'btn pri', type: 'submit' }, 'Create goal')));
 }
+
+// A new document is a page from the start, like a new project: created at once and opened with its title ready to type over.
+export async function newDocPage(category) {
+  await act(async () => { const r = await api('POST', '/docs', { title: 'Untitled document', category: category || '' }); S.focusTitle = true; openFull('doc', r.slug); });
+}

@@ -532,3 +532,16 @@ main.wrap{padding:8px 12px 0}
 .filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .filter-panel .dd-btn{border-color:var(--line2);background:#fff}
 .fsec-h.hrow{align-items:center}
+
+.dd-search{box-sizing:border-box;width:100%;height:32px;margin-bottom:6px;border:1px solid var(--line2);border-radius:7px;padding:0 9px;font:inherit;font-size:13px}
+.dd-search:focus{outline:2px solid var(--accent);outline-offset:0}
+.dd-items{max-height:260px;overflow-y:auto}
+.dd-empty{padding:8px 9px;color:var(--muted);font-size:13px}
+.dd-ph{color:var(--muted)}
+.rel-chip{margin:0 4px 4px 0}
+.fside .fval .dd{margin-top:2px}
+.doc-row .mini-chips{display:flex;gap:10px;align-items:center}
+
+.filterbar .dd{flex:none}
+.filterbar .dd-btn{width:auto;height:34px;padding:0 10px;border:1px solid var(--line2);background:#fff;border-radius:8px;font-size:14px}
+.filterbar .dd-btn .dd-caret{opacity:.6}

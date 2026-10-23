@@ -80,3 +80,28 @@ test('a person is linked to what they own and are responsible for, and to the hi
   assert.deepStrictEqual(lee.history.map(h => [h.kind, h.source]), [['update', 'slack']]);
   assert.deepStrictEqual(analysis.analyze(s).people.find(p => p.n === 'Dana').links.milestones, []);
 });
+
+test('the library holds documents: a doc node with a key, a category, an owner and links to goals and projects', () => {
+  const dir = tmp(), s = new Store(dir); s.createProject({ title: 'P' });
+  const g = s.createGoal({ title: 'Growth' }), it = s.createInitiative({ project: 'p', title: 'Onboarding' });
+  const d = s.createDoc({ title: 'Acme Freight', category: 'Customer', owner: 'Dana', body: 'A carrier.\n\n## Notes\nCalls on Thursday.' });
+  assert.deepStrictEqual([d.slug, d.key, d.category, d.owner, d.description], ['acme-freight', 'DOC-1', 'Customer', 'Dana', 'A carrier.']);
+  assert.match(fs.readFileSync(path.join(dir, 'library/acme-freight.md'), 'utf8'), /^---\nnode: doc:acme-freight\nkey: DOC-1\n/);
+  const rel = s.updateDoc(d.slug, { related: [`goal:${g.slug}`, `project:${it.id.replace('/', '.')}`, `goal:${g.slug}`] });
+  assert.deepStrictEqual(rel.related, ['goal:growth', 'project:p.onboarding']);
+  assert.match(fs.readFileSync(path.join(dir, 'library/acme-freight.md'), 'utf8'), /\nrelated-to: goal:growth, project:p\.onboarding\n/);
+  assert.throws(() => s.updateDoc(d.slug, { related: ['goal:nope'] }), /not a goal or project/);
+  assert.throws(() => s.updateDoc('nope', {}), /document not found/);
+  assert.throws(() => s.createDoc({ title: ' ' }), /title is required/);
+  assert.strictEqual(s.createDoc({ title: 'Second' }).key, 'DOC-2');
+  assert.strictEqual(s.updateDoc(d.slug, { body: 'Changed.' }).description, 'Changed.');
+  s.deleteDoc(d.slug); assert.deepStrictEqual(s.docs().map(x => x.slug), ['second']);
+});
+
+test('a picture pasted into a library document is kept with the library', () => {
+  const dir = tmp(), s = new Store(dir);
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mNk+M9Qz0AEYBxVSF+FABJADq0s0eKvAAAAAElFTkSuQmCC', 'base64');
+  const { url } = s.saveImage('_library', png);
+  assert.ok(fs.existsSync(path.join(dir, 'library/images', url.slice(7))));
+  assert.deepStrictEqual(s.readImage('_library', url.slice(7)).type, 'image/png');
+});

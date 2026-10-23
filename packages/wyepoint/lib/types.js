@@ -89,7 +89,7 @@ const slugOf = s => clean(s).toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g
 // validates a type as a person wrote it and returns the normalised type
 // The key of a type: the prefix of the ids its instances are given everywhere (PROJ-12, RISK-3). Wye's own goal and task, which
 // WyePoint cannot redeclare, are given theirs here.
-const BASE_KEYS = { goal: 'GOAL', task: 'TASK' };
+const BASE_KEYS = { goal: 'GOAL', task: 'TASK', doc: 'DOC' };
 const KEY_FORMAT = /^[A-Z][A-Z0-9]{1,5}$/;
 const deriveKey = (name, taken = new Set()) => {
   const letters = String(name || '').toUpperCase().replace(/[^A-Z]/g, '') || 'ITEM';

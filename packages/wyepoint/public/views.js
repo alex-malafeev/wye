@@ -69,6 +69,23 @@ export function listFilters(key, rows) {
   return { icon, panel, shown, active };
 }
 
+// ---- the library: a list of documents, found by words or by category
+export function library() {
+  const d = D(), docs = d.docs || [], f = (S.lib = S.lib || { q: '', cat: '' }), q = f.q.trim().toLowerCase();
+  const cats = [...new Set(docs.map(x => x.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const shown = docs.filter(x => (!f.cat || x.category === f.cat) && (!q || [x.title, x.key, x.category, x.owner, x.body].join(' ').toLowerCase().includes(q))).sort((a, b) => String(b.updated).localeCompare(String(a.updated)) || a.title.localeCompare(b.title));
+  const bar_ = h('div', { class: 'filterbar' }, h('div', { class: 'fb-row' },
+    h('input', { class: 'fb-search', type: 'search', 'data-k': 'libq', value: f.q, placeholder: 'Search documents', 'aria-label': 'Search documents', onInput: e => { f.q = e.target.value; render(); } }),
+    cats.length ? dropdown([['', 'All categories'], ...cats.map(c => [c, c])], f.cat, v => { f.cat = v; render(); }, 'Category') : null,
+    f.q || f.cat ? h('button', { class: 'fb-clear', onClick: () => { f.q = ''; f.cat = ''; render(); } }, 'Clear') : null,
+    h('span', { class: 'fb-count' }, `${shown.length} of ${docs.length} document${docs.length === 1 ? '' : 's'}`)));
+  return [docs.length ? bar_ : null,
+    shown.length ? h('div', { class: 'list' }, ...shown.map(x => h('button', { class: 'mini doc-row', onClick: () => openFull('doc', x.slug) },
+      h('span', { class: 'mini-main' }, h('span', { class: 'mini-title' }, x.title, h('span', { class: 'mini-key' }, x.key)), h('span', { class: 'mini-sub' }, x.description || 'Empty')),
+      h('span', { class: 'mini-chips' }, x.category ? chip('s-none', x.category) : null, x.owner ? h('span', { class: 'muted small' }, x.owner) : null, x.updated ? h('span', { class: 'muted small' }, fmtDate(x.updated.slice(0, 10))) : null))))
+      : muted(docs.length ? 'Nothing matches.' : 'No documents yet. Add a customer, the product, research, how you work: anything the work needs as context.')];
+}
+
 // ---- goals: a card each, with where it stands and the projects under it
 export function goals() {
   const d = D(), gs = d.goals || [], loose = items().filter(i => !i.goal && i.status !== 'complete').length;

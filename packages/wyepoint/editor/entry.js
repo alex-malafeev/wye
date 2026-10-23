@@ -20,7 +20,7 @@ const stamp = () => new Date().toISOString().slice(0, 16) + 'Z';
 const today = () => new Date().toISOString().slice(0, 10);
 
 // what the editor is told about its page: the types a person defined, the people, where the page lives
-let CTX = { types: [], people: [], scope: 'new', project: '' };
+let CTX = { types: [], people: [], scope: 'new', project: '', plain: false };
 const typeOf = k => CTX.types.find(t => t.slug === k);
 const nextTid = (editor, kind) => { let n = 0; for (const b of editor.document) if (b.type === 'typed' && b.props.kind === kind) n = Math.max(n, +(/\.(\d+)$/.exec(b.props.tid) || [0, 0])[1]); return `${CTX.scope}.${n + 1}`; };
 
@@ -275,7 +275,7 @@ const itemMenu = (editor, kinds) => [
   { kind: 'pr', title: 'Pull request', subtext: 'A PR that delivers this', group: 'WyePoint', aliases: ['pr', 'github'], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'ref', props: { kind: 'pr', meta: today() } }) },
   { kind: 'update', title: 'Update', subtext: 'A dated line in the log', group: 'WyePoint', aliases: ['log', 'status', 'news'], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'update', props: { ts: stamp(), source: 'manual' } }) },
 ].filter(i => !kinds || kinds.includes(i.kind));
-const extraMenu = editor => [
+const extraMenu = editor => CTX.plain ? [] : [
   ...(CTX.project ? [{ title: 'Drawing', subtext: 'Sketch, diagram or whiteboard (Excalidraw)', group: 'WyePoint', aliases: ['draw', 'excalidraw', 'diagram', 'sketch', 'whiteboard'], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, newDrawing()) }] : []),
   ...CTX.types.map(t => ({ title: t.name, subtext: t.purpose, group: 'Your types', aliases: [t.slug, t.plural.toLowerCase()], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'typed', props: { kind: t.slug, tid: nextTid(editor, t.slug), status: t.statuses[0] || '', data: '{}' } }) })),
 ];
@@ -308,8 +308,8 @@ function Editor({ markdown, opts, onReady, onChange }) {
 }
 
 // mountEditor(element, { markdown, onChange(md), node, idPrefix, kinds, types, people, scope, project })
-export function mountEditor(element, { markdown = '', onChange = () => {}, node, idPrefix, kinds, types = [], people = [], scope = 'new', project = '' }) {
-  CTX = { types, people, scope, project }; L.setKinds(types.map(t => t.slug));
+export function mountEditor(element, { markdown = '', onChange = () => {}, node, idPrefix, kinds, types = [], people = [], scope = 'new', project = '', plain = false }) {
+  CTX = { types, people, scope, project, plain }; L.setKinds(types.map(t => t.slug));
   const root = createRoot(element); let api = { setMarkdown() {}, flush() {}, insert() {} };
   root.render(e(Editor, { markdown, opts: { node, idPrefix, kinds }, onChange, onReady: a => { api = a; } }));
   return { setMarkdown: md => api.setMarkdown(md), flush: () => api.flush(), insert: k => api.insert(k), destroy: () => { api.flush(); setTimeout(() => root.unmount()); } };

@@ -17,7 +17,8 @@ const opt = (f, d) => { const i = args.indexOf(f); return i >= 0 && args[i + 1] 
 const input = args.find(a => !a.startsWith('--') && a !== opt('--vault') && a !== opt('--start') && a !== opt('--source'));
 const vault = opt('--vault');
 if (!input || !vault) { console.error('usage: import-cycle-sheet.js <plan.json> --vault <dir> [--start YYYY-MM-DD] [--source <name>]'); process.exit(2); }
-if (fs.existsSync(vault) && fs.readdirSync(vault).length) { console.error(`${vault} is not empty; import into a new vault`); process.exit(2); }
+const DOCS_ONLY = args.includes('--docs-only');                              // add the library documents to a vault that is already there
+if (!DOCS_ONLY && fs.existsSync(vault) && fs.readdirSync(vault).length) { console.error(`${vault} is not empty; import into a new vault`); process.exit(2); }
 const SOURCE = opt('--source', 'the cycle planning workbook');
 const CYCLE_START = opt('--start', '2026-06-15');                    // cycle 0 of the formula: cycle n starts n × 49 days later (6 weeks + 1 week of cooldown)
 const book = JSON.parse(fs.readFileSync(input, 'utf8'));
@@ -103,8 +104,28 @@ for (const t of tabs) for (const it of t.items) peopleIn(it.Champion || '', { le
 for (const t of tabs) for (const it of t.items) peopleIn(it.Contributors || '');                     // (learns nothing; makes the pass below deterministic)
 for (const t of tabs) for (const it of t.items) { const c = peopleIn(it.Contributors || '', { learn: false }); c.people.forEach(n => { if (/\s/.test(n)) addKnown(n); }); }
 
+// ---------------------------------------------------------------- the instruction tabs are library documents
+const LIBRARY_TABS = { 'How to Use': ['Cycle planning: how it works', 'Process'], 'PM Instructions': ['Cycle planning: instructions for PMs', 'Process'] };
+function docFromTab(rows) {
+  const out = [];
+  for (const r of rows) {
+    const cells = r.map(c => clean(c)).filter(Boolean); if (!cells.length) continue;
+    const line = cells.map(c => (/^\d{5}(\.0)?$/.test(c) && serial(c) ? serial(c) : c.replace(/\n+/g, ' ')));
+    if (cells.length === 1) out.push(cells[0].length < 60 && !/[.?!:]$/.test(cells[0]) && !/^\d+\)/.test(cells[0]) ? `\n## ${cells[0]}\n` : cells[0].replace(/\n{2,}/g, '\n\n') + '\n');
+    else out.push('- ' + line.join(' · '));
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+function addDocs(store) {
+  for (const [tab, [title, category]] of Object.entries(LIBRARY_TABS)) {
+    if (!book[tab] || store.docs().some(d => d.title === title)) continue;
+    store.createDoc({ title, category, body: `${docFromTab(book[tab])}\n\n_Imported from ${SOURCE}, tab "${tab}"._` });
+  }
+}
+
 // ---------------------------------------------------------------- build
 const store = new Store(vault);
+if (DOCS_ONLY) { addDocs(store); console.log(JSON.stringify({ docs: store.docs().map(d => `${d.key} ${d.title}`) }, null, 1)); process.exit(0); }
 store.setConfig({ title: 'WyePoint', weeks: 6, cooldown: 7, start: CYCLE_START });
 const report = { goals: {}, areas: new Set(), people: new Set(), projects: 0, inCycle: 0, backlog: 0, risks: 0, skippedTabs: skipped, notes: [] };
 const canon = name => {
@@ -191,6 +212,8 @@ for (const t of tabs) {
     report.projects++; if (cycle != null) { report.inCycle++; report.goals[g].projects++; } else { report.backlog++; report.goals[g].backlog++; }
   }
 }
+
+addDocs(store);
 
 // the cycles: the short kick-off cycle, the first, and the one the plan is for
 const theme = Object.entries(tabs.filter(t => t.plan && !t.backlogTab && t.theme).reduce((m, t) => (m[t.theme] = (m[t.theme] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1])[0];
