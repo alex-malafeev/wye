@@ -280,3 +280,21 @@ main.wrap{padding:8px 12px 0}
 .list > .row:hover,.list > .mini:hover{background:#f3f6fb}
 .list > .row.sel{background:#f3f6fb;box-shadow:inset 3px 0 0 var(--accent)}
 .list > .row[style*="cursor:default"]:hover{background:transparent}
+
+/* the filter toolbar: no box, no labels above the fields */
+.filterbar{display:flex;flex-direction:column;gap:10px;padding:0 0 14px;border-bottom:1px solid var(--line)}
+.fb-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.fb-search{height:34px;width:280px;max-width:100%;border:1px solid var(--line2);border-radius:8px;padding:0 10px;font:inherit;font-size:14px;background:#fff}
+.fb-search:focus{outline:2px solid var(--accent);outline-offset:0}
+.fsel{display:inline-flex;align-items:center;gap:6px;height:34px;border:1px solid var(--line2);border-radius:8px;background:#fff;padding:0 6px 0 10px;font-size:14px;cursor:pointer;color:var(--ink)}
+.fsel select{border:0;background:transparent;font:inherit;font-size:14px;cursor:pointer;padding:0 2px;max-width:160px;outline:none;color:inherit}
+.fsel:hover{background:#f3f6fb}
+.fsel.active{background:var(--accent-tint);border-color:var(--accent-line);font-weight:600}
+.fsel-l{color:var(--muted)}
+.fsel select{field-sizing:content}   /* as wide as what is shown, not as the longest option (browsers that support it) */
+.fsel-btn{padding:0 12px;font:inherit;font-size:14px}
+.fb-clear{background:none;border:0;color:var(--link);font:inherit;font-size:14px;cursor:pointer;padding:0 6px}
+.fb-clear:hover{text-decoration:underline}
+.fb-count{margin-left:auto;color:var(--muted);font-size:13px;white-space:nowrap}
+.fb-view .fsel{background:transparent;border-color:transparent}
+.fb-view .fsel:hover{background:#f3f6fb}

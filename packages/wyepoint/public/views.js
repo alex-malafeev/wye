@@ -150,22 +150,28 @@ export function backlog() {
   const groupMap = dim => { const m = {}, order = []; shown.forEach(it => dimVals(it, dim).forEach(k => { if (!m[k]) { m[k] = []; order.push(k); } m[k].push(it); })); return { m, order }; };
   const sortKeys = (keys, dim) => dim === 'status' ? keys.sort((a, b) => STATUS_LABELS.indexOf(a) - STATUS_LABELS.indexOf(b)) : dim === 'effort' ? keys.sort((a, b) => (EFFORT_ORDER[a] || 9) - (EFFORT_ORDER[b] || 9)) : keys.sort();
   const gy = groupMap(S.gy), yKeys = sortKeys(gy.order.slice(), S.gy);
-  const filters = h('div', { class: 'card' },
-    h('div', { class: 'hrow', style: 'align-items:flex-end' },
-      label('Search', h('input', { class: 'field', type: 'search', 'data-k': 'q', value: f.q, placeholder: 'Initiative, person, keyword', onInput: e => { f.q = e.target.value; render(); } }), 'flex:1 1 220px'),
-      select('f-project', 'Project', [['', 'All projects'], ...D().projects.map(p => [p.slug, p.title])], f.project, v => { f.project = v; }),
-      select('f-status', 'Status', [['', 'All statuses'], ...STATUS_LABELS.map(s => [s, s])], f.status, v => { f.status = v; }),
-      select('f-mission', 'Mission', [['', 'All missions'], ...uniq(all.map(i => i.mission || 'No mission')).map(m => [m, m])], f.mission, v => { f.mission = v; }),
-      select('f-tier', 'Tier', TIERS, f.tier, v => { f.tier = v; }),
-      select('f-effort', 'Effort', [['', 'All sizes'], ...['S', 'M', 'L', 'XL', 'Unsized'].map(s => [s, s])], f.effort, v => { f.effort = v; }),
-      select('f-champion', 'Champion', [['', 'All champions'], ...uniq(all.map(i => i.owner).filter(Boolean)).map(n => [n, n])], f.champion, v => { f.champion = v; })),
-    h('div', { class: 'hrow', style: 'align-items:flex-end;border-top:1px solid #eef0f3;padding-top:12px' },
-      select('gy', 'Group rows (Y)', DIMS, S.gy, v => { S.gy = v; }),
-      select('gx', 'Group columns (X)', [['none', 'None (list view)'], ...DIMS], S.gx, v => { S.gx = v; }),
-      select('sort', 'Sort by', [['rank', 'Tier and rank'], ['title', 'Title'], ['status', 'Status'], ['project', 'Project'], ['effort', 'Effort'], ['date', 'Target date'], ['champion', 'Champion']], S.sortKey, v => { S.sortKey = v; }),
-      h('button', { class: 'btn', onClick: () => { S.sortDir = -S.sortDir; render(); } }, S.sortDir === 1 ? 'Ascending' : 'Descending'),
-      h('button', { class: 'btn', onClick: () => { Object.assign(f, { q: '', project: '', status: '', mission: '', tier: '', effort: '', champion: '' }); render(); } }, 'Clear filters'),
-      h('div', { style: 'flex:1 1 20px' }), h('div', { class: 'muted', style: 'align-self:center' }, `${shown.length} of ${all.length} initiatives`)));
+  // a compact toolbar: a search box and small dropdown pills that show their name until something is chosen
+  const pill = (key, name, list, value, set) => h('label', { class: 'fsel' + (value ? ' active' : ''), title: name },
+    h('select', { 'data-k': key, 'aria-label': name, onChange: e => { set(e.target.value); render(); } }, opts([['', name], ...list], value)));
+  const inline = (key, name, list, value, set) => h('label', { class: 'fsel' }, h('span', { class: 'fsel-l' }, name),
+    h('select', { 'data-k': key, 'aria-label': name, onChange: e => { set(e.target.value); render(); } }, opts(list, value)));
+  const active = Object.values(f).filter(Boolean).length;
+  const filters = h('div', { class: 'filterbar' },
+    h('div', { class: 'fb-row' },
+      h('input', { class: 'fb-search', type: 'search', 'data-k': 'q', value: f.q, placeholder: 'Search initiatives, people, tasks', 'aria-label': 'Search', onInput: e => { f.q = e.target.value; render(); } }),
+      pill('f-project', 'Project', D().projects.map(p => [p.slug, p.title]), f.project, v => { f.project = v; }),
+      pill('f-status', 'Status', STATUS_LABELS.map(x => [x, x]), f.status, v => { f.status = v; }),
+      pill('f-mission', 'Mission', uniq(all.map(i => i.mission || 'No mission')).map(m => [m, m]), f.mission, v => { f.mission = v; }),
+      pill('f-tier', 'Tier', TIERS.slice(1), f.tier, v => { f.tier = v; }),
+      pill('f-effort', 'Effort', ['S', 'M', 'L', 'XL', 'Unsized'].map(x => [x, x]), f.effort, v => { f.effort = v; }),
+      pill('f-champion', 'Champion', uniq(all.map(i => i.owner).filter(Boolean)).map(n => [n, n]), f.champion, v => { f.champion = v; }),
+      active ? h('button', { class: 'fb-clear', onClick: () => { Object.assign(f, { q: '', project: '', status: '', mission: '', tier: '', effort: '', champion: '' }); render(); } }, `Clear filters (${active})`) : null,
+      h('span', { class: 'fb-count' }, `${shown.length} of ${all.length} initiatives`)),
+    h('div', { class: 'fb-row fb-view' },
+      inline('gy', 'Group by', DIMS, S.gy, v => { S.gy = v; }),
+      inline('gx', 'Columns', [['none', 'None'], ...DIMS], S.gx, v => { S.gx = v; }),
+      inline('sort', 'Sort', [['rank', 'Tier and rank'], ['title', 'Title'], ['status', 'Status'], ['project', 'Project'], ['effort', 'Effort'], ['date', 'Target date'], ['champion', 'Champion']], S.sortKey, v => { S.sortKey = v; }),
+      h('button', { class: 'fsel fsel-btn', 'aria-label': 'Reverse the order', onClick: () => { S.sortDir = -S.sortDir; render(); } }, S.sortDir === 1 ? '↑ Ascending' : '↓ Descending')));
   let body;
   if (S.gx !== 'none') {
     const gx = groupMap(S.gx), xKeys = sortKeys(gx.order.slice(), S.gx);
