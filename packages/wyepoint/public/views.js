@@ -138,8 +138,15 @@ export function library() {
 
 // ---- goals: a card each, with where it stands and the projects under it
 export function goals() {
-  const d = D(), gs = d.goals || [], loose = items().filter(i => !i.goal && i.status !== 'complete').length;
+  const d = D(), all = d.goals || [], loose = items().filter(i => !i.goal && i.status !== 'complete').length;
+  const f = (S.gq = S.gq || { q: '' }), q = f.q.trim().toLowerCase();
+  const gs = q ? all.filter(g => [g.title, g.key, g.description, g.owner].some(x => x && String(x).toLowerCase().includes(q))) : all;
   return h('div', { class: 'stack' },
+    all.length ? h('div', { class: 'fb-row' },
+      h('input', { class: 'fb-search', type: 'search', 'data-k': 'gq', value: f.q, placeholder: 'Search goals, or a key', 'aria-label': 'Search goals', onInput: e => { f.q = e.target.value; render(); } }),
+      f.q ? h('button', { class: 'fb-clear', onClick: () => { f.q = ''; render(); } }, 'Clear') : null,
+      h('span', { class: 'fb-count' }, `${gs.length} of ${all.length} goals`)) : null,
+    all.length && !gs.length ? muted('No goal matches the search.') : null,
     gs.length ? h('div', { class: 'grid' }, ...gs.map(g => {
       const [, label, cls] = goalStatus(g.status), mine = g.projects.length;
       return h('button', { class: 'card goal-card', onClick: () => openFull('goal', g.slug) },
