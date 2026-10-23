@@ -443,3 +443,7 @@ main.wrap{padding:8px 12px 0}
 
 .panel.ov-side .card-h{font-size:20px;margin-bottom:6px}
 .panel.ov-side .card.step{padding:14px 0 16px}
+
+.card.step.clickable{cursor:pointer}
+.card.step.clickable:hover{background:#f6f8fb}
+.card.step.clickable:focus-visible{outline:2px solid #feae0f;outline-offset:2px}

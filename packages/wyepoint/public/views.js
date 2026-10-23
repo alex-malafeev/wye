@@ -65,7 +65,7 @@ export function overview() {
   const start = new Date(A.start + 'T00:00:00Z'), end = new Date(A.end + 'T00:00:00Z'), today = new Date(d.today + 'T00:00:00Z');
   const el = Math.max(0, Math.min(100, Math.round((today - start) / ((end - start) || 1) * 100))), left = Math.max(0, Math.ceil((end - today) / 864e5));
   const past = i => i.flags.some(f => /has passed/.test(f));
-  const attention = cy.filter(i => i.hot || past(i) || i.tasks.some(t => t.status === 'blocked')).sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]).slice(0, 8);
+  const attention = cy.filter(i => i.hot || past(i) || i.tasks.some(t => t.status === 'blocked')).sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
   const inCycle = { tier: 'cycle' };
   const cards = [
     { title: 'Ranked items', sub: `In ${A.name}`, value: cy.length, note: `${all.length} initiatives in total`, go: inCycle },
@@ -86,11 +86,12 @@ export function overview() {
       h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('div', { class: 'card-h' }, 'Most loaded people'), h('div', { class: 'card-sub' }, 'Champion counts twice, contributor once')), h('button', { class: 'btn sm', onClick: () => go('people') }, 'All people')),
         list(d.people.slice(0, 6).map(personRow)), d.people.length ? null : muted('No people yet. Name a champion on an initiative or add a roster in People.', 'small'))),
     h('aside', { class: 'sidepanel' }, h('div', { class: 'card-h' }, 'Needs attention'),
-      ...attention.map(i => h('div', { class: 'card step' },
+      ...(S.attnAll ? attention : attention.slice(0, 5)).map(i => h('div', { class: 'card step clickable', role: 'button', tabIndex: 0, 'aria-label': `Open ${i.title}`, onClick: () => openIt(i.id), onKeyDown: e => { if (e.key === 'Enter') openIt(i.id); } },
         h('div', { class: 'step-title' }, h('span', { class: 'dot ' + (i.status === 'off-track' ? 'dot-off' : i.status === 'at-risk' ? 'dot-risk' : 'dot-flag'), 'aria-hidden': 'true' }), i.title),
         h('div', { class: 'step-sub' }, `${i.projectTitle} · ${i.owner || 'No champion'} · ${i.statusLabel}`),
         h('ul', { class: 'step-why' }, ...whyLines(i).map(t => h('li', {}, t))),
-        h('div', { class: 'step-actions' }, h('button', { class: 'btn sm', onClick: () => openIt(i.id) }, 'Open ↗')))),
+        )),
+      attention.length > 5 ? h('button', { class: 'mini-more', onClick: () => { S.attnAll = !S.attnAll; render(); } }, S.attnAll ? 'Show fewer' : `+ ${attention.length - 5} more`) : null,
       attention.length ? null : h('div', { class: 'card step' }, h('div', { class: 'step-title' }, h('span', { class: 'dot dot-ok', 'aria-hidden': 'true' }), 'Nothing needs attention'), h('div', { class: 'step-sub' }, `Every ranked initiative in ${A.name} is on course.`))));
 }
 
