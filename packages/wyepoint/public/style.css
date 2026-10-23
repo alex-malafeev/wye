@@ -392,12 +392,12 @@ main.wrap{padding:8px 12px 0}
 .fside .fprops{gap:4px}
 .fside .fprop{grid-template-columns:92px minmax(0,1fr);gap:6px;align-items:center}
 .fside .fprop .prop-name{font-size:11px;letter-spacing:.03em;white-space:nowrap}
-.fside .fprop .pfield,.fside .fprop .picker.multi,.fside .fprop .picker>.pfield{box-sizing:border-box;width:100%;min-height:30px;height:30px;padding:2px 8px;border:1px solid var(--line);background:#fff;border-radius:6px;font-size:13px;appearance:auto}
+.fside .fprop .pfield,.fside .fprop .picker.multi,.fside .fprop .picker>.pfield{box-sizing:border-box;width:100%;min-height:30px;height:30px;padding:2px 8px;border:1px solid var(--line);background-color:#fff;border-radius:6px;font-size:13px;appearance:auto}
 .fside .fprop .picker.multi{height:auto;min-height:30px;gap:4px;padding:2px 4px}
 .fside .fprop .picker.multi .picker-input{min-width:60px;flex:1 1 60px;height:24px;padding:0 4px;border:0}
 .fside .fprop .picker{width:100%}
 .fside .fprops{align-items:stretch}
-.fside .fprop .pfield,.fside .fprop .picker.multi{border-color:transparent;background:transparent}
-.fside .fprop .pfield:hover,.fside .fprop .picker.multi:hover,.fside .fprop .pfield:focus,.fside .fprop .picker.multi:focus-within{border-color:var(--line2);background:#fff}
+.fside .fprop .pfield,.fside .fprop .picker.multi{border-color:transparent;background-color:transparent}
+.fside .fprop .pfield:hover,.fside .fprop .picker.multi:hover,.fside .fprop .pfield:focus,.fside .fprop .picker.multi:focus-within{border-color:var(--line2);background-color:#fff}
 .fside .fprop select.pfield{appearance:none;-webkit-appearance:none;padding-right:24px;background-repeat:no-repeat;background-position:right 8px center;background-size:10px}
 .fside .fprop select.pfield:hover,.fside .fprop select.pfield:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23566' stroke-width='1.6'/%3E%3C/svg%3E")}
