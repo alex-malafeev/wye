@@ -27,7 +27,7 @@ export function plan() {
         h('button', { class: 'btn', onClick: () => act(() => api('PATCH', `/cycles/${nx.n}`, pe)) }, 'Save details'))),
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'cols' },
-      h('div', { class: 'card grow', style: 'flex-basis:480px' },
+      h('div', { class: 'card grow', style: 'flex-basis:640px' },
         h('div', { class: 'hrow between', style: 'align-items:flex-end' }, h('div', {}, h('div', { class: 'lbl' }, 'Backlog pool'), muted(`${pool.length} candidates · carry-overs first, no free pass`, 'small')),
           h('input', { class: 'field', type: 'search', 'data-k': 'planQ', 'aria-label': 'Search the pool', style: 'flex:1 1 180px;max-width:260px', value: S.planQ, placeholder: 'Search the pool', onInput: e => { S.planQ = e.target.value; render(); } })),
         ...pool.slice(0, 60).map(i => h('div', { class: 'row', style: 'flex-wrap:wrap;cursor:default' },

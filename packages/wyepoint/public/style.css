@@ -200,3 +200,30 @@ main.wrap{padding:8px 12px 0}
 .grid{grid-template-columns:repeat(auto-fit,minmax(440px,1fr))}
 /* a project is a block of its own: a full border */
 .grid > .card{background:#fff;border:1px solid var(--line2);padding:18px 20px}
+
+/* ---- blocks as dashboard cards: white, a thin square border, room to breathe; titles in sentence case ---- */
+:root{--card-line:#d9dde4}
+.card,.main > .card,.cols > .card,.grid > .card{background:#fff;border:1px solid var(--card-line);border-radius:0;padding:22px 24px;gap:14px}
+.card > .lbl:first-child,.card > .hrow:first-child > .lbl,.card > .hrow:first-child > div > .lbl{font-size:18px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--ink)}
+.card-head,.kpi-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.card-h,.kpi-title{font-size:18px;font-weight:700;line-height:1.25}
+.card-sub,.kpi-sub{color:var(--muted);font-size:14px;margin-top:4px}
+/* the overview: numbers on the left, what needs attention on the right */
+.ov{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:24px;align-items:start}
+.ov-main{display:flex;flex-direction:column;gap:20px;min-width:0}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px}
+.kpi{min-height:170px;justify-content:space-between}
+.kpi-open{border:0;background:none;font-size:20px;line-height:1;cursor:pointer;color:var(--ink);padding:2px 4px}
+.kpi-open:hover{color:var(--accent-d)}
+.kpi-value{font-size:48px;font-weight:700;line-height:1;letter-spacing:-.02em}
+.kpi-note{color:var(--muted);margin-top:8px;font-size:14px}
+.sidepanel{background:#f4f3f0;padding:20px;display:flex;flex-direction:column;gap:14px}
+.sidepanel > .card-h{font-size:20px}
+.step{padding:18px 20px;gap:8px}
+.step-title{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;line-height:1.25}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.dot-off{background:#e5213f}.dot-risk{background:var(--accent)}.dot-flag{background:#5b6573}.dot-ok{background:#2f9e5b}
+.step-sub{color:var(--muted);font-size:13.5px;padding-left:20px}
+.step-why{margin:4px 0 0;padding-left:38px;font-size:14px;display:flex;flex-direction:column;gap:3px}
+.step-actions{display:flex;justify-content:flex-end;margin-top:6px}
+@media (max-width:1100px){.ov{grid-template-columns:1fr}}

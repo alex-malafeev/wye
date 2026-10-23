@@ -45,23 +45,57 @@ export async function runItemAgent(id) {
 }
 
 // ---- overview
+// A block of numbers, as a dashboard card: a title and what it counts, an arrow to the initiatives behind it, the
+// number big at the bottom with its context.
+function kpi({ title, sub, value, note, go: filter }) {
+  return h('div', { class: 'card kpi' },
+    h('div', { class: 'kpi-head' }, h('div', {}, h('div', { class: 'kpi-title' }, title), h('div', { class: 'kpi-sub' }, sub)),
+      filter ? h('button', { class: 'kpi-open', 'aria-label': `Open ${title} in the backlog`, title: 'Open in the backlog', onClick: () => { Object.assign(S.f, { q: '', project: '', status: '', mission: '', tier: '', effort: '', champion: '', ...filter }); go('backlog'); } }, '↗') : null),
+    h('div', { class: 'kpi-foot' }, h('div', { class: 'kpi-value' }, value), h('div', { class: 'kpi-note' }, note || '')));
+}
+// why an initiative is in the side panel, in the planner's own words
+const whyLines = i => {
+  const l = [];
+  if (i.status === 'off-track') l.push('Off track: a decision is needed.');
+  if (i.status === 'at-risk') l.push('At risk: check what is in the way.');
+  i.tasks.filter(t => t.status === 'blocked').forEach(t => l.push(`Blocked: ${t.title}.`));
+  i.flags.filter(f => !/^(Off track|At risk)$/.test(f)).slice(0, 3).forEach(f => l.push(f + '.'));
+  return l.slice(0, 4);
+};
+
 export function overview() {
   const d = D(), A = cyc(d.active), all = items(), cy = all.filter(i => i.tier === 'cycle'), n = f => cy.filter(f).length;
   const avg = cy.length ? Math.round(cy.reduce((s, i) => s + i.progress, 0) / cy.length) : 0;
   const start = new Date(A.start + 'T00:00:00Z'), end = new Date(A.end + 'T00:00:00Z'), today = new Date(d.today + 'T00:00:00Z');
   const el = Math.max(0, Math.min(100, Math.round((today - start) / ((end - start) || 1) * 100))), left = Math.max(0, Math.ceil((end - today) / 864e5));
-  const tiles = [['Ranked items', cy.length, 'in ' + A.name], ['Shipped', n(i => i.status === 'complete'), 'done'], ['On track', n(i => i.status === 'on-track'), 'reporting on track'], ['At risk / off track', n(i => i.hot), 'needs a decision'], ['Not started', n(i => i.status === 'not-started'), left + ' days left'], ['No status', n(i => !i.status), 'champion has not updated'], ['Average progress', avg + '%', 'milestones or estimate'], ['Items with flags', n(i => i.flags.length), 'planner checks']];
   const past = i => i.flags.some(f => /has passed/.test(f));
-  const attention = cy.filter(i => i.hot || past(i)).sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]).slice(0, 14);
-  return [
-    h('div', { class: 'tiles' }, tiles.map(([l, v, s]) => h('div', { class: 'card' }, h('div', { class: 'lbl' }, l), h('div', { class: 'v' }, v), h('div', { class: 'muted', style: 'font-size:12px' }, s)))),
-    h('div', { class: 'card' }, h('div', { class: 'hrow between' }, h('div', { class: 'lbl' }, A.name + ' timeline'), h('div', { class: 'muted' }, `${el}% of the cycle elapsed, ${left} days to close`)), bar(el, false, true),
-      h('div', { class: 'hrow between muted', style: 'font-size:12px' }, h('span', {}, fmtDate(A.start)), h('span', {}, 'Today, ' + fmtDate(d.today)), h('span', {}, fmtDate(A.end)), h('span', {}, d.config.cooldown ? `Cooldown ${d.config.cooldown} days after` : ''))),
-    h('div', { class: 'cols' },
-      h('div', { class: 'card', style: 'flex:2 1 520px;min-width:0' }, h('div', { class: 'lbl' }, 'Needs attention'),
-        ...attention.map(i => smallRow(i, i.status === 'off-track' ? 'Off track' : i.status === 'at-risk' ? 'At risk' : 'Past target date ' + i.target)), attention.length ? null : muted('Nothing flagged.')),
-      h('div', { class: 'card', style: 'flex:1 1 300px;min-width:0' }, h('div', { class: 'lbl' }, 'Most loaded people'), ...d.people.slice(0, 8).map(personRow), d.people.length ? null : muted('No people yet. Name a champion on an initiative or add a roster in People.'))),
+  const attention = cy.filter(i => i.hot || past(i) || i.tasks.some(t => t.status === 'blocked')).sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]).slice(0, 8);
+  const inCycle = { tier: 'cycle' };
+  const cards = [
+    { title: 'Ranked items', sub: `In ${A.name}`, value: cy.length, note: `${all.length} initiatives in total`, go: inCycle },
+    { title: 'On track', sub: 'Reporting on track', value: n(i => i.status === 'on-track'), note: `of ${cy.length} ranked`, go: { ...inCycle, status: 'On Track' } },
+    { title: 'At risk or off track', sub: 'Needs a decision', value: n(i => i.hot), note: n(i => i.hot) ? 'see the panel on the right' : 'nothing to decide', go: { ...inCycle, status: 'At Risk' } },
+    { title: 'Not started', sub: `${left} days left in the cycle`, value: n(i => i.status === 'not-started'), note: `of ${cy.length} ranked`, go: { ...inCycle, status: 'Not Started' } },
+    { title: 'No status', sub: 'The champion has not updated', value: n(i => !i.status), note: `of ${cy.length} ranked`, go: { ...inCycle, status: 'No status' } },
+    { title: 'Shipped', sub: `In ${A.name}`, value: n(i => i.status === 'complete'), note: 'done', go: { status: 'Shipped' } },
+    { title: 'Average progress', sub: 'Milestones, or an estimate', value: avg + '%', note: 'across ranked items' },
+    { title: 'Planner checks', sub: 'Items with something to fix', value: n(i => i.flags.length), note: `of ${cy.length} ranked`, go: inCycle },
   ];
+  return h('div', { class: 'ov' },
+    h('div', { class: 'ov-main' },
+      h('div', { class: 'kpis' }, cards.map(kpi)),
+      h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('div', { class: 'card-h' }, `${A.name} timeline`), h('div', { class: 'card-sub' }, `${el}% elapsed · ${left} days to close`)), h('div', { class: 'card-sub' }, range(A))),
+        bar(el, false, true),
+        h('div', { class: 'hrow between muted', style: 'font-size:12px;flex-wrap:nowrap' }, h('span', {}, fmtDate(A.start)), h('span', {}, 'Today, ' + fmtDate(d.today)), h('span', {}, fmtDate(A.end)), h('span', {}, d.config.cooldown ? `Cooldown ${d.config.cooldown} days after` : ''))),
+      h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('div', { class: 'card-h' }, 'Most loaded people'), h('div', { class: 'card-sub' }, 'Champion counts twice, contributor once')), h('button', { class: 'btn sm', onClick: () => go('people') }, 'All people')),
+        ...d.people.slice(0, 6).map(personRow), d.people.length ? null : muted('No people yet. Name a champion on an initiative or add a roster in People.', 'small'))),
+    h('aside', { class: 'sidepanel' }, h('div', { class: 'card-h' }, 'Needs attention'),
+      ...attention.map(i => h('div', { class: 'card step' },
+        h('div', { class: 'step-title' }, h('span', { class: 'dot ' + (i.status === 'off-track' ? 'dot-off' : i.status === 'at-risk' ? 'dot-risk' : 'dot-flag'), 'aria-hidden': 'true' }), i.title),
+        h('div', { class: 'step-sub' }, `${i.projectTitle} · ${i.owner || 'No champion'} · ${i.statusLabel}`),
+        h('ul', { class: 'step-why' }, ...whyLines(i).map(t => h('li', {}, t))),
+        h('div', { class: 'step-actions' }, h('button', { class: 'btn sm', onClick: () => openIt(i.id) }, 'Open ↗')))),
+      attention.length ? null : h('div', { class: 'card step' }, h('div', { class: 'step-title' }, h('span', { class: 'dot dot-ok', 'aria-hidden': 'true' }), 'Nothing needs attention'), h('div', { class: 'step-sub' }, `Every ranked initiative in ${A.name} is on course.`))));
 }
 
 // A project's open initiatives as a compact list: name, who and when under it, status and progress at the right.
