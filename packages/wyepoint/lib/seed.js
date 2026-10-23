@@ -39,4 +39,8 @@ module.exports = function seed(store) {
   mk(data.slug, 'Metric definitions registry', { owner: 'Priya', contributors: ['Sam'], mission: 'Growth', effort: 'M', status: '', cycle: 1, rank: 1, approved: true, description: 'One place that defines every company metric.', ships: 'A registry page and a review process.', tasks: [{ title: 'Inventory existing metrics', status: 'todo', owner: 'Priya' }] });
   mk(data.slug, 'Anomaly alerts', { owner: 'Priya', mission: 'New bets', effort: 'M', bucket: 'next', description: 'Alert when a daily metric moves outside its normal range.', ships: 'Alerts to Slack for the ten core metrics.' });
   mk(data.slug, 'Retire legacy dashboards', { owner: 'Jo', effort: 'S', status: 'not-started', cycle: 0, rank: 4, approved: true, target: ahead(30), description: 'Remove the dashboards nobody opens.', ships: 'List of removed dashboards and a redirect page.' });
+  // the goals the projects point at (a project's `mission` named one): who owns them, by when, and why
+  store.updateGoal('growth', { owner: 'Dana', target: ahead(60), status: 'on-track', description: 'More accounts reach value on their own, without a call.' });
+  store.updateGoal('reliability', { owner: 'Sam', target: ahead(45), status: 'at-risk', description: 'What customers rely on every day keeps working, and we can see it when it does not.' });
+  store.updateGoal('new-bets', { owner: 'Lee', target: ahead(120), status: 'proposed', description: 'A public API other teams and partners can build on.' });
 };

@@ -481,3 +481,9 @@ main.wrap{padding:8px 12px 0}
 
 .key-chip{display:inline-flex;align-items:center;font-size:12px;font-weight:700;letter-spacing:.03em;padding:2px 8px;border-radius:6px;background:#eef1f6;color:#3b4656;font-variant-numeric:tabular-nums;margin-right:6px}
 .mini-key{margin-left:8px;font-size:11.5px;font-weight:600;color:#7a8696;letter-spacing:.03em}
+
+.goal-card{text-align:left;display:flex;flex-direction:column;gap:8px;cursor:pointer;font:inherit;color:inherit}
+.goal-card:hover{background:#f6f8fb}
+.goal-title{font-size:18px;font-weight:700;line-height:1.25}
+.goal-desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.goal-meter{display:flex;align-items:center;gap:10px}.goal-meter .bar{flex:1 1 auto}

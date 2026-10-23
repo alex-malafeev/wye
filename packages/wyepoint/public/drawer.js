@@ -11,6 +11,9 @@ export const POOL = ['carry', 'next', 'later', 'icebox', 'proposed'];
 const TEMPLATE = '## What ships\n\n## Milestones\n\n## Updates\n';   // what a new page starts with: the headings the planner reads, and a place for milestones
 export const section = (name, ...kids) => h('div', { class: 'stack' }, h('div', { class: 'lbl' }, name), ...kids);
 export const prop = (name, el) => h('div', { class: 'prop' }, h('div', { class: 'prop-name' }, name), h('div', { class: 'prop-val' }, el));
+// a project's goal: a choice among the goals, with a way to its page
+export const goalSel = (i, upd) => h('div', { class: 'stack', style: 'gap:2px' }, sel([['', 'No goal'], ...(D().goals || []).map(g => [g.slug, g.title])], i.goal || '', v => upd({ goal: v }), 'Goal'),
+  i.goal ? h('button', { class: 'link-btn small', style: 'text-align:left', onClick: () => openFull('goal', i.goal) }, 'Open the goal ↗') : null);
 export const sel = (list, value, onChange, label) => h('select', { class: 'pfield', 'aria-label': label, onChange: e => onChange(e.target.value) }, opts(list, value));
 export const txt = (value, onChange, label, ph = 'Empty') => h('input', { class: 'pfield', value, 'aria-label': label, placeholder: ph, onChange: e => onChange(e.target.value) });
 
@@ -38,7 +41,7 @@ export function drawer(id) {
       prop('Effort', sel([['', 'Unsized'], ...d.enums.efforts.map(s => [s, s])], i.effort, v => upd({ effort: v }), 'Effort')),
       prop('Cycle', sel(cycleOpts, i.cycle == null ? '' : i.cycle, v => upd(v === '' ? { cycle: null, rank: null } : { cycle: +v, approved: true }), 'Cycle')),
       i.cycle == null ? prop('Bucket', sel(BUCKETS, i.bucket, v => upd({ bucket: v }), 'Backlog bucket')) : null,
-      prop('Mission', txt(i.mission, v => upd({ mission: v }), 'Mission', 'No mission')),
+      prop('Goal', goalSel(i, upd)),
       prop('Target', txt(i.target, v => upd({ target: v }), 'Target date', 'YYYY-MM-DD')),
       prop('Slack', h('div', { class: 'stack', style: 'gap:2px' }, txt(i.slack, v => upd({ slack: v }), 'Slack channel link', 'https://…slack.com/archives/…'), i.slack ? h('a', { class: 'small', href: safeUrl(i.slack), target: '_blank', rel: 'noopener noreferrer' }, 'Open the channel ↗') : null)),
       prop('Progress', h('div', {}, h('div', { class: 'hrow between small', style: 'flex-wrap:nowrap' }, h('span', { class: 'muted' }, i.progressBasis), h('b', {}, i.progress + '%')), bar(i.progress, i.hot))),
@@ -62,8 +65,9 @@ export function modal() {
   if (m.kind === 'person') return personModal(m);
   if (m.kind === 'type') return typeModal(m);
   if (m.kind === 'update') return updateDrawer(m);
+  if (m.kind === 'goal') return goalModal(m);
   if (m.kind === 'agent') return agentDrawer(m);
-  const d = D(), v = m.v || (m.v = { title: '', description: '', owner: '', effort: '', mission: '', body: TEMPLATE, project: m.project || (d.projects[0] && d.projects[0].slug) || '', newProject: '' });   // kept on the dialog: it is rebuilt after every change
+  const d = D(), v = m.v || (m.v = { title: '', description: '', owner: '', effort: '', goal: '', body: TEMPLATE, project: m.project || (d.projects[0] && d.projects[0].slug) || '', newProject: '' });   // kept on the dialog: it is rebuilt after every change
   const close = () => { S.modal = null; S.err = ''; render(); };
   const submit = () => act(async () => {
     if (m.kind === 'project') { await api('POST', '/projects', v); S.modal = null; return; }
@@ -86,7 +90,7 @@ export function modal() {
     m.kind === 'initiative'
       ? [field('Page', rich('modal:body', v.body, md => { v.body = md; }, { minHeight: 200, scope: 'new' })), h('div', { class: 'hrow' },
         field('Effort', h('select', { class: 'field', onChange: e => { v.effort = e.target.value; } }, opts([['', 'Unsized'], ...d.enums.efforts.map(s => [s, s])], v.effort))),
-        field('Mission', input('mission'), '1 1 140px'), h('label', { class: 'f', style: 'flex:1 1 200px' }, h('span', { class: 'lbl' }, 'Champion'), personPicker({ value: v.owner, onChange: n => { v.owner = n; render(); }, placeholder: 'Start typing a name', label: 'Champion' })))]
+        field('Goal', h('select', { class: 'field', onChange: e => { v.goal = e.target.value; } }, opts([['', 'No goal'], ...(d.goals || []).map(g => [g.slug, g.title])], v.goal)), '1 1 140px'), h('label', { class: 'f', style: 'flex:1 1 200px' }, h('span', { class: 'lbl' }, 'Champion'), personPicker({ value: v.owner, onChange: n => { v.owner = n; render(); }, placeholder: 'Start typing a name', label: 'Champion' })))]
       : [field('Description', h('textarea', { class: 'field', style: 'min-height:70px', onInput: e => { v.description = e.target.value; } }, v.description)), h('label', { class: 'f' }, h('span', { class: 'lbl' }, 'Owner'), personPicker({ value: v.owner, onChange: n => { v.owner = n; }, placeholder: 'No owner', label: 'Owner' }))],
     h('button', { class: 'btn pri', onClick: submit }, 'Create')));
 }
@@ -180,4 +184,20 @@ export async function newInitiativePage(project) {
   const p = project || (D().projects[0] && D().projects[0].slug);
   if (!p) { S.modal = { kind: 'project' }; S.err = ''; render(); return; }                       // nothing to put it in yet
   await act(async () => { const r = await api('POST', '/initiatives', { project: p, title: 'Untitled project', body: TEMPLATE }); S.focusTitle = true; openFull('initiative', r.id); });
+}
+
+// A new goal: a title, who owns it, by when, and what it is. It is a page of its own afterwards.
+function goalModal(m) {
+  const v = m.v || (m.v = { title: '', owner: '', target: '', description: '' }), close = () => { S.modal = null; S.err = ''; render(); };
+  const submit = () => act(async () => { const g = await api('POST', '/goals', v); S.modal = null; openFull('goal', g.slug); });
+  const field = (name, el) => h('label', { class: 'f' }, h('span', { class: 'lbl' }, name), el);
+  return h('div', { class: 'modal' }, h('form', { class: 'card', onSubmit: e => { e.preventDefault(); submit(); } },
+    h('div', { class: 'hrow between' }, h('h3', {}, 'New goal'), h('button', { class: 'btn sm', type: 'button', onClick: close }, 'Cancel')),
+    muted('A goal is what projects work towards. Put projects under it from their Goal property.', 'small'),
+    S.err ? h('div', { class: 'err' }, S.err) : null,
+    field('Title', h('input', { class: 'field', value: v.title, autofocus: true, placeholder: 'e.g. Grow self-serve', onInput: e => { v.title = e.target.value; } })),
+    h('div', { class: 'hrow' }, h('div', { style: 'flex:1 1 200px' }, field('Owner', personPicker({ value: v.owner, onChange: n => { v.owner = n; }, placeholder: 'No owner', label: 'Owner' }))),
+      h('div', { style: 'flex:1 1 160px' }, field('Target date', h('input', { class: 'field', value: v.target, placeholder: 'YYYY-MM-DD', onInput: e => { v.target = e.target.value; } })))),
+    field('What it is', h('textarea', { class: 'field', style: 'min-height:70px', onInput: e => { v.description = e.target.value; } }, v.description)),
+    h('button', { class: 'btn pri', type: 'submit' }, 'Create goal')));
 }

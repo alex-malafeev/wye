@@ -90,7 +90,7 @@ export function settings() {
         h('button', { class: 'btn pri', onClick: () => act(() => api('PATCH', '/config', v)) }, 'Save'))),
     h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('h3', {}, 'Types'), h('div', { class: 'card-sub' }, 'WyePoint is built on Wye\'s type system. Define your own — a risk, a decision, a customer ask — and insert it anywhere in a page with /.')),
         h('button', { class: 'btn sm pri', onClick: () => { S.modal = { kind: 'type' }; S.err = ''; render(); } }, '+ New type')),
-      h('div', { class: 'type-core' }, h('span', { class: 'lbl' }, 'Built in'), ...['Person', 'Cycle', 'Project · PROJ', 'Milestone · TASK'].map(n => chip('s-none', n)), h('span', { class: 'muted small' }, 'declared in types/ontology.md')),
+      h('div', { class: 'type-core' }, h('span', { class: 'lbl' }, 'Built in'), ...['Person', 'Cycle', 'Goal · GOAL', 'Project · PROJ', 'Milestone · TASK'].map(n => chip('s-none', n)), h('span', { class: 'muted small' }, 'declared in types/ontology.md')),
       list(D().types.map(t => h('div', { class: 'row type-row', style: 'cursor:default' },
         h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, t.name, h('span', { class: 'key-chip' }, t.key), h('span', { class: 'muted small' }, `  ${t.slug}:`)), h('div', { class: 'muted small' }, t.purpose),
           h('div', { class: 'hrow', style: 'gap:6px;margin-top:4px' }, ...t.statuses.map(s => chip('s-ns', s)), ...t.fields.map(f => chip('s-none', `${f.name} · ${(D().fieldKinds.find(k => k[0] === f.kind) || [0, f.kind])[1].toLowerCase()}`)))),

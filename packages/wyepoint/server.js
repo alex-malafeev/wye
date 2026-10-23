@@ -75,11 +75,21 @@ function cycleRows(a, c) {
   return a.items.filter(i => i.cycle === c.n).map(analysis.snapshotOf).map(r => (c.status === 'planned' || c.status === 'released') ? { ...r, status: '', pct: 0 } : r);
 }
 
+// A goal with what is under it: its projects, and its progress, the average of those in the active cycle (or, with none,
+// of those still open)
+function goalsView(items) {
+  return store.goals().map(g => {
+    const mine = items.filter(i => i.goal === g.slug), cyc = mine.filter(i => i.tier === 'cycle'), pool = cyc.length ? cyc : mine.filter(i => i.status !== 'complete');
+    const progress = pool.length ? Math.round(pool.reduce((s, i) => s + i.progress, 0) / pool.length) : 0;
+    return { ...g, projects: mine.map(i => i.id), progress, basis: pool.length ? (cyc.length ? 'Average of its projects in the active cycle' : 'Average of its open projects') : 'No projects yet', hot: mine.some(i => i.hot) };
+  });
+}
+
 function state() {
   const a = analysis.analyze(store), { ctx } = a;
   const cycles = a.cycles.map(c => { const rows = cycleRows(a, c); return { ...c, snap: undefined, snapshot: c.status === 'closed' && c.snap.length > 0, rows, shipped: rows.filter(r => r.status === 'complete').length, avg: rows.length ? Math.round(rows.reduce((s, r) => s + (r.pct || 0), 0) / rows.length) : 0 }; });
   return {
-    brand: 'WyePoint', config: ctx.cfg, today: ctx.todayIso, active: ctx.active, nx: ctx.nx.n, cycles, projects: ctx.projects, initiatives: a.items, people: a.people,
+    brand: 'WyePoint', goals: goalsView(a.items), config: ctx.cfg, today: ctx.todayIso, active: ctx.active, nx: ctx.nx.n, cycles, projects: ctx.projects, initiatives: a.items, people: a.people,
     checks: a.checks, canRelease: a.canRelease, types: store.types().map(t => ({ ...t, used: store.typeUsage(t.slug) })), fieldKinds: T.FIELD_KINDS,
     enums: { statuses: STATUSES, taskStatuses: TASK_STATUSES, efforts: EFFORTS, buckets: BUCKETS, labels: analysis.LABEL },
   };
@@ -170,6 +180,11 @@ async function api(req, res, url) {
     else if (b === 'sim') { if (!String(body.title || body.description || '').trim()) throw fail(400, 'describe the idea first'); prompt = analysis.simPrompt(an, body, analysis.simulate(an, body)); }
     if (!prompt) throw fail(404, 'nothing to ask the agent about');
     try { return json(res, 200, { text: await agent.run(prompt) }); } catch (e) { return json(res, 502, { error: `Agent unavailable: ${e.message}` }); }
+  }
+  if (a === 'goals') {
+    if (method === 'POST' && !b) return json(res, 201, store.createGoal(body));
+    if (method === 'PATCH' && b) return json(res, 200, store.updateGoal(b, body));
+    if (method === 'DELETE' && b) { store.deleteGoal(b); return json(res, 200, { ok: true }); }
   }
   if (a === 'projects') {
     if (method === 'POST') return json(res, 201, store.createProject(body));

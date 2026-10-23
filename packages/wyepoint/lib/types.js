@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const VERSION = 4;
+const VERSION = 5;
 
 // the core types, as Wye cards. Props are optional (`?`) so a page without one is not a warning.
 const CORE = `- id: type:person
@@ -44,7 +44,7 @@ const CORE = `- id: type:person
     cycle: ref cycle? -(inverse)-> projects
     contributors: string?
     effort: enum [S, M, L, XL]?
-    mission: string?
+    goal: ref goal? -(inverse)-> projects
     approved: bool?
     bucket: enum [proposed, next, later, icebox]?
     rank: number?

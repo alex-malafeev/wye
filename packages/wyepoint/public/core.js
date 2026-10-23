@@ -1,7 +1,7 @@
 // Shared by every view: the page's state, the DOM helper, the API calls and the routing.
 // All state comes from GET /api/state; every change is an API call followed by a reload of that state, so what is on
 // screen is what is in the vault. The DOM is built with textContent only — nothing from the vault is ever HTML.
-export const TABS = [['overview', 'Overview'], ['projects', 'Projects'], ['backlog', 'Backlog'], ['people', 'People'], ['plan', 'Plan'], ['history', 'History'], ['settings', 'Settings']];
+export const TABS = [['overview', 'Overview'], ['goals', 'Goals'], ['projects', 'Projects'], ['backlog', 'Backlog'], ['people', 'People'], ['plan', 'Plan'], ['history', 'History'], ['settings', 'Settings']];
 export const TOKEN_KEY = 'wyepoint_token';
 
 export const S = {
@@ -56,8 +56,8 @@ export async function load() { S.data = await api('GET', '/state'); render(); }
 export function route() {
   const [p, q] = location.hash.replace(/^#\/?/, '').split('?');
   const byKey = /^k\/([A-Za-z][A-Za-z0-9]*-\d+)$/.exec(p); if (byKey) return { view: 'key', key: byKey[1].toUpperCase(), open: null, project: null };
-  const full = /^(i|p)\/(.+)$/.exec(p);                 // a full view: #/i/<project>/<slug> or #/p/<project>
-  if (full) return { view: 'full', full: { kind: full[1] === 'i' ? 'initiative' : 'project', id: decodeURIComponent(full[2]) }, open: null, project: null };
+  const full = /^(i|p|g)\/(.+)$/.exec(p);                 // a full view: #/i/<project>/<slug> or #/p/<project>
+  if (full) return { view: 'full', full: { kind: { i: 'initiative', p: 'project', g: 'goal' }[full[1]], id: decodeURIComponent(full[2]) }, open: null, project: null };
   const sp = new URLSearchParams(q || '');
   return { view: TABS.some(t => t[0] === p) ? p : 'overview', open: sp.get('i'), project: sp.get('p'), person: sp.get('u') };
 }
@@ -67,7 +67,7 @@ export function go(view, open, project, person) {
   location.hash = `#/${view}` + (q ? '?' + q : '');
 }
 // opening an initiative or a project from a full view goes to its full view; from anywhere else, to a drawer over the page
-export const openFull = (kind, id) => { location.hash = `#/${kind === 'initiative' ? 'i' : 'p'}/${id}`; };
+export const openFull = (kind, id) => { location.hash = `#/${{ initiative: 'i', project: 'p', goal: 'g' }[kind]}/${id}`; };
 export const openIt = id => { const r = route(); if (id && (r.view === 'backlog' || r.view === 'projects')) return openFull('initiative', id);   // the backlog and the initiatives page open an item full screen
   if (r.view === 'full') { if (id) openFull('initiative', id); else history.back(); } else go(r.view, id); };
 export const openProject = slug => { const r = route(); if (r.view === 'full') { if (slug) openFull('project', slug); else history.back(); } else go(r.view, null, slug); };   // null closes it
@@ -91,10 +91,15 @@ export const cycleChip = c => chip({ closed: 's-ns', active: 's-on', released: '
 export function findKey(k) {
   const key = String(k || '').trim().toUpperCase();
   for (const i of items()) {
-    if (i.key === key) return { id: i.id, what: 'project', title: i.title };
-    const t = i.tasks.find(x => x.key === key); if (t) return { id: i.id, what: 'milestone', title: t.title };
-    const n = (i.nodes || []).find(x => (x.props || {}).key === key); if (n) return { id: i.id, what: n.kind, title: n.text };
+    if (i.key === key) return { id: i.id, href: `#/i/${i.id}`, what: 'project', title: i.title };
+    const t = i.tasks.find(x => x.key === key); if (t) return { id: i.id, href: `#/i/${i.id}`, what: 'milestone', title: t.title };
+    const n = (i.nodes || []).find(x => (x.props || {}).key === key); if (n) return { id: i.id, href: `#/i/${i.id}`, what: n.kind, title: n.text };
   }
+  const g = (S.data.goals || []).find(x => x.key === key); if (g) return { id: g.slug, href: `#/g/${g.slug}`, what: 'goal', title: g.title };
   return null;
 }
 export const KEY_PATTERN = /^[A-Za-z][A-Za-z0-9]*-\d+$/;
+
+// how a goal's status reads: [value, label, chip class]
+export const GOAL_STATUS = [['proposed', 'Proposed', 's-none'], ['on-track', 'On Track', 's-on'], ['at-risk', 'At Risk', 's-risk'], ['off-track', 'Off Track', 's-off'], ['paused', 'Paused', 's-none'], ['complete', 'Done', 's-ship']];
+export const goalStatus = v => GOAL_STATUS.find(x => x[0] === v) || ['', 'No status', 's-none'];

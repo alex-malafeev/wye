@@ -1,5 +1,5 @@
 // Overview, Projects, Backlog, People and the status-agent card. (Plan, History and Settings are in plan.js.)
-import { S, h, chip, bar, muted, label, opts, api, act, render, go, route, openIt, findKey, KEY_PATTERN, openPerson, openProject, safeUrl, items, cyc, D, fmtDate, range } from './core.js';
+import { S, h, chip, bar, muted, label, opts, api, act, render, go, route, openIt, openFull, findKey, KEY_PATTERN, openPerson, openProject, safeUrl, items, cyc, D, fmtDate, range , goalStatus } from './core.js';
 import { newInitiativePage } from './drawer.js';
 
 const TIER_ORDER = { cycle: 0, plan: 1, next: 2, later: 3, icebox: 4, proposed: 5, carry: 6, done: 7 };
@@ -7,9 +7,9 @@ const STATUS_ORDER = { 'off-track': 0, 'at-risk': 1, 'on-track': 2, 'not-started
 const EFFORT_ORDER = { S: 1, M: 2, L: 3, XL: 4 };
 const STATUS_LABELS = ['On Track', 'At Risk', 'Off Track', 'Not Started', 'Paused', 'Shipped', 'No status', 'Planned', 'Proposed', 'Backlog'];
 const TIERS = [['', 'All tiers'], ['cycle', 'Active cycle'], ['plan', 'Planned'], ['next', 'Next cycle'], ['later', 'Later'], ['icebox', 'Icebox'], ['proposed', 'Proposed'], ['carry', 'Carry-over'], ['done', 'Shipped, past cycle']];
-const DIMS = [['project', 'Area'], ['status', 'Status'], ['mission', 'Mission'], ['tier', 'Tier'], ['effort', 'Effort'], ['champion', 'Champion'], ['flag', 'Planner checks']];
+const DIMS = [['project', 'Area'], ['status', 'Status'], ['mission', 'Goal'], ['tier', 'Tier'], ['effort', 'Effort'], ['champion', 'Champion'], ['flag', 'Planner checks']];
 const dimName = d => (DIMS.find(x => x[0] === d) || [0, 'None'])[1];
-const dimVals = (it, d) => ({ project: [it.projectTitle], status: [it.statusLabel], mission: [it.mission || 'No mission'], tier: [it.tierLabel], effort: [it.effort || 'Unsized'], champion: [it.owner || 'No champion'], flag: [it.flags.length ? 'Has flags' : 'Clean'] }[d] || ['All']);
+const dimVals = (it, d) => ({ project: [it.projectTitle], status: [it.statusLabel], mission: [it.mission || 'No goal'], tier: [it.tierLabel], effort: [it.effort || 'Unsized'], champion: [it.owner || 'No champion'], flag: [it.flags.length ? 'Has flags' : 'Clean'] }[d] || ['All']);
 const uniq = a => [...new Set(a)].sort();
 
 // ---- pieces several views use
@@ -39,6 +39,22 @@ export async function runItemAgent(id) {
   S.agents[id] = 'Thinking…'; S.modal = { kind: 'agent', id }; render();
   try { S.agents[id] = (await api('POST', '/agent/item', { id })).text; } catch (err) { S.agents[id] = err.message; }
   render();
+}
+
+// ---- goals: a card each, with where it stands and the projects under it
+export function goals() {
+  const d = D(), gs = d.goals || [], loose = items().filter(i => !i.goal && i.status !== 'complete').length;
+  return h('div', { class: 'stack' },
+    gs.length ? h('div', { class: 'grid' }, ...gs.map(g => {
+      const [, label, cls] = goalStatus(g.status), mine = g.projects.length;
+      return h('button', { class: 'card goal-card', onClick: () => openFull('goal', g.slug) },
+        h('div', { class: 'hrow between' }, h('span', { class: 'key-chip' }, g.key), chip(cls, label)),
+        h('div', { class: 'goal-title' }, g.title),
+        g.description ? h('div', { class: 'muted small goal-desc' }, g.description) : null,
+        h('div', { class: 'goal-meter' }, bar(g.progress, g.hot), h('b', {}, g.progress + '%')),
+        h('div', { class: 'muted small' }, `${mine} project${mine === 1 ? '' : 's'}`, g.owner ? ` · ${g.owner}` : '', g.target ? ` · by ${fmtDate(g.target)}` : ''));
+    })) : muted('No goals yet. A goal is what projects work towards: create one, then put projects under it.'),
+    loose ? muted(`${loose} open project${loose === 1 ? ' is' : 's are'} not under any goal.`, 'small') : null);
 }
 
 // ---- overview
@@ -140,7 +156,7 @@ function select(key, name, options, value, set) {
 export function backlog() {
   const f = S.f, q = f.q.trim().toLowerCase(), all = items();
   const sortKey = it => ({ title: it.title.toLowerCase(), status: STATUS_ORDER[it.status] ?? 9, project: it.projectTitle.toLowerCase(), effort: EFFORT_ORDER[it.effort] || 9, date: it.target ? new Date(it.target).getTime() : 9e15, champion: (it.owner || '~').toLowerCase() }[S.sortKey] ?? (TIER_ORDER[it.tier] * 1000 + (it.rank ?? 999)));
-  const shown = all.filter(it => (!f.project || it.project === f.project) && (!f.status || it.statusLabel === f.status) && (!f.mission || (it.mission || 'No mission') === f.mission) && (!f.tier || it.tier === f.tier) && (!f.effort || (it.effort || 'Unsized') === f.effort) && (!f.champion || it.owner === f.champion)
+  const shown = all.filter(it => (!f.project || it.project === f.project) && (!f.status || it.statusLabel === f.status) && (!f.mission || (it.mission || 'No goal') === f.mission) && (!f.tier || it.tier === f.tier) && (!f.effort || (it.effort || 'Unsized') === f.effort) && (!f.champion || it.owner === f.champion)
     && (!q || [it.title, it.key, it.projectTitle, it.owner, it.contributors.join(' '), it.ships, it.risks, it.description, ...it.tasks.map(t => `${t.key} ${t.title}`), ...(it.nodes || []).map(n => `${(n.props || {}).key || ''} ${n.text}`)].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => { const x = sortKey(a), y = sortKey(b); return (x < y ? -1 : x > y ? 1 : a.id.localeCompare(b.id)) * S.sortDir; });
   const groupMap = dim => { const m = {}, order = []; shown.forEach(it => dimVals(it, dim).forEach(k => { if (!m[k]) { m[k] = []; order.push(k); } m[k].push(it); })); return { m, order }; };
@@ -176,10 +192,10 @@ export function backlog() {
   const filters = h('div', { class: 'filterbar' },
     h('div', { class: 'fb-row' },
       h('input', { class: 'fb-search', type: 'search', 'data-k': 'q', value: f.q, placeholder: 'Search projects, people, tasks, keys', 'aria-label': 'Search', onInput: e => { f.q = e.target.value; render(); },
-        onKeyDown: e => { if (e.key === 'Enter' && KEY_PATTERN.test(e.target.value.trim())) { const hit = findKey(e.target.value); if (hit) { f.q = ''; location.hash = `#/i/${hit.id}`; } } } }),
+        onKeyDown: e => { if (e.key === 'Enter' && KEY_PATTERN.test(e.target.value.trim())) { const hit = findKey(e.target.value); if (hit) { f.q = ''; location.hash = hit.href; } } } }),
       pill('f-project', 'Area', D().projects.map(p => [p.slug, p.title]), f.project, v => { f.project = v; }),
       pill('f-status', 'Status', STATUS_LABELS.map(x => [x, x]), f.status, v => { f.status = v; }),
-      pill('f-mission', 'Mission', uniq(all.map(i => i.mission || 'No mission')).map(m => [m, m]), f.mission, v => { f.mission = v; }),
+      pill('f-mission', 'Goal', uniq(all.map(i => i.mission || 'No goal')).map(m => [m, m]), f.mission, v => { f.mission = v; }),
       pill('f-tier', 'Tier', TIERS.slice(1), f.tier, v => { f.tier = v; }),
       pill('f-effort', 'Effort', ['S', 'M', 'L', 'XL', 'Unsized'].map(x => [x, x]), f.effort, v => { f.effort = v; }),
       pill('f-champion', 'Champion', uniq(all.map(i => i.owner).filter(Boolean)).map(n => [n, n]), f.champion, v => { f.champion = v; }),

@@ -17,6 +17,7 @@ const cyclesLib = require('./cycles');
 const L = require('./lines');
 const T = require('./types');
 
+const GOAL_STATUSES = ['proposed', 'on-track', 'at-risk', 'off-track', 'paused', 'complete'];
 const STATUSES = ['not-started', 'on-track', 'at-risk', 'off-track', 'paused', 'complete'];
 const TASK_STATUSES = ['todo', 'in-progress', 'blocked', 'review', 'done'];
 const EFFORTS = ['S', 'M', 'L', 'XL'];
@@ -129,7 +130,7 @@ class Store {
     if (fs.existsSync(this.productFile)) {
       if (this.config().title === 'Tempo') this.setConfig({ title: 'WyePoint' });   // the name before the rename
     } else write(this.productFile, joinFm({ title: 'WyePoint', icon: '🧭', description: 'Goals and projects planned in cycles.', 'cycle-weeks': 6, 'cycle-start': day(), 'cycle-cooldown': 7 }, ''));
-    this.migrateVocabulary(); this.migrateRoster(); this.ensureTypes(); this.migrateTypes(); this.loadKinds(); this.migrateKeys();
+    this.migrateVocabulary(); this.migrateRoster(); this.ensureTypes(); this.migrateTypes(); this.loadKinds(); this.migrateGoals(); this.migrateKeys();
   }
 
   // ---- config
@@ -293,6 +294,65 @@ class Store {
     return bodies.reduce((n, b) => n + b.split('\n').filter(l => { const x = L.parseLine(l); return x && x.type === 'node' && x.kind === slug; }).length, 0);
   }
 
+  // ---- goals: what is being worked towards. goals/<slug>.md is a `goal:<slug>` node (Wye's own goal type); a project points at
+  // its goal, and a goal's progress is rolled up from the projects under it (server.js).
+  goalsDir() { return path.join(this.dir, 'goals'); }
+  goalFile(slug) { return path.join(this.goalsDir(), String(slug).replace(/[^\w-]/g, '') + '.md'); }
+  goalTitleOf(slug) { if (!slug) return ''; try { return splitFm(read(this.goalFile(slug))).fm.title || slug; } catch { return ''; } }
+  goals() {
+    let files = []; try { files = fs.readdirSync(this.goalsDir()).filter(f => f.endsWith('.md') && !f.startsWith('_')); } catch { /* none yet */ }
+    return files.sort().map(f => this.readGoal(f.slice(0, -3)));
+  }
+  readGoal(slug) {
+    const file = this.goalFile(slug); if (!fs.existsSync(file)) throw notFound('goal');
+    const { fm, body: raw } = splitFm(read(file)), body = raw.replace(/^\s*# .*\n?/, '').trim(), links = [], log = [];
+    for (const line of body.split('\n')) { const x = L.parseLine(line); if (x && x.type === 'link') links.push({ label: x.label, url: x.url, source: x.meta }); else if (x && x.type === 'log') log.push({ ts: x.ts, source: x.source, text: x.text }); }
+    log.reverse();
+    return { slug, id: slug, node: `goal:${slug}`, key: fm.key || '', title: fm.title || slug, status: fm.status || '', owner: fm.owner || '', target: fm.target || '', slack: fm.slack || '', body, description: oneLine(introOf(body)), links, log };
+  }
+  saveGoal(g) {
+    if (!g.key) g.key = this.nextKey('goal');
+    const dir = this.people(), p = dir.find(x => x.name.toLowerCase() === String(g.owner || '').toLowerCase());
+    write(this.goalFile(g.slug), joinFm({ node: `goal:${g.slug}`, key: g.key, title: g.title, status: g.status, owner: g.owner, champion: p ? `person:${p.slug}` : '', target: g.target, slack: g.slack, updated: now() }, `# ${g.title}\n\n${g.body.trim()}\n`));
+    return this.readGoal(g.slug);
+  }
+  createGoal(o) {
+    const title = oneLine(o.title); if (!title) throw bad('title is required');
+    const slug = this.uniqueSlug(slugify(title), s => fs.existsSync(this.goalFile(s)));
+    const g = { slug, key: '', title, status: 'on-track', owner: '', target: '', slack: '', body: String(o.description || '').trim() };
+    return this.saveGoal(this.applyGoal(g, { ...o, title: undefined, description: undefined }));
+  }
+  applyGoal(g, patch) {
+    if (patch.title !== undefined) { g.title = oneLine(patch.title); if (!g.title) throw bad('title is required'); }
+    if (patch.status !== undefined) { if (patch.status && !GOAL_STATUSES.includes(patch.status)) throw bad('unknown status'); g.status = patch.status; }
+    if (patch.owner !== undefined) g.owner = oneLine(patch.owner);
+    if (patch.target !== undefined) { const t = oneLine(patch.target); if (t && !isDate(t)) throw bad('target must be YYYY-MM-DD'); g.target = t; }
+    if (patch.slack !== undefined) { const u = oneLine(patch.slack); if (u && !/^https?:\/\/\S+$/i.test(u)) throw bad('the Slack channel must be a link (https://…)'); g.slack = u; }
+    if (patch.body !== undefined) g.body = String(patch.body).trim();
+    else if (patch.description !== undefined) g.body = setSection(g.body, null, String(patch.description)).trim();
+    return g;
+  }
+  updateGoal(slug, patch) { return this.saveGoal(this.applyGoal(this.readGoal(slug), patch)); }
+  deleteGoal(slug) {
+    this.readGoal(slug);
+    const used = this.initiatives().filter(i => i.goal === slug).length;
+    if (used) throw Object.assign(new Error(`${used} project${used > 1 ? 's are' : ' is'} still under this goal; move ${used > 1 ? 'them' : 'it'} first`), { status: 409 });
+    fs.unlinkSync(this.goalFile(slug));
+  }
+  // a goal by its title: the one that has it, or a new one (what a project's older `mission` name becomes)
+  goalByTitle(title) { const t = oneLine(title).toLowerCase(); return this.goals().find(g => g.title.toLowerCase() === t) || this.createGoal({ title }); }
+  // the free-text mission a project had is a goal now: one goal for each distinct name
+  migrateGoals() {
+    for (const p of this.projects()) {
+      let docs = []; try { docs = fs.readdirSync(path.join(this.projectsDir(), p.slug, 'docs')).filter(f => f.endsWith('.md')); } catch { /* none */ }
+      for (const f of docs) {
+        const it = this.parseInitiative(p.slug, f.slice(0, -3), read(path.join(this.projectsDir(), p.slug, 'docs', f)));
+        if (it && it.legacyMission && !it.goal) { it.goal = this.goalByTitle(it.legacyMission).slug; this.save(it); }
+        else if (it && it.legacyMission) this.save(it);                                                     // the old name is dropped
+      }
+    }
+  }
+
   // ---- keys: every goal, project and work item has a global id, PREFIX-n, the prefix being the `key` of its type. The numbers
   // come from a counter per prefix (_keys.json), so one is never given twice, not even after the item is deleted.
   keyPrefix(kind) { return kind === 'project' ? 'PROJ' : T.BASE_KEYS[kind] || (this.types().find(t => t.slug === kind) || {}).key || String(kind).toUpperCase().slice(0, 4); }
@@ -314,9 +374,11 @@ class Store {
     const customs = this.customTypes(); if (customs.some(t => !T.parseCustom(read(this.customFile())).find(x => x.slug === t.slug && x.key))) this.saveTypes(customs);
     const c = this.readCounters(); let changed = false;
     const seen = key => { const m = /^([A-Z][A-Z0-9]*)-(\d+)$/.exec(String(key || '')); if (m && +m[2] > (c[m[1]] || 0)) { c[m[1]] = +m[2]; changed = true; } };
-    const all = this.initiatives();
+    const all = this.initiatives(), goals = this.goals();
+    goals.forEach(g => seen(g.key));
     for (const it of all) { seen(it.key); it.tasks.forEach(t => seen(t.key)); it.nodes.forEach(n => seen(n.props.key)); }
     if (changed) write(path.join(this.dir, '_keys.json'), JSON.stringify(c, null, 1));
+    for (const g of goals) if (!g.key) this.saveGoal(g);
     for (const it of all) if (!it.key || it.tasks.some(t => !t.key) || it.nodes.some(n => !n.props.key)) this.save(this.get(it.id));
   }
 
@@ -440,7 +502,7 @@ class Store {
     const num = v => (v === undefined || v === '' ? null : +v);
     return {
       id: `${project}/${slug}`, project, slug, node, title: fm.title || slug, status: fm.status || '', owner: fm.owner || '',
-      contributors: names(fm.contributors), mission: fm.mission || '', effort: fm.effort || '', cycle: num(String(fm.cycle || '').replace(/^cycle:/, '')), rank: num(fm.rank),
+      contributors: names(fm.contributors), goal: String(fm.goal || '').replace(/^goal:/, ''), mission: this.goalTitleOf(String(fm.goal || '').replace(/^goal:/, '')), legacyMission: fm.mission || '', effort: fm.effort || '', cycle: num(String(fm.cycle || '').replace(/^cycle:/, '')), rank: num(fm.rank),
       approved: fm.approved === 'true', bucket: fm.bucket || 'proposed', target: fm.target || '', key: fm.key || '', slack: fm.slack || '',
       body, description: ps._intro.trim(), ships: pick(/^what ships$/), risks: [pick(/^(dependencies\s*\/\s*)?risks?$|^dependencies/), ...nodes.filter(n => n.kind === 'risk' && !/^(closed|mitigated)$/.test(n.status)).map(n => n.text)].filter(Boolean).join('; '),
       tasks, links, prs, log, nodes, drawings, updated: fm.updated || '',
@@ -451,7 +513,7 @@ class Store {
     // the people are edges to person nodes where they are in the directory; the names stay as the text people read
     const dir = this.people(), ref = n => { const p = dir.find(x => x.name.toLowerCase() === String(n || '').toLowerCase()); return p ? `person:${p.slug}` : ''; };
     const involved = [...new Set([it.owner, ...it.contributors].map(ref).filter(Boolean))];
-    const fm = { node: it.node, key: it.key, title: it.title, status: it.status, owner: it.owner, champion: ref(it.owner), involves: involved.join(', '), contributors: it.contributors.join(', '), mission: it.mission, effort: it.effort, cycle: it.cycle == null ? '' : `cycle:${it.cycle}`, rank: it.rank == null ? '' : it.rank, approved: it.approved ? 'true' : '', bucket: it.cycle == null && it.bucket !== 'proposed' ? it.bucket : '', target: it.target, slack: it.slack, updated: now() };
+    const fm = { node: it.node, key: it.key, title: it.title, status: it.status, owner: it.owner, champion: ref(it.owner), involves: involved.join(', '), contributors: it.contributors.join(', '), goal: it.goal ? `goal:${it.goal}` : '', effort: it.effort, cycle: it.cycle == null ? '' : `cycle:${it.cycle}`, rank: it.rank == null ? '' : it.rank, approved: it.approved ? 'true' : '', bucket: it.cycle == null && it.bucket !== 'proposed' ? it.bucket : '', target: it.target, slack: it.slack, updated: now() };
     return joinFm(fm, `# ${it.title}\n\n${it.body.trim()}\n`);
   }
   save(it) {
@@ -470,7 +532,7 @@ class Store {
     // a page from the dialog may hold milestones and typed blocks numbered before the page had an id (task:new.1, risk:new.1, part-of project:TBD)
     const body = (o.body !== undefined ? String(o.body) : `${String(o.description || '').trim()}\n\n## What ships\n${String(o.ships || '').trim()}\n${String(o.risks || '').trim() ? `\n## Risks\n${String(o.risks).trim()}\n` : ''}\n## Milestones\n\n## Updates\n`)
       .replace(/\b([a-z][a-z0-9-]*):new\.(\d+)/g, `$1:${project}.${slug}.$2`).replace(/\b(goal|initiative|project):TBD/g, node);
-    const it = { id: `${project}/${slug}`, slug, project, node, title, status: '', owner: '', contributors: [], mission: '', effort: '', cycle: null, rank: null, approved: false, bucket: 'proposed', target: '', key: '', slack: '', body };
+    const it = { id: `${project}/${slug}`, slug, project, node, title, status: '', owner: '', contributors: [], goal: '', mission: '', effort: '', cycle: null, rank: null, approved: false, bucket: 'proposed', target: '', key: '', slack: '', body };
     this.apply(it, { ...o, body: undefined, description: undefined, ships: undefined, risks: undefined });
     it.body = appendLine(it.body, L.logLine({ ts: now(), source: 'wyepoint', text: 'Project created' }), x => x.type === 'log', 'Updates');   // no status-change line for the status it starts with
     return this.save(it);
@@ -481,7 +543,8 @@ class Store {
     else for (const [k, name] of [['description', null], ['ships', 'what ships'], ['risks', 'risks']]) if (patch[k] !== undefined) it.body = setSection(it.body, name, String(patch[k]));
     if (patch.owner !== undefined) it.owner = oneLine(patch.owner);
     if (patch.contributors !== undefined) it.contributors = names(patch.contributors);
-    if (patch.mission !== undefined) it.mission = oneLine(patch.mission);
+    if (patch.goal !== undefined) { const g = String(patch.goal || ''); if (g && !fs.existsSync(this.goalFile(g))) throw notFound('goal'); it.goal = g; it.mission = this.goalTitleOf(g); }
+    if (patch.mission !== undefined && patch.goal === undefined) { const m = oneLine(patch.mission); it.goal = m ? this.goalByTitle(m).slug : ''; it.mission = this.goalTitleOf(it.goal); }   // the name it had: a goal of that title
     if (patch.slack !== undefined) { const u = oneLine(patch.slack); if (u && !/^https?:\/\/\S+$/i.test(u)) throw bad('the Slack channel must be a link (https://…)'); it.slack = u; }
     if (patch.target !== undefined) { const t = oneLine(patch.target); if (t && !isDate(t)) throw bad('target must be YYYY-MM-DD'); it.target = t; }
     if (patch.status !== undefined) {
