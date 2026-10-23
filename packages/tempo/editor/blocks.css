@@ -1,0 +1,21 @@
+/* The planner's blocks inside the page editor. */
+.tb { display: flex; align-items: center; gap: 8px; width: 100%; padding: 3px 8px; border-radius: 8px; background: #f6f7f9; border: 1px solid #e6e9ee; font-size: 14px; }
+.tb-title { flex: 1 1 auto; min-width: 0; }
+.tb input, .tb select { font: inherit; font-size: 12.5px; border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 2px 6px; color: #14181f; }
+.tb input:hover, .tb select:hover, .tb input:focus { border-color: #c9cfd8; background: #fff; }
+.tb-small { width: 90px; flex: none; }
+.tb-date { width: 128px; }
+.tb-url { flex: 0 1 220px; min-width: 90px; color: #5b6573; }
+.tb-status { flex: none; width: 112px; font-weight: 600; border-radius: 999px !important; cursor: pointer; }
+.st-todo .tb-status { background: #e9edf2; color: #37414f; }
+.st-in-progress .tb-status { background: #dfe8fb; color: #1a3f8f; }
+.st-review .tb-status { background: #fdf0cf; color: #6b4200; }
+.st-blocked .tb-status { background: #fde1dd; color: #8a1c12; }
+.st-done .tb-status { background: #dff1e5; color: #14532d; }
+.st-done .tb-title { text-decoration: line-through; color: #5b6573; }
+.tb-tag { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #1a3f8f; background: #dfe8fb; border-radius: 999px; padding: 2px 8px; }
+.kind-pr .tb-tag { color: #14532d; background: #dff1e5; }
+.tb-open { flex: none; font-size: 12px; color: #1f5fd1; text-decoration: none; }
+.tb-update { background: transparent; border: 0; border-left: 2px solid #d5dae1; border-radius: 0; padding-left: 10px; }
+.tb-when { flex: none; font-size: 12px; color: #5b6573; white-space: nowrap; }
+.tb-when b { font-weight: 600; }

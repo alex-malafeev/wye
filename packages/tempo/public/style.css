@@ -64,3 +64,18 @@ h1,h2,h3{margin:0}
 .rich{border:1px solid var(--line2);border-radius:8px;background:#fff;padding:6px 0;max-width:100%;overflow:hidden}
 .rich .bn-editor{padding-inline:12px;font-family:inherit}
 .rich .bn-container{--bn-colors-editor-background:#fff}
+/* the drawer as a property sheet over one page */
+.drawer{width:min(680px,100%);padding:20px 22px;gap:16px}
+.drawer-title{font-size:24px;font-weight:700;line-height:1.2;margin:0}
+.props{display:flex;flex-direction:column;border-top:1px solid #eef0f3;border-bottom:1px solid #eef0f3;padding:6px 0}
+.prop{display:grid;grid-template-columns:120px minmax(0,1fr);align-items:center;min-height:32px;gap:8px}
+.prop-name{font-size:13px;color:var(--muted)}
+.prop-val{min-width:0}
+.pfield{width:100%;font:inherit;font-size:14px;border:1px solid transparent;background:transparent;border-radius:6px;padding:4px 8px;min-height:30px;color:var(--ink)}
+.pfield:hover{background:#f3f5f8}
+.pfield:focus{background:#fff;border-color:var(--line2);outline:none}
+select.pfield{cursor:pointer}
+.page-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:-8px}
+.rich{border:0;border-top:1px solid #eef0f3;border-radius:0;padding:10px 0 0;background:transparent;overflow:visible}
+.rich .bn-editor{padding-inline:0}
+.drawer .agent{margin-top:4px}

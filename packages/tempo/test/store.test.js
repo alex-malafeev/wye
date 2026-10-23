@@ -23,7 +23,7 @@ test('cycles: six weeks plus cooldown, configurable', () => {
 test('initiative round-trips through Markdown and is a goal node', () => {
   const dir = tmp(), s = new Store(dir);
   s.createProject({ title: 'Web' });
-  const it = s.createInitiative({ project: 'web', title: 'Onboarding: v2', description: 'Line one\n## sneaky heading\nline two', owner: 'Dana', contributors: 'Lee, Jo, Lee', ships: 'A checklist', risks: 'Analytics events', effort: 'L', cycle: 2, target: '2026-12-01' });
+  const it = s.createInitiative({ project: 'web', title: 'Onboarding: v2', description: 'Line one\n\nline two', owner: 'Dana', contributors: 'Lee, Jo, Lee', ships: 'A checklist', risks: 'Analytics events', effort: 'L', cycle: 2, target: '2026-12-01' });
   s.addTask(it.id, { title: 'Checklist', owner: 'Lee' });
   s.addTask(it.id, { title: 'Invite step', status: 'done' });
   s.addLink(it.id, { label: 'Spec [v2]', url: 'https://example.com/a(b)' });
@@ -35,10 +35,11 @@ test('initiative round-trips through Markdown and is a goal node', () => {
   assert.deepStrictEqual(got.contributors, ['Lee', 'Jo']); assert.strictEqual(got.ships, 'A checklist'); assert.strictEqual(got.risks, 'Analytics events');
   assert.strictEqual(got.links.length, 1);
   assert.strictEqual(got.log[0].text, 'multi line text'); assert.strictEqual(got.log[0].source, 'jira-ops');
-  assert.match(got.description, /sneaky heading/);
+  assert.strictEqual(got.description, 'Line one\n\nline two');
   const md = fs.readFileSync(path.join(dir, 'projects/web/docs/onboarding-v2.md'), 'utf8');
   assert.match(md, /^---\nnode: goal:web\.onboarding-v2\n/);
-  assert.match(md, /<!-- tasks -->\n- task:web\.onboarding-v2\.1 Checklist #todo \(owner: Lee, part-of: goal:web\.onboarding-v2\)/);
+  assert.match(md, /\n- task:web\.onboarding-v2\.1 Checklist #todo \(owner: Lee, part-of: goal:web\.onboarding-v2\)\n/);
+  assert.match(md, /\n- \[Spec v2\]\(https:\/\/example\.com\/a\(b%29\) · link · manual\n/);
 });
 
 test('a duplicate link is added once; updates keep other sections', () => {

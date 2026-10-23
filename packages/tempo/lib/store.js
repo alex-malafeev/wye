@@ -10,6 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const cyclesLib = require('./cycles');
+const L = require('./lines');
 
 const STATUSES = ['not-started', 'on-track', 'at-risk', 'off-track', 'paused', 'complete'];
 const TASK_STATUSES = ['todo', 'in-progress', 'blocked', 'review', 'done'];
@@ -19,7 +20,6 @@ const BUCKETS = ['proposed', 'next', 'later', 'icebox'];       // where an initi
 const slugify = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'untitled';
 const oneLine = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
 const prop = s => oneLine(s).replace(/[,()]/g, ' ');           // a value inside a `(key: value, …)` group
-const block = s => String(s || '').trim().replace(/^#{1,2} /gm, '### ');   // free text that must not open a section
 const now = () => new Date().toISOString().slice(0, 16) + 'Z';
 const day = () => new Date().toISOString().slice(0, 10);
 const isDate = s => /^\d{4}-\d\d-\d\d$/.test(s);
@@ -48,6 +48,70 @@ function sectionsOf(body) {
     out[cur] += line + '\n';
   }
   return out;
+}
+
+// ---- the page body
+// A new item goes after the last item of its kind; else at the end of the section that has its heading (Milestones,
+// Updates, Links, Pull requests); else under a heading made for it at the end of the page.
+function appendLine(body, line, sameKind, heading) {
+  const lines = body.replace(/\s+$/, '').split('\n');
+  let at = -1; if (sameKind) lines.forEach((l, i) => { const x = L.parseLine(l); if (x && sameKind(x)) at = i; });
+  if (at < 0 && heading) {
+    const h = lines.findIndex(l => /^#{1,3} /.test(l) && l.replace(/^#+ /, '').trim().toLowerCase() === heading.toLowerCase());
+    if (h < 0) return `${lines.join('\n')}\n\n## ${heading}\n${line}`.replace(/^\n+/, '');
+    let end = lines.findIndex((l, i) => i > h && /^#{1,3} /.test(l)); if (end < 0) end = lines.length;
+    while (end > h + 1 && !lines[end - 1].trim()) end--;
+    at = end - 1;
+  }
+  if (at < 0) lines.push(line); else lines.splice(at + 1, 0, line);
+  return lines.join('\n');
+}
+const dropLines = (body, match) => body.split('\n').filter(l => { const x = L.parseLine(l); return !(x && match(x)); }).join('\n');
+// The page as a person edited it, with what others added to it meanwhile: items that are in the current page but were
+// neither in the page the editor opened (`base`) nor in what it sends back were added elsewhere (an API push, a webhook)
+// and are kept, so a person editing never loses a link a webhook just added.
+function mergeBody(incoming, current, base) {
+  if (base === undefined) return incoming;
+  const have = new Set(incoming.split('\n')), seen = new Set(String(base).split('\n'));
+  const added = current.split('\n').filter(l => L.isItem(l) && !seen.has(l) && !have.has(l));
+  const HEADING = { task: 'Milestones', log: 'Updates', link: 'Links', pr: 'Pull requests' };
+  return added.reduce((body, line) => { const t = L.parseLine(line).type; return appendLine(body, line, x => x.type === t, HEADING[t]); }, incoming);
+}
+// text under a heading (null: the text before the first heading); the items in it stay where they are
+function setSection(body, name, text) {
+  const lines = body.split('\n'), head = i => /^#{2,3} /.test(lines[i]);
+  let from = 0, to = lines.length;
+  if (name) {
+    const at = lines.findIndex((l, i) => head(i) && l.replace(/^#+ /, '').trim().toLowerCase() === name);
+    if (at < 0) return `${body.replace(/\s+$/, '')}\n\n## ${name.replace(/^./, c => c.toUpperCase())}\n${text.trim()}`;
+    from = at + 1;
+  }
+  for (let i = from; i < lines.length; i++) if (head(i)) { to = i; break; }
+  const items = lines.slice(from, to).filter(l => L.isItem(l));
+  lines.splice(from, to - from, ...(text.trim() ? [...text.trim().split('\n'), ''] : []), ...items, ...(to < lines.length ? [''] : []));
+  return lines.join('\n');
+}
+function proseSections(prose) {
+  const out = { _intro: '' }; let cur = '_intro';
+  for (const line of prose.split('\n')) {
+    const h = /^#{2,3} (.+?)\s*$/.exec(line);
+    if (h) { cur = h[1].trim().toLowerCase(); out[cur] = out[cur] || ''; continue; }
+    out[cur] += line + '\n';
+  }
+  return out;
+}
+// Pages written before the body was one document kept links, pull requests, tasks and the log under headings of their
+// own. They are folded into the body, items first-class, the first time such a page is read.
+function upgrade(raw) {
+  if (!/^## (Tasks|Links|Pull requests|Log)\s*$/m.test(raw) || / · (link|pr) · /.test(raw)) return raw;
+  const sec = sectionsOf(raw), lines = k => (sec[k] || '').split('\n').filter(l => l.startsWith('- ')), parts = [sec._intro.trim()];
+  if ('What ships' in sec) parts.push(`## What ships\n${(sec['What ships'] || '').trim()}`);
+  if ('Risks' in sec) parts.push(`## Risks\n${(sec.Risks || '').trim()}`);
+  const refs = [];
+  for (const l of lines('Links')) { const m = /^- \[(.*?)\]\((.*?)\)(?: · (.*))?$/.exec(l); if (m) refs.push(L.refLine({ type: 'link', label: m[1], url: m[2], meta: m[3] || 'manual' })); }
+  for (const l of lines('Pull requests')) { const m = /^- \[(.*?)\]\((.*?)\)(?: · (.*))?$/.exec(l); if (m) refs.push(L.refLine({ type: 'pr', label: m[1], url: m[2], meta: m[3] || day() })); }
+  parts.push([...lines('Tasks').filter(l => L.isItem(l)), ...refs, ...lines('Log').filter(l => L.isItem(l))].join('\n'));
+  return parts.filter(Boolean).join('\n\n');
 }
 
 class Store {
@@ -159,39 +223,37 @@ class Store {
     const [p, s] = id.split('/'); return this.parseInitiative(p, s, read(file));
   }
 
+  // The page is one free-form document; its items (lib/lines.js) are lines of it wherever the person put them, and
+  // everything else is prose. The description is the prose before the first heading; "What ships" and "Risks" are
+  // headings the planner looks for by name.
   parseInitiative(project, slug, md) {
-    const { fm, body } = splitFm(md);
+    const { fm, body: raw } = splitFm(md);
     if (!/^goal:/.test(fm.node || '')) return null;           // a page that is not an initiative
-    const sec = sectionsOf(body), lines = k => (sec[k] || '').split('\n');
-    const tasks = [], taskRe = /^- (task:[\w.-]+) (.*?) #([\w-]+)(?: \((.*)\))?\s*$/;
-    for (const line of lines('Tasks')) {
-      const m = taskRe.exec(line); if (!m) continue;
-      const props = Object.fromEntries((m[4] || '').split(',').map(x => { const i = x.indexOf(':'); return i > 0 ? [x.slice(0, i).trim(), x.slice(i + 1).trim()] : null; }).filter(Boolean));
-      tasks.push({ id: m[1], title: m[2], status: m[3], owner: props.owner || '', due: props.due || '' });
+    const body = upgrade(raw.replace(/^\s*# .*\n?/, '')).trim();
+    const tasks = [], links = [], prs = [], log = [], prose = [];
+    for (const line of body.split('\n')) {
+      const x = L.parseLine(line);
+      if (!x) prose.push(line);
+      else if (x.type === 'task') tasks.push({ id: x.id, title: x.title, status: x.status, owner: x.owner, due: x.due });
+      else if (x.type === 'link') links.push({ label: x.label, url: x.url, source: x.meta });
+      else if (x.type === 'pr') prs.push({ title: x.label, url: x.url, ts: x.meta });
+      else log.push({ ts: x.ts, source: x.source, text: x.text });
     }
-    const links = [], prs = [], linkRe = /^- \[(.*?)\]\((.*?)\)(?: · (.*))?$/;
-    for (const line of lines('Links')) { const m = linkRe.exec(line); if (m) links.push({ label: m[1], url: m[2], source: m[3] || 'manual' }); }
-    for (const line of lines('Pull requests')) { const m = linkRe.exec(line); if (m) prs.push({ title: m[1], url: m[2], ts: m[3] || '' }); }
-    const log = [], logRe = /^- (\S+) · (\S+) · (.*)$/;
-    for (const line of lines('Log')) { const m = logRe.exec(line); if (m) log.push({ ts: m[1], source: m[2], text: m[3] }); }
-    log.reverse();                                            // newest first; the file reads oldest first, like any log
+    log.reverse();                                            // newest first; the page reads oldest first, like any log
+    const ps = proseSections(prose.join('\n')), pick = re => (Object.entries(ps).find(([k]) => re.test(k)) || [, ''])[1].trim();
     const num = v => (v === undefined || v === '' ? null : +v);
     return {
       id: `${project}/${slug}`, project, slug, node: fm.node, title: fm.title || slug, status: fm.status || '', owner: fm.owner || '',
       contributors: names(fm.contributors), mission: fm.mission || '', effort: fm.effort || '', cycle: num(fm.cycle), rank: num(fm.rank),
       approved: fm.approved === 'true', bucket: fm.bucket || 'proposed', target: fm.target || '',
-      description: (sec._intro || '').trim(), ships: (sec['What ships'] || '').trim(), risks: (sec.Risks || '').trim(),
+      body, description: ps._intro.trim(), ships: pick(/^what ships$/), risks: pick(/^(dependencies\s*\/\s*)?risks?$|^dependencies/),
       tasks, links, prs, log, updated: fm.updated || '',
     };
   }
 
   render(it) {
     const fm = { node: it.node, type: 'doc', title: it.title, status: it.status, owner: it.owner, contributors: it.contributors.join(', '), mission: it.mission, effort: it.effort, cycle: it.cycle == null ? '' : it.cycle, rank: it.rank == null ? '' : it.rank, approved: it.approved ? 'true' : '', bucket: it.cycle == null && it.bucket !== 'proposed' ? it.bucket : '', target: it.target, updated: now() };
-    // list items, so each is a node of its own (consecutive plain lines would be one paragraph); part-of ties it to the goal
-    const tl = it.tasks.map(t => `- ${t.id} ${t.title} #${t.status} (${[t.owner && `owner: ${prop(t.owner)}`, t.due && `due: ${prop(t.due)}`, `part-of: ${it.node}`].filter(Boolean).join(', ')})`);
-    const link = l => `- [${l.label}](${l.url}) · ${l.source}`;
-    const body = `# ${it.title}\n\n${block(it.description)}\n\n## What ships\n${block(it.ships)}\n\n## Risks\n${block(it.risks)}\n\n## Links\n${it.links.map(link).join('\n')}\n\n## Pull requests\n${it.prs.map(p => `- [${p.title}](${p.url}) · ${p.ts}`).join('\n')}\n\n## Tasks\n<!-- tasks -->\n${tl.join('\n')}\n<!-- /tasks -->\n\n## Log\n${[...it.log].reverse().map(l => `- ${l.ts} · ${l.source} · ${l.text}`).join('\n')}\n`;
-    return joinFm(fm, body);
+    return joinFm(fm, `# ${it.title}\n\n${it.body.trim()}\n`);
   }
   save(it) { write(this.docFile(it.id), this.render(it)); return this.get(it.id); }
 
@@ -199,21 +261,27 @@ class Store {
     const { project } = o, title = oneLine(o.title); if (!title) throw bad('title is required');
     if (!this.projects().some(p => p.slug === project)) throw notFound('project');
     const slug = this.uniqueSlug(slugify(title), s => fs.existsSync(this.docFile(`${project}/${s}`)));
-    const it = { id: `${project}/${slug}`, slug, project, node: `goal:${project}.${slug}`, title, status: '', owner: '', contributors: [], mission: '', effort: '', cycle: null, rank: null, approved: false, bucket: 'proposed', target: '', description: '', ships: '', risks: '', tasks: [], links: [], prs: [], log: [] };
-    this.apply(it, o);                                         // no status-change line for the status it starts with
-    it.log.unshift({ ts: now(), source: 'tempo', text: 'Initiative created' });
+    const node = `goal:${project}.${slug}`;
+    // a page from the dialog may hold milestones numbered before the page had an id (task:new.1, part-of goal:TBD)
+    const body = (o.body !== undefined ? String(o.body) : `${String(o.description || '').trim()}\n\n## What ships\n${String(o.ships || '').trim()}\n\n## Risks\n${String(o.risks || '').trim()}\n\n## Milestones\n\n## Updates\n`)
+      .replace(/task:new\.(\d+)/g, `task:${project}.${slug}.$1`).replace(/goal:TBD/g, node);
+    const it = { id: `${project}/${slug}`, slug, project, node, title, status: '', owner: '', contributors: [], mission: '', effort: '', cycle: null, rank: null, approved: false, bucket: 'proposed', target: '', body };
+    this.apply(it, { ...o, body: undefined, description: undefined, ships: undefined, risks: undefined });
+    it.body = appendLine(it.body, L.logLine({ ts: now(), source: 'tempo', text: 'Initiative created' }), x => x.type === 'log', 'Updates');   // no status-change line for the status it starts with
     return this.save(it);
   }
   apply(it, patch) {
     if (patch.title !== undefined) { it.title = oneLine(patch.title); if (!it.title) throw bad('title is required'); }
-    for (const k of ['description', 'ships', 'risks']) if (patch[k] !== undefined) it[k] = String(patch[k]);
+    if (patch.body !== undefined) it.body = mergeBody(String(patch.body), it.body, patch.base);
+    else for (const [k, name] of [['description', null], ['ships', 'what ships'], ['risks', 'risks']]) if (patch[k] !== undefined) it.body = setSection(it.body, name, String(patch[k]));
     if (patch.owner !== undefined) it.owner = oneLine(patch.owner);
     if (patch.contributors !== undefined) it.contributors = names(patch.contributors);
     if (patch.mission !== undefined) it.mission = oneLine(patch.mission);
     if (patch.target !== undefined) { const t = oneLine(patch.target); if (t && !isDate(t)) throw bad('target must be YYYY-MM-DD'); it.target = t; }
     if (patch.status !== undefined) {
       if (patch.status && !STATUSES.includes(patch.status)) throw bad('unknown status');
-      if (patch.status !== it.status && it.log.length) it.log.unshift({ ts: now(), source: patch.source || 'tempo', text: `Status ${it.status || 'none'} → ${patch.status || 'none'}` });
+      // a new page has no status-change line for the status it starts with
+      if (patch.status !== it.status && it.body.includes(' · tempo · Initiative created')) it.body = appendLine(it.body, L.logLine({ ts: now(), source: patch.source || 'tempo', text: `Status ${it.status || 'none'} → ${patch.status || 'none'}` }), x => x.type === 'log', 'Updates');
       it.status = patch.status;
     }
     if (patch.effort !== undefined) { if (patch.effort && !EFFORTS.includes(patch.effort)) throw bad('effort must be S, M, L or XL'); it.effort = patch.effort; }
@@ -226,14 +294,16 @@ class Store {
   update(id, patch) { return this.save(this.apply(this.get(id), patch)); }
   remove(id) { fs.unlinkSync(this.docFile(id)); }
 
-  // ---- tasks (milestones), links, pull requests, log
+  // ---- items: lines of the page body
+  edit(id, fn) { const it = this.get(id); it.body = fn(it.body, it); return this.save(it); }
   addTask(id, { title, owner = '', due = '', status = 'todo' }) {
-    const it = this.get(id); title = oneLine(title); if (!title) throw bad('title is required');
+    title = oneLine(title); if (!title) throw bad('title is required');
     if (!TASK_STATUSES.includes(status)) throw bad('unknown task status');
     if (due && !isDate(oneLine(due))) throw bad('due must be YYYY-MM-DD');
-    const n = it.tasks.reduce((m, t) => Math.max(m, +(/\.(\d+)$/.exec(t.id) || [0, 0])[1]), 0) + 1;
-    it.tasks.push({ id: `task:${it.project}.${it.slug}.${n}`, title, status, owner: oneLine(owner), due: oneLine(due) });
-    return this.save(it);
+    return this.edit(id, (body, it) => {
+      const n = it.tasks.reduce((m, t) => Math.max(m, +(/\.(\d+)$/.exec(t.id) || [0, 0])[1]), 0) + 1;
+      return appendLine(body, L.taskLine({ id: `task:${it.project}.${it.slug}.${n}`, title, status, owner: oneLine(owner), due: oneLine(due) }, it.node), x => x.type === 'task', 'Milestones');
+    });
   }
   updateTask(id, taskId, patch) {
     const it = this.get(id), t = it.tasks.find(x => x.id === taskId); if (!t) throw notFound('task');
@@ -241,29 +311,27 @@ class Store {
     if (patch.owner !== undefined) t.owner = oneLine(patch.owner);
     if (patch.due !== undefined) { if (patch.due && !isDate(oneLine(patch.due))) throw bad('due must be YYYY-MM-DD'); t.due = oneLine(patch.due); }
     if (patch.status !== undefined) { if (!TASK_STATUSES.includes(patch.status)) throw bad('unknown task status'); t.status = patch.status; }
+    it.body = it.body.split('\n').map(l => { const x = L.parseLine(l); return x && x.type === 'task' && x.id === taskId ? L.taskLine(t, it.node) : l; }).join('\n');
     return this.save(it);
   }
-  removeTask(id, taskId) { const it = this.get(id); it.tasks = it.tasks.filter(t => t.id !== taskId); return this.save(it); }
+  removeTask(id, taskId) { return this.edit(id, body => dropLines(body, x => x.type === 'task' && x.id === taskId)); }
   addLink(id, { label, url, source = 'manual' }) {
     if (!/^https?:\/\//i.test(url || '')) throw bad('url must start with http:// or https://');
-    const it = this.get(id); url = url.trim().replace(/\)/g, '%29');
-    if (it.links.some(l => l.url === url)) return it;          // a source pushing the same link twice adds it once
-    it.links.push({ label: oneLine(label).replace(/[[\]]/g, '') || url, url, source: oneLine(source).replace(/\s/g, '-') || 'manual' });
-    return this.save(it);
+    const it = this.get(id); url = url.trim();
+    if (it.links.some(l => l.url === url.replace(/\)/g, '%29'))) return it;      // a source pushing the same link twice adds it once
+    return this.edit(id, body => appendLine(body, L.refLine({ type: 'link', label, url, meta: source }), x => x.type === 'link', 'Links'));
   }
-  removeLink(id, url) { const it = this.get(id); it.links = it.links.filter(l => l.url !== url); return this.save(it); }
+  removeLink(id, url) { return this.edit(id, body => dropLines(body, x => x.type === 'link' && x.url === url)); }
   addPr(id, { title, url }) {
     if (!/^https?:\/\//i.test(url || '')) throw bad('url must start with http:// or https://');
-    const it = this.get(id); url = url.trim().replace(/\)/g, '%29');
-    if (it.prs.some(p => p.url === url)) return it;
-    it.prs.push({ title: oneLine(title).replace(/[[\]]/g, '') || url, url, ts: day() });
-    return this.save(it);
+    const it = this.get(id); url = url.trim();
+    if (it.prs.some(p => p.url === url.replace(/\)/g, '%29'))) return it;
+    return this.edit(id, body => appendLine(body, L.refLine({ type: 'pr', label: title, url, meta: day() }), x => x.type === 'pr', 'Pull requests'));
   }
-  removePr(id, url) { const it = this.get(id); it.prs = it.prs.filter(p => p.url !== url); return this.save(it); }
+  removePr(id, url) { return this.edit(id, body => dropLines(body, x => x.type === 'pr' && x.url === url)); }
   addLog(id, { text, source = 'manual' }) {
     text = oneLine(text); if (!text) throw bad('text is required');
-    const it = this.get(id); it.log.unshift({ ts: now(), source: oneLine(source).replace(/\s/g, '-') || 'manual', text });
-    return this.save(it);
+    return this.edit(id, body => appendLine(body, L.logLine({ ts: now(), source, text }), x => x.type === 'log', 'Updates'));
   }
 
   isEmpty() { return this.projects().length === 0; }

@@ -10,10 +10,15 @@ const app = document.getElementById('app');
 
 // While someone types in a rich text field the page is not rebuilt under them (the save that follows would drop their
 // cursor); it is redrawn when they leave the field.
-let pending = false;
+let pending = false, poll = 0;
 function draw() {
-  if (S.data && inEditor(document.activeElement) && app.contains(document.activeElement)) { pending = true; return; }
-  pending = false;
+  // focusout is the quick way back to a redraw; the poll is the sure one (a blur the browser does not announce)
+  if (S.data && inEditor(document.activeElement) && app.contains(document.activeElement)) {
+    pending = true;
+    if (!poll) poll = setInterval(() => { if (!inEditor(document.activeElement)) draw(); }, 300);
+    return;
+  }
+  pending = false; clearInterval(poll); poll = 0;
   if (!S.data) { app.replaceChildren(h('div', { class: 'wrap muted' }, S.err || 'Loading…')); return; }
   const { view, open } = route(), d = S.data, A = cyc(d.active);
   if (!open) prune(k => k.startsWith('modal:'));

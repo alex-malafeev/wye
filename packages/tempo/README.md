@@ -25,12 +25,14 @@ npm test
 | Simulate | Describe an idea: who is closest to it, what it touches, who gets stretched, plus an agent briefing |
 | Plan | The next cycle: backlog pool, approve, ranked plan, plan checks, release (locks), reopen, close the active cycle and start it |
 | History | Every cycle; a closed one shows the snapshot taken when it closed |
-| Initiative drawer | Status, effort, cycle, champion, contributors, mission, target date; description, what ships, risks; milestones; update log; pull requests; links; planner checks; approval; "Ask status agent" |
+| Initiative page | A property sheet (status, champion, contributors, effort, cycle, mission, target, progress) over one page: a Notion-style document with the description, "What ships", "Risks" and the planner's blocks — milestones, links, pull requests, updates — inserted anywhere with `/`. Planner checks, approval, "Ask status agent" below it |
 
-Description, what ships and risks are edited in a Notion-style block editor: BlockNote, the library Wye's own document
-editor is built on (slash menu, headings, lists, checklists, code, formatting). It reads and writes Markdown, so the
-vault keeps plain Markdown. `npm run build:editor` bundles it into `public/vendor/` (not committed); without it those
-fields fall back to a textarea. The page does not redraw while you type in one.
+An initiative is one page, edited in a Notion-style block editor: BlockNote, the library Wye's own document editor
+is built on (slash menu, headings, lists, checklists, code, formatting). Milestones, links, pull requests and
+updates are blocks of their own (a status, an owner, a due date, a URL) that sit wherever you put them in the page.
+The editor reads and writes Markdown, so the vault keeps plain Markdown. `npm run build:editor` bundles it into
+`public/vendor/` (not committed); without it the page falls back to a textarea. The page does not redraw while you
+type, and a save keeps what a webhook or the API added meanwhile.
 
 The status agents (per initiative, portfolio, simulation) run through Claude Code: `claude -p` with no tools, from an
 empty folder, on `sonnet` (`TEMPO_AGENT_MODEL`). `TEMPO_AGENT_CMD` replaces the command (prompt on stdin, answer on
@@ -45,8 +47,7 @@ stdout). The prompts are built on the server from the vault; the page cannot sen
 | A cycle's status, theme, own dates, close snapshot | `cycles/<n>.md` |
 | Project | `projects/<p>/_project.md` |
 | Initiative | `projects/<p>/docs/<slug>.md`, a page that is a `goal:<p>.<slug>` node |
-| Milestones | `- task:<p>.<slug>.<n> Title #status (owner: …, due: …, part-of: goal:…)` between `<!-- tasks -->` |
-| What ships, risks, links, pull requests, log | sections of the same page |
+| Page body | free Markdown after the title. Four kinds of line are items, wherever they are: `- task:<p>.<slug>.<n> Title #status (owner: …, due: …, part-of: goal:…)`, `- [label](url) · link · source`, `- [title](url) · pr · date`, `- <timestamp> · source · text` (an update). Everything else is prose; the description is the prose before the first heading, and the headings "What ships" and "Risks" are read by name |
 | Cycle, rank, approval, backlog bucket | `cycle:`, `rank:`, `approved:`, `bucket:` in its frontmatter |
 
 An initiative's tier is derived: in the active cycle, planned (a later cycle), carry-over (an earlier cycle, not
