@@ -7,7 +7,6 @@ import { runItemAgent } from './views.js';
 import { openSimulation, canSimulate } from './simulate.js';
 import { personPicker } from './picker.js';
 
-const TASK_LABEL = { todo: 'Not started', 'in-progress': 'In progress', blocked: 'Blocked', review: 'In review', done: 'Done' };
 const fprop = (name, el) => h('div', { class: 'fprop' }, h('div', { class: 'prop-name' }, name), el);
 const sideCard = (title, ...kids) => h('div', { class: 'card' }, h('div', { class: 'card-h' }, title), ...kids);
 const crumbs = (...parts) => h('div', { class: 'crumbs' }, h('button', { class: 'link-btn', onClick: closeFull }, '← Back'), ...parts.flatMap(p => [h('span', { class: 'muted' }, '/'), p]));
@@ -52,14 +51,6 @@ function fullInitiative(id) {
         i.approved && POOL.includes(i.tier) && !locked ? h('button', { class: 'btn sm pri', onClick: () => upd({ cycle: nx.n, rank: items().filter(x => x.cycle === nx.n).length + 1 }) }, `Add to ${nx.name}`) : null,
         i.tier === 'plan' && i.cycle === nx.n && !locked ? h('button', { class: 'btn sm', onClick: () => upd({ cycle: null, rank: null }) }, 'Remove from plan') : null)))
     )),
-        sideCard(`Milestones (${i.tasks.filter(t => t.status === 'done').length}/${i.tasks.length})`,
-          ...i.tasks.map(t => h('div', { class: 'ms-row' }, h('select', { class: 'chip-select', 'aria-label': 'Milestone status', onChange: e => act(() => api('PATCH', `/initiatives/${i.id}/tasks/${encodeURIComponent(t.id)}`, { status: e.target.value })) },
-            Object.entries(TASK_LABEL).map(([v, l]) => h('option', { value: v, selected: v === t.status }, l))), h('span', { style: t.status === 'done' ? 'text-decoration:line-through;color:var(--muted)' : '' }, t.title), t.due ? h('span', { class: 'muted small' }, 'due ' + t.due) : null)),
-          i.tasks.length ? null : muted('None yet. Add one with + Milestone.', 'small')),
-        sideCard('Links and pull requests',
-          ...i.links.map(l => h('a', { class: 'side-link', href: safeUrl(l.url), target: '_blank', rel: 'noopener noreferrer' }, l.label + ' ↗')), ...i.prs.map(p => h('a', { class: 'side-link', href: safeUrl(p.url), target: '_blank', rel: 'noopener noreferrer' }, 'PR · ' + p.title + ' ↗')),
-          i.links.length + i.prs.length ? null : muted('None yet.', 'small')),
-        sideCard('Latest updates', ...i.log.slice(0, 4).map(l => h('div', { class: 'upd' }, h('div', { class: 'muted small' }, l.ts.replace('T', ' ').replace('Z', ''), ' · ', l.source), h('div', {}, l.text))), i.log.length ? null : muted('Nothing logged.', 'small')),
         agent ? sideCard('Status agent', h('div', { class: 'agent' }, agent)) : null))));
 }
 
