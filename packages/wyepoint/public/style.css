@@ -166,3 +166,19 @@ main.wrap{padding:8px 12px 0}
 /* the brand: the owl lockup, as drawn */
 .brand-logo{height:38px;width:auto;display:block}
 .brand{margin-right:10px}
+
+/* ---- cards: a tinted ground and a thin line on the left; no other borders ---- */
+.card{background:#f5f7fb;border:0;border-left:2px solid var(--accent);border-radius:4px;padding:16px 18px}
+/* big blocks (a project, a section of a page) keep their hairline and stay flat; the small things are tinted */
+.main > .card,.cols > .card,.grid > .card{background:transparent;border:0;border-top:1px solid var(--line);border-radius:0;padding:18px 0 0}
+.tiles{border-top:0;gap:12px}
+.tiles .card,.tiles .card + .card{background:#f5f7fb;border:0;border-left:2px solid var(--accent);border-radius:4px;padding:14px 16px}
+.row{border:0;border-radius:6px;padding:10px 12px}
+.row:hover,button.row:hover{background:#eaeff7;border:0}
+.row.sel{background:#fff6dc;border:0;box-shadow:inset 3px 0 0 var(--accent)}
+.modal .card{border-left:0;border-radius:18px;background:#fff}
+.props{border:0}
+.drawer-head{border-bottom:0}
+.rich{border-top:0}
+.tb{border:0}
+.agent{background:#eaeff7}

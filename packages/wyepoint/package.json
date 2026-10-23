@@ -5,7 +5,7 @@
   "description": "WyePoint — cycle planning for projects and initiatives, stored in a Wye vault",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js --seed",
+    "dev": "node --watch server.js --seed",
     "build:editor": "vite build --config editor/vite.config.mjs",
     "test": "node --test test/"
   },

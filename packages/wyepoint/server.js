@@ -32,6 +32,24 @@ if (args.includes('--seed') && store.isEmpty()) require('./lib/seed')(store);
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.woff2': 'font/woff2', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
 const PUB = path.join(__dirname, 'public');
 
+// Hot reload for local work: a change under public/ tells every open page (an event stream, /__reload) to reload, or
+// to swap its stylesheet when only CSS changed. A change to the server's own code restarts it (`node --watch`, the
+// dev script) and the page, finding it back, reloads. On by default when only this machine can reach the server; off
+// when it is served publicly (WYEPOINT_DEV=1 or --watch turns it on anywhere).
+const live = args.includes('--watch') || process.env.WYEPOINT_DEV === '1' || (loopbackOnly && process.env.WYEPOINT_DEV !== '0');   // WYEPOINT_DEV=0 turns it off
+const watchers = new Set();
+if (live) {
+  let timer = 0, changed = new Set();
+  const flush = () => { const kind = [...changed].every(f => f.endsWith('.css')) ? 'css' : 'reload'; changed = new Set(); for (const res of watchers) res.write(`data: ${kind}\n\n`); };
+  try {
+    fs.watch(PUB, { recursive: true }, (_event, file) => {
+      if (!file || /\.(tmp|map)$/.test(file)) return;
+      changed.add(String(file)); clearTimeout(timer); timer = setTimeout(flush, 120);   // a build writes many files at once
+    });
+    setInterval(() => { for (const res of watchers) res.write(': still here\n\n'); }, 20000).unref();
+  } catch (e) { console.log(`hot reload is off: ${e.message}`); }
+}
+
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
 function readBody(req, limit = 1 << 20) {
   return new Promise((resolve, reject) => {
@@ -92,7 +110,7 @@ async function api(req, res, url) {
   const parts = url.pathname.split('/').slice(2).map(decodeURIComponent), method = req.method;
   const [a, b, c, d] = parts;
   if (method === 'GET' && a === 'state') return json(res, 200, state());
-  if (method === 'GET' && a === 'health') return json(res, 200, { ok: true });
+  if (method === 'GET' && a === 'health') return json(res, 200, { ok: true, live });
 
   // GitHub signs its own deliveries; everything else that changes something needs the token
   if (method === 'POST' && a === 'ingest' && b === 'github') {
@@ -179,6 +197,10 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('content-security-policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; frame-ancestors 'none'");
   if (publicUrl && req.headers['x-forwarded-proto'] === 'http') { res.writeHead(308, { location: new URL(req.url, publicUrl).href }); return res.end(); }
   try {
+    if (live && url.pathname === '/__reload') {
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
+      res.write(': connected\n\n'); watchers.add(res); req.on('close', () => watchers.delete(res)); return;
+    }
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
     serveStatic(res, url.pathname);

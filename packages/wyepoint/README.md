@@ -13,7 +13,13 @@ npm run build:editor             # once: bundles the block editor (needs the rep
 node server.js --seed            # http://127.0.0.1:4400, a sample vault in ~/.wye/data/products/wyepoint
 node server.js --vault ../../data/products/work -p 4400
 npm test
+npm run dev                      # the same, restarting when the server's code changes
 ```
+
+**Hot reload.** Run locally, the open page reloads when anything under `public/` changes (and swaps the stylesheet in
+place when only CSS did); under `npm run dev` it also reloads once the server is back after a restart for a change
+to its own code. It is off when the server is public (`--public`); `WYEPOINT_DEV=1` or `--watch` turns it on anywhere,
+`WYEPOINT_DEV=0` turns it off.
 
 ## What it does
 
