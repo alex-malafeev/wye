@@ -1,7 +1,7 @@
 // A project's page: its details over one page of its own — what it is, links, anything else — edited like an initiative.
 import { S, h, chip, bar, muted, api, act, render, openProject, openFull, openIt, openPerson, items, D } from './core.js';
 import { rich, prune } from './rich.js';
-import { itemRow, list } from './views.js';
+import { itemRow, list, listFilters } from './views.js';
 import { personPicker } from './picker.js';
 import { newInitiativePage } from './drawer.js';
 
@@ -15,6 +15,7 @@ export function projectDrawer(slug) {
   const mine = items().filter(i => i.project === p.slug), cy = mine.filter(i => i.tier === 'cycle');
   const avg = cy.length ? Math.round(cy.reduce((s, i) => s + i.progress, 0) / cy.length) : 0;
   const mix = {}; mine.forEach(i => { mix[i.statusLabel] = (mix[i.statusLabel] || 0) + 1; });
+  const flt = listFilters(`area:${p.slug}`, mine);
   const people = [...new Set(mine.flatMap(i => [i.owner, ...i.contributors]).filter(Boolean))];
   const key = `project:${p.slug}:body`;
   prune(k => k.startsWith(`project:${p.slug}:`) || k.startsWith('modal:'));
@@ -32,8 +33,9 @@ export function projectDrawer(slug) {
 
     page,
 
-    h('div', { class: 'stack' }, h('div', { class: 'hrow between' }, h('div', { class: 'lbl' }, `Projects (${mine.length})`),
-      h('button', { class: 'btn sm', onClick: () => newInitiativePage(p.slug) }, '+ New project')),
-      list(mine.map(i => itemRow(i, `${i.owner || 'No champion'} · ${i.cycle == null ? 'Backlog' : 'Cycle ' + i.cycle}`))), mine.length ? null : muted('No projects yet.', 'small')),
+    h('div', { class: 'stack' }, h('div', { class: 'hrow between' }, h('div', { class: 'lbl' }, flt.active ? `Projects (${flt.shown.length} of ${mine.length})` : `Projects (${mine.length})`),
+      h('div', { class: 'hrow', style: 'gap:6px;flex-wrap:nowrap' }, flt.icon, h('button', { class: 'btn sm', onClick: () => newInitiativePage(p.slug) }, '+ New project'))),
+      flt.panel,
+      list(flt.shown.map(i => itemRow(i, `${i.owner || 'No champion'} · ${i.cycle == null ? 'Backlog' : 'Cycle ' + i.cycle}`))), mine.length ? (flt.shown.length ? null : muted('Nothing matches these filters.', 'small')) : muted('No projects yet.', 'small')),
     h('div', { class: 'muted small' }, 'Stored in the vault as ', h('code', {}, `areas/${p.slug}/_area.md`), '.'));
 }

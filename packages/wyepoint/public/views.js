@@ -1,6 +1,7 @@
 // Overview, Projects, Backlog, People and the status-agent card. (Plan, History and Settings are in plan.js.)
 import { S, h, chip, bar, muted, label, opts, api, act, render, go, route, openIt, openFull, findKey, KEY_PATTERN, openPerson, openProject, safeUrl, items, cyc, D, fmtDate, range , goalStatus } from './core.js';
 import { newInitiativePage } from './drawer.js';
+import { dropdown } from './dropdown.js';
 
 const TIER_ORDER = { cycle: 0, plan: 1, next: 2, later: 3, icebox: 4, proposed: 5, carry: 6, done: 7 };
 const STATUS_ORDER = { 'off-track': 0, 'at-risk': 1, 'on-track': 2, 'not-started': 3, paused: 4, complete: 5 };
@@ -18,8 +19,7 @@ const personPill = n => h('button', { class: 'pill', onClick: () => openPerson(n
 // the cycle a project is in, to change where it is listed
 export const cycleSel = i => {
   const d = D(), list = [['', 'No cycle'], ...d.cycles.filter(c => c.status !== 'closed' || c.n === i.cycle).map(c => [String(c.n), c.status === 'active' ? `${c.name} · now` : c.n === d.nx ? `${c.name} · next` : c.name])];
-  return h('select', { class: 'cycle-sel' + (i.cycle == null ? '' : ' set'), 'aria-label': `Cycle of ${i.title}`, title: 'Cycle',
-    onChange: e => { const v = e.target.value; act(() => api('PATCH', `/initiatives/${i.id}`, v === '' ? { cycle: null, rank: null } : { cycle: +v, approved: true })); } }, opts(list, i.cycle == null ? '' : String(i.cycle)));
+  return dropdown(list, i.cycle == null ? '' : String(i.cycle), v => act(() => api('PATCH', `/initiatives/${i.id}`, v === '' ? { cycle: null, rank: null } : { cycle: +v, approved: true })), `Cycle of ${i.title}`, { compact: true });
 };
 export function itemRow(i, sub, selected) {
   // the layout of a project card's list: name and detail on the left; status, progress and its percentage on the right
@@ -45,6 +45,28 @@ export async function runItemAgent(id) {
   S.agents[id] = 'Thinking…'; S.modal = { kind: 'agent', id }; render();
   try { S.agents[id] = (await api('POST', '/agent/item', { id })).text; } catch (err) { S.agents[id] = err.message; }
   render();
+}
+
+// A list of projects with a filter icon: the icon opens a panel (search, status, champion, goal, cycle) over that list only.
+// `key` names the list, so each keeps its own filters. Returns the icon, the panel (when open) and the rows that pass.
+export function listFilters(key, rows) {
+  const all = (S.lf = S.lf || {}), f = all[key] || (all[key] = { open: false, q: '', status: '', champion: '', goal: '', cycle: '' });
+  const cycleOf = i => (i.cycle == null ? 'Backlog' : `Cycle ${i.cycle}`), uniq = a => [...new Set(a)].filter(Boolean).sort((x, y) => x.localeCompare(y, undefined, { numeric: true }));
+  const active = ['q', 'status', 'champion', 'goal', 'cycle'].filter(k => f[k]).length, q = f.q.trim().toLowerCase();
+  const shown = rows.filter(i => (!q || [i.title, i.key, i.owner, i.mission].join(' ').toLowerCase().includes(q)) && (!f.status || i.statusLabel === f.status) && (!f.champion || (i.owner || 'No champion') === f.champion)
+    && (!f.goal || (i.mission || 'No goal') === f.goal) && (!f.cycle || cycleOf(i) === f.cycle));
+  const funnel = document.createElement('span'); funnel.style.display = 'inline-flex';
+  funnel.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg>';
+  const icon = h('button', { type: 'button', class: 'icon-btn filter-btn' + (f.open || active ? ' on' : ''), title: 'Filters', 'aria-label': active ? `Filters (${active} on)` : 'Filters', 'aria-pressed': String(f.open), onClick: () => { f.open = !f.open; render(); } },
+    funnel, active ? h('span', { class: 'filter-badge' }, active) : null);
+  const field = (name, k, values) => h('div', { class: 'f' }, h('span', { class: 'lbl' }, name), dropdown([['', 'Any'], ...values.map(v => [v, v])], f[k], v => { f[k] = v; render(); }, name));
+  const panel = f.open ? h('div', { class: 'filter-panel' },
+    h('input', { class: 'field', type: 'search', 'data-k': `lf-q-${key}`, placeholder: 'Search these projects, or a key', 'aria-label': 'Search these projects', value: f.q, onInput: e => { f.q = e.target.value; render(); } }),
+    h('div', { class: 'filter-grid' }, field('Status', 'status', uniq(rows.map(i => i.statusLabel))), field('Champion', 'champion', uniq(rows.map(i => i.owner || 'No champion'))),
+      field('Goal', 'goal', uniq(rows.map(i => i.mission || 'No goal'))), field('Cycle', 'cycle', uniq(rows.map(cycleOf)))),
+    h('div', { class: 'hrow between' }, h('span', { class: 'muted small' }, `${shown.length} of ${rows.length}`),
+      active ? h('button', { class: 'link-btn', onClick: () => { Object.assign(f, { q: '', status: '', champion: '', goal: '', cycle: '' }); render(); } }, `Clear filters (${active})`) : null)) : null;
+  return { icon, panel, shown, active };
 }
 
 // ---- goals: a card each, with where it stands and the projects under it

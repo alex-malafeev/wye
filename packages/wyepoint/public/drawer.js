@@ -4,6 +4,7 @@ import { runItemAgent, runPortfolio } from './views.js';
 import { rich, prune } from './rich.js';
 import { openSimulation, canSimulate } from './simulate.js';
 import { personPicker } from './picker.js';
+import { dropdown } from './dropdown.js';
 import { safeUrl } from './core.js';
 
 export const BUCKETS = [['proposed', 'Proposed'], ['next', 'Next cycle'], ['later', 'Later'], ['icebox', 'Icebox']];
@@ -14,7 +15,7 @@ export const prop = (name, el) => h('div', { class: 'prop' }, h('div', { class: 
 // a project's goal: a choice among the goals, with a way to its page
 export const goalSel = (i, upd) => h('div', { class: 'stack', style: 'gap:2px' }, sel([['', 'No goal'], ...(D().goals || []).map(g => [g.slug, g.title])], i.goal || '', v => upd({ goal: v }), 'Goal'),
   i.goal ? h('button', { class: 'link-btn small', style: 'text-align:left', onClick: () => openFull('goal', i.goal) }, 'Open the goal ↗') : null);
-export const sel = (list, value, onChange, label) => h('select', { class: 'pfield', 'aria-label': label, onChange: e => onChange(e.target.value) }, opts(list, value));
+export const sel = (list, value, onChange, label) => dropdown(list.map(([v, l]) => [String(v), l]), String(value == null ? '' : value), onChange, label);
 export const txt = (value, onChange, label, ph = 'Empty') => h('input', { class: 'pfield', value, 'aria-label': label, placeholder: ph, onChange: e => onChange(e.target.value) });
 
 export function drawer(id) {

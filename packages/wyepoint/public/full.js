@@ -3,7 +3,7 @@
 import { S, h, chip, bar, muted, safeUrl, GOAL_STATUS, goalStatus, api, act, render, go, openFull, openIt, openProject, openPerson, closeFull, items, cyc, D } from './core.js';
 import { rich, prune } from './rich.js';
 import { sel, txt, BUCKETS, POOL, newInitiativePage, goalSel } from './drawer.js';
-import { runItemAgent, itemRow } from './views.js';
+import { runItemAgent, itemRow, listFilters } from './views.js';
 import { openSimulation, canSimulate } from './simulate.js';
 import { personPicker } from './picker.js';
 
@@ -62,6 +62,7 @@ function fullProject(slug) {
   if (!p) return missing('Area');
   const upd = patch => act(() => api('PATCH', `/projects/${p.slug}`, patch));
   const mine = items().filter(i => i.project === p.slug), cy = mine.filter(i => i.tier === 'cycle');
+  const flt = listFilters(`area:${p.slug}`, mine);
   const avg = cy.length ? Math.round(cy.reduce((s, i) => s + i.progress, 0) / cy.length) : 0;
   const mix = {}; mine.forEach(i => { mix[i.statusLabel] = (mix[i.statusLabel] || 0) + 1; });
   const people = [...new Set(mine.flatMap(i => [i.owner, ...i.contributors]).filter(Boolean))];
@@ -75,8 +76,8 @@ function fullProject(slug) {
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip('s-none', `${mine.length} project${mine.length === 1 ? '' : 's'}`), chip('s-none', `${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => chip('s-none', `${n} ${l.toLowerCase()}`))),
     h('div', { class: 'fmain' }, page,
-      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h' }, `Projects (${mine.length})`),
-        h('div', { class: 'mini-list' }, ...mine.map(it => itemRow(it, `${it.owner || 'No champion'} · ${it.cycle == null ? it.tierLabel : 'Cycle ' + it.cycle}${it.effort ? ' · ' + it.effort : ''}`)), mine.length ? null : muted('No projects yet. Use + New project.', 'small'))))),
+      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h hrow between' }, flt.active ? `Projects (${flt.shown.length} of ${mine.length})` : `Projects (${mine.length})`, flt.icon), flt.panel,
+        h('div', { class: 'mini-list' }, ...flt.shown.map(it => itemRow(it, `${it.owner || 'No champion'} · ${it.cycle == null ? it.tierLabel : 'Cycle ' + it.cycle}${it.effort ? ' · ' + it.effort : ''}`)), mine.length ? (flt.shown.length ? null : muted('Nothing matches these filters.', 'small')) : muted('No projects yet. Use + New project.', 'small'))))),
       h('aside', { class: 'panel fside' },
         sideCard('Properties', h('div', { class: 'fprops' }, fprop('Owner', personPicker({ value: p.owner, onChange: v => upd({ owner: v }), placeholder: 'No owner', label: 'Owner' })),
           fprop('Progress', h('div', { class: 'fval' }, h('div', { class: 'fval-line' }, h('b', {}, avg + '%'), h('span', { class: 'muted small' }, 'Average of the active cycle')), bar(avg, cy.some(i => i.status === 'off-track')))))),
@@ -89,7 +90,7 @@ function fullGoal(slug) {
   const g = (D().goals || []).find(x => x.slug === slug);
   if (!g) return missing('Goal');
   const upd = patch => act(() => api('PATCH', `/goals/${g.slug}`, patch));
-  const mine = items().filter(i => i.goal === g.slug), [, label, cls] = goalStatus(g.status), key = `goal:${g.slug}:body`;
+  const mine = items().filter(i => i.goal === g.slug), flt = listFilters(`goal:${g.slug}`, items().filter(i => i.goal === g.slug)), [, label, cls] = goalStatus(g.status), key = `goal:${g.slug}:body`;
   prune(k => k.startsWith(`goal:${g.slug}:`) || k.startsWith('modal:'));
   const page = rich(key, g.body, md => upd({ body: md }), { minHeight: 160, kinds: ['link', 'update'], scope: `goal-${g.slug}`, project: '' });
   const remove = () => { if (window.confirm(`Delete the goal "${g.title}"? Its page is removed; projects must be moved first.`)) act(async () => { await api('DELETE', `/goals/${g.slug}`); go('goals'); }); };
@@ -99,8 +100,8 @@ function fullGoal(slug) {
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, h('span', { class: 'key-chip', title: 'Global id: #/k/' + g.key }, g.key), chip(cls, label), chip('s-none', `${mine.length} project${mine.length === 1 ? '' : 's'}`)),
     h('div', { class: 'fmain' }, page,
-      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h' }, `Projects (${mine.length})`),
-        h('div', { class: 'mini-list' }, ...mine.map(it => itemRow(it)), mine.length ? null : muted('No projects under this goal yet. Set the Goal on a project to put it here.', 'small'))))),
+      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h hrow between' }, flt.active ? `Projects (${flt.shown.length} of ${mine.length})` : `Projects (${mine.length})`, flt.icon), flt.panel,
+        h('div', { class: 'mini-list' }, ...flt.shown.map(it => itemRow(it)), mine.length ? (flt.shown.length ? null : muted('Nothing matches these filters.', 'small')) : muted('No projects under this goal yet. Set the Goal on a project to put it here.', 'small'))))),
     h('aside', { class: 'panel fside' },
       sideCard('Properties', h('div', { class: 'fprops' },
         fprop('Status', sel(GOAL_STATUS.map(x => [x[0], x[1]]), g.status, v => upd({ status: v }), 'Status')),

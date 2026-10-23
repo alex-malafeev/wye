@@ -8,6 +8,8 @@ export function personPicker({ value, multi = false, onChange, placeholder = '',
   const has = n => chosen.some(c => c.toLowerCase() === n.toLowerCase());
   const input = h('input', { class: 'pfield picker-input', placeholder: chosen.length && multi ? 'Add another' : placeholder, 'aria-label': label, autocomplete: 'off', role: 'combobox', 'aria-expanded': 'false', value: multi ? '' : (value || '') });
   const menu = h('div', { class: 'picker-menu', role: 'listbox' }); menu.hidden = true;
+  const asChip = !multi && !!value;                                   // one person, chosen: a chip, and the lookup only once it is clicked
+  if (asChip) input.hidden = true;
   let options = [], at = 0, committed = false;
 
   const commit = raw => {
@@ -47,10 +49,12 @@ export function personPicker({ value, multi = false, onChange, placeholder = '',
     else if (e.key === 'Backspace' && multi && !input.value && chosen.length) onChange(chosen.slice(0, -1));
   });
   // leaving the field with a name typed in uses it, so nothing typed is lost; leaving a single field empty clears it
-  input.addEventListener('blur', () => { close(); if (!committed) { if (multi) { if (input.value.trim()) commit(input.value); } else commit(input.value); } });
+  input.addEventListener('blur', () => { close(); if (!committed) { if (multi) { if (input.value.trim()) commit(input.value); } else commit(input.value); } if (asChip) { chipEl.hidden = false; input.hidden = true; input.value = value; } });
 
-  const root = h('div', { class: 'picker' + (multi ? ' multi' : '') },
+  const chipEl = asChip ? h('span', { class: 'pchip' }, h('button', { type: 'button', class: 'pchip-name', title: `Change ${label.toLowerCase()}`, 'aria-label': `Change ${label.toLowerCase()}: ${value}`, onClick: () => { chipEl.hidden = true; input.hidden = false; committed = false; input.focus(); input.select(); open(); } }, value),
+    h('button', { type: 'button', 'aria-label': `Remove ${value}`, onClick: () => onChange('') }, '✕')) : null;
+  const root = h('div', { class: 'picker' + (multi || asChip ? ' multi' : '') },
     ...(multi ? chosen.map(n => h('span', { class: 'pchip' }, n, h('button', { type: 'button', 'aria-label': `Remove ${n}`, onClick: () => onChange(chosen.filter(c => c !== n)) }, '✕'))) : []),
-    input, menu);
+    chipEl, input, menu);
   return root;
 }

@@ -502,3 +502,33 @@ main.wrap{padding:8px 12px 0}
 .tl-row .hist-dot{margin-top:7px}
 .tl-link{display:block;text-align:left;border:0;background:transparent;font:inherit;color:inherit;padding:0;cursor:pointer}
 .tl-link:hover b,.tl-link:hover div:first-child{text-decoration:underline}
+
+.pchip .pchip-name{background:transparent;border:0;padding:0;margin:0;font:inherit;color:inherit;cursor:pointer}
+.pchip .pchip-name:hover{text-decoration:underline}
+
+/* the dropdown: a button that reads like a field, and a menu under it */
+.dd{position:relative;display:block;min-width:0}
+.dd-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer;color:var(--ink);width:100%}
+.dd-val{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-caret{flex:none;color:var(--muted);font-size:15px;line-height:1;transform:translateY(-2px);opacity:0}
+.dd-btn:hover .dd-caret,.dd-btn:focus-visible .dd-caret,.dd-btn[aria-expanded=true] .dd-caret{opacity:1}
+.dd-btn[aria-expanded=true]{background:#fff;border-color:var(--line2)}
+.dd-menu{position:fixed;z-index:80;max-height:300px;overflow-y:auto;background:#fff;border:1px solid var(--line2);border-radius:10px;box-shadow:0 10px 28px rgba(20,24,31,.2);padding:6px}
+.dd-opt{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:6px;font-size:14px;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.dd-opt.on{background:#eef2f8}
+.dd-check{width:14px;flex:none;color:#1d7a3f;font-weight:700}
+.dd-btn.compact{width:auto;flex:none;height:30px;min-height:30px;padding:0 6px 0 9px;font-size:13px;color:var(--muted);background:transparent;border:1px solid transparent;border-radius:6px;max-width:150px}
+.dd-btn.compact .dd-caret{opacity:.6}
+.dd-btn.compact:hover,.dd-btn.compact[aria-expanded=true]{background:#fff;border-color:var(--line2);color:var(--ink)}
+
+.pchip[hidden],.picker input[hidden]{display:none !important}
+
+/* the filter icon and its panel */
+.filter-btn{position:relative;flex:none;width:34px;height:34px;border:1px solid var(--line2);background:#fff;border-radius:8px;color:var(--ink)}
+.filter-btn.on{background:var(--accent-tint,#fff4d9);border-color:var(--accent-line,#f0c36a)}
+.filter-badge{position:absolute;top:-6px;right:-6px;min-width:17px;height:17px;border-radius:9px;background:#201600;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.filter-panel{display:flex;flex-direction:column;gap:12px;padding:14px;margin:8px 0;border:1px solid var(--line);border-radius:10px;background:#f8f9fb}
+.filter-panel .field{width:100%;box-sizing:border-box;background:#fff}
+.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.filter-panel .dd-btn{border-color:var(--line2);background:#fff}
+.fsec-h.hrow{align-items:center}
