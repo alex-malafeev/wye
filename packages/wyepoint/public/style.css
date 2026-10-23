@@ -397,3 +397,6 @@ main.wrap{padding:8px 12px 0}
 .fside .fprop .picker.multi .picker-input{min-width:60px;flex:1 1 60px;height:24px;padding:0 4px;border:0}
 .fside .fprop .picker{width:100%}
 .fside .fprops{align-items:stretch}
+.fside .fprop .pfield,.fside .fprop .picker.multi{border-color:transparent;background:transparent}
+.fside .fprop .pfield:hover,.fside .fprop .picker.multi:hover,.fside .fprop .pfield:focus,.fside .fprop .picker.multi:focus-within{border-color:var(--line2);background:#fff}
+.fside .fprop select.pfield:not(:hover):not(:focus){appearance:none;-webkit-appearance:none}
