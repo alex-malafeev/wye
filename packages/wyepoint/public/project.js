@@ -2,6 +2,7 @@
 import { S, h, chip, bar, muted, api, act, render, openProject, openFull, openIt, openPerson, items, D } from './core.js';
 import { rich, prune, insertInto } from './rich.js';
 import { itemRow, list } from './views.js';
+import { personPicker } from './picker.js';
 
 const prop = (name, el) => h('div', { class: 'prop' }, h('div', { class: 'prop-name' }, name), h('div', { class: 'prop-val' }, el));
 
@@ -24,7 +25,7 @@ export function projectDrawer(slug) {
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip('s-none', `${mine.length} initiative${mine.length === 1 ? '' : 's'}`), chip('s-none', `${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => chip('s-none', `${n} ${l.toLowerCase()}`))),
     h('div', { class: 'props' },
-      prop('Owner', h('input', { class: 'pfield', value: p.owner, placeholder: 'No owner', 'aria-label': 'Owner', onChange: e => upd({ owner: e.target.value }) })),
+      prop('Owner', personPicker({ value: p.owner, onChange: v => upd({ owner: v }), placeholder: 'No owner', label: 'Owner' })),
       prop('Progress', h('div', {}, h('div', { class: 'hrow between small', style: 'flex-wrap:nowrap' }, h('span', { class: 'muted' }, 'Average of the active cycle'), h('b', {}, avg + '%')), bar(avg, cy.some(i => i.status === 'off-track')))),
       people.length ? prop('People', h('div', { class: 'hrow' }, ...people.map(n => h('button', { class: 'pill', onClick: () => openPerson(n) }, n)))) : null),
 

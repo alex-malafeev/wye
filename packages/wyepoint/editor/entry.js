@@ -30,6 +30,31 @@ const field = (cls, value, placeholder, commit, label, type = 'text') => e('inpu
   onBlur: ev => { if (ev.target.value !== value) commit(ev.target.value); }, onKeyDown: ev => { if (ev.key === 'Enter') { ev.preventDefault(); ev.target.blur(); } },
 });
 
+// a person lookup: type a name, pick from the directory (a name that is not in it can still be used as typed).
+// `slugs`: the value is a person:slug reference (a field of a type) rather than a name
+function PersonField({ value, onCommit, label, slugs = false, className = 'tb-small' }) {
+  const shown = slugs ? (CTX.people.find(p => `person:${p.slug}` === value) || {}).name || '' : value;
+  const [text, setText] = useState(shown), [open, setOpen] = useState(false), [at, setAt] = useState(0);
+  useEffect(() => setText(shown), [shown]);
+  const q = text.trim().toLowerCase();
+  const found = CTX.people.filter(p => !q || p.name.toLowerCase().includes(q)).slice(0, 6);
+  const typed = q && !CTX.people.some(p => p.name.toLowerCase() === q) && !slugs;
+  const options = [...found.map(p => ({ label: p.name, value: slugs ? `person:${p.slug}` : p.name })), ...(typed ? [{ label: `Use “${text.trim()}”`, value: text.trim() }] : [])];
+  const done = v => { setOpen(false); if (v !== value) onCommit(v); };
+  return e('span', { className: 'tb-picker', contentEditable: false },
+    e('input', { className, value: text, placeholder: label.toLowerCase(), 'aria-label': label, autoComplete: 'off', spellCheck: false, role: 'combobox', 'aria-expanded': open,
+      onFocus: ev => { ev.target.select(); setOpen(true); setAt(0); },
+      onChange: ev => { setText(ev.target.value); setOpen(true); setAt(0); },
+      onBlur: () => { setOpen(false); const t = text.trim(); if (!t) done(''); else if (!slugs) done(t); else setText(shown); },
+      onKeyDown: ev => {
+        if (ev.key === 'ArrowDown') { ev.preventDefault(); setOpen(true); setAt(Math.min(at + 1, options.length - 1)); }
+        else if (ev.key === 'ArrowUp') { ev.preventDefault(); setAt(Math.max(at - 1, 0)); }
+        else if (ev.key === 'Enter') { ev.preventDefault(); const o = open && options[at]; if (o) done(o.value); ev.target.blur(); }
+        else if (ev.key === 'Escape') { setText(shown); setOpen(false); ev.target.blur(); }
+      } }),
+    open && options.length ? e('div', { className: 'tb-menu', role: 'listbox' }, options.map((o, k) => e('div', { key: o.value, role: 'option', className: 'tb-opt' + (k === at ? ' on' : ''), onMouseDown: ev => { ev.preventDefault(); done(o.value); } }, o.label))) : null);
+}
+
 const Milestone = createReactBlockSpec(
   { type: 'milestone', propSchema: { mid: { default: '' }, status: { default: 'todo' }, owner: { default: '' }, due: { default: '' } }, content: 'inline' },
   { render: ({ block, editor, contentRef }) => {
@@ -37,7 +62,7 @@ const Milestone = createReactBlockSpec(
     return e('div', { className: `tb tb-milestone st-${p.status}` },
       e('select', { className: 'tb-status', value: p.status, contentEditable: false, 'aria-label': 'Milestone status', onChange: ev => set({ status: ev.target.value }) }, STATUSES.map(([v, l]) => e('option', { key: v, value: v }, l))),
       e('div', { className: 'tb-title', ref: contentRef }),
-      field('tb-small', p.owner, 'owner', v => set({ owner: v }), 'Owner'),
+      e(PersonField, { value: p.owner, onCommit: v => set({ owner: v }), label: 'Owner' }),
       field('tb-small tb-date', p.due, 'due YYYY-MM-DD', v => set({ due: v }), 'Due date'));
   } },
 );
@@ -64,7 +89,7 @@ const control = (f, value, commit) => {
   const key = `${f.name}:${value}`;
   if (f.kind === 'bool') return e('input', { key, type: 'checkbox', checked: value === 'true', 'aria-label': f.name, contentEditable: false, onChange: ev => commit(ev.target.checked ? 'true' : '') });
   if (f.kind === 'choice') return e('select', { key, value, 'aria-label': f.name, contentEditable: false, onChange: ev => commit(ev.target.value) }, [e('option', { key: '', value: '' }, '–'), ...f.options.map(o => e('option', { key: o, value: o }, o))]);
-  if (f.kind === 'person') return e('select', { key, value, 'aria-label': f.name, contentEditable: false, onChange: ev => commit(ev.target.value) }, [e('option', { key: '', value: '' }, '–'), ...CTX.people.map(p => e('option', { key: p.slug, value: `person:${p.slug}` }, p.name))]);
+  if (f.kind === 'person') return e(PersonField, { key, value, onCommit: commit, label: f.name, slugs: true, className: 'tb-fval' });
   return field('tb-fval', value, '–', commit, f.name, f.kind === 'number' ? 'number' : f.kind === 'date' ? 'date' : 'text');
 };
 const Typed = createReactBlockSpec(

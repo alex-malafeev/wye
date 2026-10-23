@@ -87,7 +87,7 @@ export function modal() {
       ? [field('Page', rich('modal:body', v.body, md => { v.body = md; }, { minHeight: 200, scope: 'new' })), h('div', { class: 'hrow' },
         field('Effort', h('select', { class: 'field', onChange: e => { v.effort = e.target.value; } }, opts([['', 'Unsized'], ...d.enums.efforts.map(s => [s, s])], v.effort))),
         field('Mission', input('mission'), '1 1 140px'), h('label', { class: 'f', style: 'flex:1 1 200px' }, h('span', { class: 'lbl' }, 'Champion'), personPicker({ value: v.owner, onChange: n => { v.owner = n; render(); }, placeholder: 'Start typing a name', label: 'Champion' })))]
-      : [field('Description', h('textarea', { class: 'field', style: 'min-height:70px', onInput: e => { v.description = e.target.value; } }, v.description)), field('Owner', input('owner'))],
+      : [field('Description', h('textarea', { class: 'field', style: 'min-height:70px', onInput: e => { v.description = e.target.value; } }, v.description)), h('label', { class: 'f' }, h('span', { class: 'lbl' }, 'Owner'), personPicker({ value: v.owner, onChange: n => { v.owner = n; }, placeholder: 'No owner', label: 'Owner' }))],
     h('button', { class: 'btn pri', onClick: submit }, 'Create')));
 }
 

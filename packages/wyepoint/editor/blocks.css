@@ -53,3 +53,8 @@
 .draw-btn:disabled{opacity:.55;cursor:default}
 .draw-canvas{position:relative;flex:1 1 auto;min-height:0}
 .draw-loading{padding:40px;color:#5b6573}
+
+.tb-picker { position: relative; display: inline-flex; flex: none; }
+.tb-menu { position: absolute; top: 100%; left: 0; z-index: 30; min-width: 160px; margin-top: 2px; background: #fff; border: 1px solid var(--line2, #cfd6df); border-radius: 6px; box-shadow: 0 6px 18px rgba(20,30,50,.14); padding: 3px; }
+.tb-opt { padding: 5px 8px; border-radius: 4px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.tb-opt.on, .tb-opt:hover { background: #eef1f6; }

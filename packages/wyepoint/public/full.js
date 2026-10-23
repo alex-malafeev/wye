@@ -85,7 +85,7 @@ function fullProject(slug) {
       h('div', { class: 'fmain' }, h('div', { class: 'page-bar' }, h('div', { class: 'lbl' }, 'Page'), h('div', { class: 'hrow', style: 'gap:4px' }, h('span', { class: 'muted small' }, 'Type / for blocks ·'),
         ...[['link', 'Link'], ['update', 'Update'], ['drawing', 'Drawing'], ...D().types.map(t => ['type:' + t.slug, t.name])].map(([k, l]) => h('button', { class: 'btn sm', onClick: () => insertInto(key, k) }, '+ ' + l)))), page),
       h('aside', { class: 'fside' },
-        sideCard('Properties', h('div', { class: 'fprops' }, fprop('Owner', h('input', { class: 'pfield', value: p.owner, placeholder: 'No owner', 'aria-label': 'Owner', onChange: e => upd({ owner: e.target.value }) })))),
+        sideCard('Properties', h('div', { class: 'fprops' }, fprop('Owner', personPicker({ value: p.owner, onChange: v => upd({ owner: v }), placeholder: 'No owner', label: 'Owner' })))),
         sideCard('Progress', h('div', { class: 'big' }, avg + '%'), bar(avg, cy.some(i => i.status === 'off-track')), muted('Average of the active cycle', 'small')),
         sideCard(`Initiatives (${mine.length})`, ...mine.map(i => h('button', { class: 'side-row', onClick: () => openIt(i.id) }, h('span', { class: 'side-row-main' }, h('b', {}, i.title), h('span', { class: 'muted small' }, `${i.owner || 'No champion'} · ${i.cycle == null ? i.tierLabel : 'Cycle ' + i.cycle}`)), chip(i.statusClass, i.statusLabel))), mine.length ? null : muted('No initiatives yet.', 'small')),
         sideCard('Links', ...p.links.map(l => h('a', { class: 'side-link', href: safeUrl(l.url), target: '_blank', rel: 'noopener noreferrer' }, l.label + ' ↗')), p.links.length ? null : muted('None yet. Add one with + Link.', 'small')),
