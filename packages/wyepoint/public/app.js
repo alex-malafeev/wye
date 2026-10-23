@@ -2,7 +2,7 @@
 import { S, TABS, h, muted, load, route, go, render, setRenderer, cyc, items, range, fmtDate } from './core.js';
 import { overview, projects, backlog, people, runPortfolio } from './views.js';
 import { plan, history, settings } from './plan.js';
-import { drawer, modal } from './drawer.js';
+import { drawer, modal, newInitiativePage } from './drawer.js';
 import { projectDrawer } from './project.js';
 import { fullView } from './full.js';
 import { personDrawer } from './person.js';
@@ -34,7 +34,7 @@ function cycleProgress(d, A) {
 }
 
 // a new initiative goes in the first project; with no project yet, the dialog starts with a project
-const newInitiative = d => () => { const p = d.projects[0]; S.modal = p ? { kind: 'initiative', project: p.slug } : { kind: 'project' }; S.err = ''; render(); };
+const newInitiative = () => () => newInitiativePage(route().project || (route().full && route().full.kind === 'project' ? route().full.id : ''));
 
 // where the cycle is: shown on the overview only
 function cyclePill(d, A) {
@@ -64,7 +64,6 @@ function header(view, d, A) {
     h('a', { class: 'brand', href: '#/overview', 'aria-label': 'WyePoint home' }, h('img', { class: 'brand-logo', src: '/wyepoint-logo.svg', alt: d.config.title })),
     h('nav', { class: 'tabs', 'aria-label': 'Pages' }, TABS.filter(t => t[0] !== 'settings').map(([k, l]) => h('button', { class: 'tab' + (k === view ? ' on' : ''), 'aria-current': k === view ? 'page' : null, onClick: () => go(k) }, l))),
     h('div', { class: 'top-right' },
-      h('button', { class: 'btn', onClick: runPortfolio }, h('img', { class: 'btn-owl', src: '/owl.svg', alt: '' }), 'Status agent'),
       h('button', { class: 'icon-btn' + (view === 'settings' ? ' on' : ''), title: 'Settings', 'aria-label': 'Settings', 'aria-current': view === 'settings' ? 'page' : null, onClick: () => go('settings') },
         gear()))));
 }
@@ -84,7 +83,7 @@ function draw() {
   const { view, open, project, person, full } = route(), d = S.data, A = cyc(d.active), isFull = view === 'full';
   if (!open && !project && !person && !isFull) prune(k => k.startsWith('modal:'));
   // a re-render replaces the DOM: keep the drawer's scroll and the field the person is typing in
-  const old = app.querySelector('.drawer'), scroll = old ? old.scrollTop : 0, a = document.activeElement, key = a && a.dataset && a.dataset.k, pos = a && a.selectionStart;
+  const wasOpen = !!app.querySelector('.scrim, .modal'), old = app.querySelector('.drawer'), scroll = old ? old.scrollTop : 0, a = document.activeElement, key = a && a.dataset && a.dataset.k, pos = a && a.selectionStart;
   document.title = `${d.config.title} · ${isFull ? 'Full view' : TABS.find(t => t[0] === view)[1]}`;
   app.replaceChildren(...[
     header(view, d, A),
@@ -92,9 +91,12 @@ function draw() {
       h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, TABS.find(t => t[0] === view)[1]), h('div', { class: 'muted' }, subtitle(view, d, A))),
         view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New initiative') : null),
       h('div', { class: 'main' }, S.err && !open && !project && !person && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](), footnote(d)))),
+    h('button', { class: 'fab', title: 'Status agent: a briefing on the whole portfolio', 'aria-label': 'Status agent', onClick: runPortfolio }, h('img', { src: '/owl.svg', alt: '' })),
     !isFull && open ? drawer(open) : !isFull && project ? projectDrawer(project) : !isFull && person ? personDrawer(person) : null, modal(), simulateModal(),
   ].filter(Boolean));
   const dr = app.querySelector('.drawer'); if (dr) dr.scrollTop = scroll;
+  if (wasOpen) app.querySelectorAll('.scrim, .modal').forEach(x => x.classList.add('settled'));   // already open: a redraw is not an opening, so it does not animate again
+  if (S.focusTitle) { const t = app.querySelector('.full-title'); if (t) { S.focusTitle = false; t.focus(); t.select(); } }   // a new initiative: type over its title
   if (key) { const el = app.querySelector(`[data-k="${key}"]`); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch { /* selects have no range */ } } }
 }
 

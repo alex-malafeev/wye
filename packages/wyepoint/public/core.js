@@ -67,7 +67,7 @@ export function go(view, open, project, person) {
 }
 // opening an initiative or a project from a full view goes to its full view; from anywhere else, to a drawer over the page
 export const openFull = (kind, id) => { location.hash = `#/${kind === 'initiative' ? 'i' : 'p'}/${id}`; };
-export const openIt = id => { const r = route(); if (id && r.view === 'backlog') return openFull('initiative', id);   // the backlog always opens an item full screen
+export const openIt = id => { const r = route(); if (id && (r.view === 'backlog' || r.view === 'projects')) return openFull('initiative', id);   // the backlog and the initiatives page open an item full screen
   if (r.view === 'full') { if (id) openFull('initiative', id); else history.back(); } else go(r.view, id); };
 export const openProject = slug => { const r = route(); if (r.view === 'full') { if (slug) openFull('project', slug); else history.back(); } else go(r.view, null, slug); };   // null closes it
 // leaving a full view: back to where it was opened from, or to the backlog if it was opened directly

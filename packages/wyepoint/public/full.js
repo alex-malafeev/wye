@@ -2,7 +2,7 @@
 // left, and cards that stay in view on the right (progress, checks, planning, milestones, links, updates).
 import { S, h, chip, bar, muted, safeUrl, api, act, render, go, openFull, openIt, openProject, openPerson, closeFull, items, cyc, D } from './core.js';
 import { rich, prune } from './rich.js';
-import { sel, txt, BUCKETS, POOL } from './drawer.js';
+import { sel, txt, BUCKETS, POOL, newInitiativePage } from './drawer.js';
 import { runItemAgent } from './views.js';
 import { openSimulation, canSimulate } from './simulate.js';
 import { personPicker } from './picker.js';
@@ -69,7 +69,7 @@ function fullProject(slug) {
   const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 520, kinds: ['link', 'update'], scope: `${p.slug}`, project: p.slug });
   return h('main', { class: 'wrap' }, h('div', { class: 'fwrap' }, h('div', { class: 'panel full' },
     crumbs([h('button', { class: 'link-btn', onClick: () => go('projects') }, 'Initiatives'), h('span', {}, p.title)],
-      [h('button', { class: 'btn', onClick: () => { S.modal = { kind: 'initiative', project: p.slug }; S.err = ''; render(); } }, '+ New initiative')]),
+      [h('button', { class: 'btn', onClick: () => newInitiativePage(p.slug) }, '+ New initiative')]),
     h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: p.title, 'aria-label': 'Project name', onChange: e => upd({ title: e.target.value }) })),
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip('s-none', `${mine.length} initiative${mine.length === 1 ? '' : 's'}`), chip('s-none', `${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => chip('s-none', `${n} ${l.toLowerCase()}`))),

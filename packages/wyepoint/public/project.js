@@ -3,6 +3,7 @@ import { S, h, chip, bar, muted, api, act, render, openProject, openFull, openIt
 import { rich, prune } from './rich.js';
 import { itemRow, list } from './views.js';
 import { personPicker } from './picker.js';
+import { newInitiativePage } from './drawer.js';
 
 const prop = (name, el) => h('div', { class: 'prop' }, h('div', { class: 'prop-name' }, name), h('div', { class: 'prop-val' }, el));
 
@@ -32,7 +33,7 @@ export function projectDrawer(slug) {
     page,
 
     h('div', { class: 'stack' }, h('div', { class: 'hrow between' }, h('div', { class: 'lbl' }, `Initiatives (${mine.length})`),
-      h('button', { class: 'btn sm', onClick: () => { S.modal = { kind: 'initiative', project: p.slug }; S.err = ''; render(); } }, '+ New initiative')),
+      h('button', { class: 'btn sm', onClick: () => newInitiativePage(p.slug) }, '+ New initiative')),
       list(mine.map(i => itemRow(i, `${i.owner || 'No champion'} · ${i.cycle == null ? 'Backlog' : 'Cycle ' + i.cycle}`))), mine.length ? null : muted('No initiatives yet.', 'small')),
     h('div', { class: 'muted small' }, 'Stored in the vault as ', h('code', {}, `projects/${p.slug}/_project.md`), '.'));
 }

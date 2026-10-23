@@ -92,3 +92,9 @@
 .tb-notes{display:flex;flex-direction:column;gap:6px;border-top:1px solid #e6e9ef;padding-top:12px;margin-top:4px;flex:1 1 auto;min-height:240px}
 .tb-notes-label{font-size:12px;font-weight:600;letter-spacing:.02em;color:#4a5565}
 .tb-notes .bn-container{flex:1 1 auto}.tb-notes .bn-editor{padding-inline:0;font-family:inherit;min-height:200px}
+
+@keyframes tb-fade{from{opacity:0}to{opacity:1}}
+@keyframes tb-slide{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.tb-overlay{animation:tb-fade .2s ease-out}
+.tb-drawer{animation:tb-slide .24s cubic-bezier(.2,.8,.2,1)}
+@media (prefers-reduced-motion:reduce){.tb-overlay,.tb-drawer{animation:none}}

@@ -1,5 +1,6 @@
 // Overview, Projects, Backlog, People and the status-agent card. (Plan, History and Settings are in plan.js.)
 import { S, h, chip, bar, muted, label, opts, api, act, render, go, route, openIt, openPerson, openProject, safeUrl, items, cyc, D, fmtDate, range } from './core.js';
+import { newInitiativePage } from './drawer.js';
 
 const TIER_ORDER = { cycle: 0, plan: 1, next: 2, later: 3, icebox: 4, proposed: 5, carry: 6, done: 7 };
 const STATUS_ORDER = { 'off-track': 0, 'at-risk': 1, 'on-track': 2, 'not-started': 3, paused: 4, complete: 5 };
@@ -125,7 +126,7 @@ export function projects() {
         h('div', { class: 'hrow' }, STATUS_LABELS.filter(l => mix[l]).map(l => chip(statusClassOf(l), `${mix[l]} ${l.toLowerCase()}`))),
         muted('People: ' + top, 'small'),
         miniList(all.filter(i => i.status !== 'complete' && i.tier !== 'done').sort((a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || (a.rank ?? 999) - (b.rank ?? 999)), () => openProject(p.slug)),
-        h('div', { class: 'hrow' }, h('button', { class: 'btn', onClick: () => { Object.assign(S.f, { q: '', project: p.slug, status: '', tier: '' }); go('backlog'); } }, 'Open in backlog'), h('button', { class: 'btn', onClick: () => { S.modal = { kind: 'initiative', project: p.slug }; S.err = ''; render(); } }, 'New initiative')));
+        h('div', { class: 'hrow' }, h('button', { class: 'btn', onClick: () => { Object.assign(S.f, { q: '', project: p.slug, status: '', tier: '' }); go('backlog'); } }, 'Open in backlog'), h('button', { class: 'btn', onClick: () => newInitiativePage(p.slug) }, 'New initiative')));
     })),
     d.projects.length ? null : muted('No projects yet. Create one to start adding initiatives.'),
   ];
@@ -146,8 +147,29 @@ export function backlog() {
   const sortKeys = (keys, dim) => dim === 'status' ? keys.sort((a, b) => STATUS_LABELS.indexOf(a) - STATUS_LABELS.indexOf(b)) : dim === 'effort' ? keys.sort((a, b) => (EFFORT_ORDER[a] || 9) - (EFFORT_ORDER[b] || 9)) : keys.sort();
   const gy = groupMap(S.gy), yKeys = sortKeys(gy.order.slice(), S.gy);
   // a compact toolbar: a search box and small dropdown pills that show their name until something is chosen
-  const pill = (key, name, list, value, set) => h('label', { class: 'fsel' + (value ? ' active' : ''), title: name },
-    h('select', { 'data-k': key, 'aria-label': name, onChange: e => { set(e.target.value); render(); } }, opts([['', name], ...list], value)));
+  const pill = (key, name, list, value, set) => {
+    const open = !!S.lk && S.lk.key === key, q = open ? S.lk.q.trim().toLowerCase() : '';
+    const cur = (list.find(x => x[0] === value) || [])[1];
+    const found = open ? list.filter(x => String(x[1]).toLowerCase().includes(q)) : [];
+    const rows = open ? [...(q ? [] : [['', `Any ${name.toLowerCase()}`]]), ...found] : [];
+    const commit = v => { set(v); S.lk = null; render(); };
+    const input = open ? h('input', { class: 'lk-search', type: 'search', 'data-k': 'lk-q', value: S.lk.q, placeholder: `Search ${name.toLowerCase()}…`, 'aria-label': `Search ${name.toLowerCase()}`, autocomplete: 'off',
+      onInput: e => { S.lk.q = e.target.value; S.lk.at = 0; render(); },
+      onKeyDown: e => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); S.lk.at = Math.min(S.lk.at + 1, rows.length - 1); render(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); S.lk.at = Math.max(S.lk.at - 1, 0); render(); }
+        else if (e.key === 'Enter') { e.preventDefault(); if (rows[S.lk.at]) commit(rows[S.lk.at][0]); }
+        else if (e.key === 'Escape') { S.lk = null; render(); }
+      } }) : null;
+    if (open && S.lk.fresh) { S.lk.fresh = false; setTimeout(() => input.focus(), 0); }
+    return h('div', { class: 'lookup' },
+      h('button', { class: 'fsel' + (value ? ' active' : ''), 'aria-haspopup': 'listbox', 'aria-expanded': String(open), title: name, onClick: () => { S.lk = open ? null : { key, q: '', at: 0, fresh: true }; render(); } },
+        value ? h('span', {}, h('span', { class: 'fsel-l' }, name + ': '), cur || value) : name, h('span', { class: 'fsel-caret', 'aria-hidden': 'true' }, '⌄')),
+      open ? h('div', { class: 'lk-menu', role: 'listbox' }, input,
+        h('div', { class: 'lk-list' }, ...rows.map(([v, l], k) => h('div', { class: 'lk-opt' + (k === S.lk.at ? ' on' : ''), role: 'option', 'aria-selected': String(v === value),
+          onMouseDown: e => { e.preventDefault(); commit(v); } }, h('span', {}, l), v === value && v ? h('span', { class: 'lk-check' }, '✓') : null)),
+          rows.length ? null : h('div', { class: 'lk-empty' }, 'Nothing matches.'))) : null);
+  };
   const inline = (key, name, list, value, set) => h('label', { class: 'fsel' }, h('span', { class: 'fsel-l' }, name),
     h('select', { 'data-k': key, 'aria-label': name, onChange: e => { set(e.target.value); render(); } }, opts(list, value)));
   const active = Object.values(f).filter(Boolean).length;
@@ -218,3 +240,5 @@ export function people() {
       h('button', { class: 'btn sm pri', onClick: () => { S.modal = { kind: 'person' }; S.err = ''; render(); } }, '+ New person'))),
     list(rows.map(row)), rows.length ? null : muted(d.people.length ? 'Nobody matches.' : 'No people yet. Add one with + New person.', 'small'));
 }
+
+document.addEventListener('mousedown', e => { if (S.lk && !e.target.closest('.lookup')) { S.lk = null; render(); } });

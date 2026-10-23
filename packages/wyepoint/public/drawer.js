@@ -171,3 +171,11 @@ function agentDrawer(m) {
       busy ? h('div', { class: 'muted' }, 'Thinking…') : h('div', { class: 'agent-text' }, ...mdLite(text)),
       h('div', { class: 'hrow' }, h('button', { class: 'btn', disabled: busy, onClick: () => (m.portfolio ? runPortfolio() : runItemAgent(m.id)) }, 'Ask again'))));
 }
+
+// A new initiative is a page from the start: created at once in the project, opened full-page with its title ready to
+// type over. Naming it is just editing the title; there is no dialog to fill in first.
+export async function newInitiativePage(project) {
+  const p = project || (D().projects[0] && D().projects[0].slug);
+  if (!p) { S.modal = { kind: 'project' }; S.err = ''; render(); return; }                       // nothing to put it in yet
+  await act(async () => { const r = await api('POST', '/initiatives', { project: p, title: 'Untitled initiative', body: TEMPLATE }); S.focusTitle = true; openFull('initiative', r.id); });
+}
