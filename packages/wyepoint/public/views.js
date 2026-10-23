@@ -228,7 +228,6 @@ function miniList(list, more, max = 5) {
 export function projects() {
   const d = D();
   return [
-    h('div', { class: 'hrow' }, h('button', { class: 'btn', onClick: () => { S.modal = { kind: 'project' }; S.err = ''; render(); } }, 'New team')),
     h('div', { class: 'grid' }, d.projects.map(p => {
       const all = items().filter(i => i.project === p.slug), cy = all.filter(i => i.tier === 'cycle');
       const avg = cy.length ? Math.round(cy.reduce((s, i) => s + i.progress, 0) / cy.length) : 0;

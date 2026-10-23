@@ -1,5 +1,5 @@
 // Plan (the next cycle: pool, ranking, checks, release, start), History (every cycle, snapshots once closed) and Settings.
-import { S, TOKEN_KEY, h, chip, bar, muted, label, api, act, render, openIt, items, cyc, D, range, cycleChip, stClass, cap } from './core.js';
+import { S, TOKEN_KEY, h, chip, bar, muted, label, api, act, render, openIt, openProject, items, cyc, D, range, cycleChip, stClass, cap } from './core.js';
 import { pill, list } from './views.js';
 import { openSimulation } from './simulate.js';
 
@@ -88,6 +88,9 @@ export function settings() {
         label('Cooldown (days)', h('input', { class: 'field', type: 'number', min: 0, max: 60, style: 'width:140px', value: v.cooldown, onInput: e => { v.cooldown = e.target.value; } })),
         label('Cycle 0 starts (YYYY-MM-DD)', h('input', { class: 'field', style: 'width:170px', value: v.start, onInput: e => { v.start = e.target.value; } })),
         h('button', { class: 'btn pri', onClick: () => act(() => api('PATCH', '/config', v)) }, 'Save'))),
+    h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('h3', {}, 'Teams'), h('div', { class: 'card-sub' }, 'Initiatives are grouped by team. Open a team to edit its page, details and links.')),
+      h('button', { class: 'btn sm', onClick: () => { S.modal = { kind: 'project' }; S.err = ''; render(); } }, '+ New team')),
+      h('div', { class: 'hrow' }, ...D().projects.map(p => h('button', { class: 'pill', onClick: () => openProject(p.slug) }, p.title)))),
     h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('h3', {}, 'Cycles'), h('div', { class: 'card-sub' }, 'Dates follow from the length above. Give a cycle a theme or dates of its own here, and add cycles to plan further ahead; initiatives are put into them from the backlog.')),
         h('div', { class: 'hrow' }, c.horizon > 2 && !items().some(i => i.cycle === D().active + c.horizon) ? h('button', { class: 'btn sm', onClick: () => act(() => api('PATCH', '/config', { horizon: c.horizon - 1 })) }, 'Remove the last') : null,
           h('button', { class: 'btn sm pri', onClick: () => act(() => api('PATCH', '/config', { horizon: c.horizon + 1 })) }, '+ Add cycle'))),
