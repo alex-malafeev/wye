@@ -33,6 +33,9 @@ export function openMention(href) {
   else { const p = D().people.find(x => x.slug === m[2]); if (p) openPerson(p.n); }
   return true;
 }
+// the editor's link toolbar opens a link with window.open (a new tab); a link to a node previews in the drawer instead
+const open = window.open.bind(window);
+window.open = (url, ...rest) => { try { const u = new URL(url, location.href); if (u.origin === location.origin && openMention(u.hash)) return null; } catch { /* not a URL */ } return open(url, ...rest); };
 export function rich(key, markdown, onSave, opts = {}) {
   let c = cache.get(key);
   if (c) {
