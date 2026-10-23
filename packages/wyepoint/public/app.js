@@ -6,6 +6,7 @@ import { drawer, modal, newInitiativePage, newDocPage } from './drawer.js';
 import { projectDrawer } from './project.js';
 import { fullView } from './full.js';
 import { personDrawer } from './person.js';
+import { peekDrawer } from './peek.js';
 import { simulateModal } from './simulate.js';
 import { inEditor, prune } from './rich.js';
 
@@ -96,7 +97,7 @@ function draw() {
         view === 'initiatives' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New initiative') : view === 'library' ? h('button', { class: 'btn pri', onClick: () => newDocPage(S.lib && S.lib.folder) }, '+ New document') : view === 'goals' ? h('button', { class: 'btn pri', onClick: () => { S.modal = { kind: 'goal' }; S.err = ''; render(); } }, '+ New goal') : null),
       h('div', { class: 'main' }, S.err && !open && !project && !person && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](), footnote(d)))),
     h('button', { class: 'fab', title: 'Status agent: a briefing on the whole portfolio', 'aria-label': 'Status agent', onClick: runPortfolio }, h('img', { src: '/owl.svg', alt: '' })),
-    !isFull && open ? drawer(open) : !isFull && project ? projectDrawer(project) : !isFull && person ? personDrawer(person) : null, modal(), simulateModal(),
+    !isFull && open ? drawer(open) : !isFull && project ? projectDrawer(project) : !isFull && person ? personDrawer(person) : null, modal(), simulateModal(), peekDrawer(),
   ].filter(Boolean));
   const dr = app.querySelector('.drawer'); if (dr) dr.scrollTop = scroll;
   if (wasOpen) app.querySelectorAll('.scrim, .modal').forEach(x => x.classList.add('settled'));   // already open: a redraw is not an opening, so it does not animate again
@@ -106,5 +107,5 @@ function draw() {
 
 setRenderer(draw);
 app.addEventListener('focusout', () => setTimeout(() => { if (pending && !inEditor(document.activeElement)) draw(); }, 50));
-window.addEventListener('hashchange', () => { S.err = ''; draw(); });
+window.addEventListener('hashchange', () => { S.err = ''; S.peek = null; draw(); });   // going anywhere closes a preview
 load().catch(e => { S.err = e.message; draw(); });

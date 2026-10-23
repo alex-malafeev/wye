@@ -2,7 +2,8 @@
 // The drawer is rebuilt after every change, so an editor is made once per page and the same element is handed back
 // each time; and the page does not redraw while the person is typing in one (see app.js). If the editor's bundle is
 // missing (npm run build:editor was not run) the field is a plain textarea, so nothing is ever uneditable.
-import { h, D, items, openFull, openPerson } from './core.js';
+import { h, D, items, openPerson } from './core.js';
+import { peek } from './peek.js';
 
 const cache = new Map();                                       // key → { el, api, saved, base, onSave, opts }
 let bundle;
@@ -26,9 +27,9 @@ const mentionList = () => {
 const MENTION = /^#\/(d|g|i|u)\/(.+)$/;                                    // inside the editor a mention is an in-app path
 export function openMention(href) {
   const m = MENTION.exec(href || ''); if (!m) return false;
-  if (m[1] === 'd') openFull('doc', m[2]);
-  else if (m[1] === 'g') openFull('goal', m[2]);
-  else if (m[1] === 'i') openFull('initiative', m[2]);
+  if (m[1] === 'd') peek('doc', m[2]);                                     // a mention previews in a drawer first
+  else if (m[1] === 'g') peek('goal', m[2]);
+  else if (m[1] === 'i') peek('initiative', m[2]);
   else { const p = D().people.find(x => x.slug === m[2]); if (p) openPerson(p.n); }
   return true;
 }

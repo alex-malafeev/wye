@@ -5,7 +5,7 @@ export const TABS = [['overview', 'Overview'], ['goals', 'Goals'], ['initiatives
 export const TOKEN_KEY = 'wyepoint_token';
 
 export const S = {
-  data: null, err: '', modal: null, confirmStart: false,
+  data: null, peek: null, err: '', modal: null, confirmStart: false,
   f: { q: '', project: '', cycle: '', status: '', mission: '', tier: '', effort: '', champion: '' }, gy: 'project', gx: 'none', sortKey: 'rank', sortDir: 1,
   pq: '', pf: 'all', pt: '', selP: '', planQ: '', histSel: null,
   agents: {}, portfolio: { show: false, text: '' }, sim: null,   // the simulation open on an initiative: { id, title, result, text }
