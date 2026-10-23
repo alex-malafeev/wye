@@ -50,7 +50,7 @@ export async function runItemAgent(id) {
 // A block of numbers, as a dashboard card: a title and what it counts, an arrow to the initiatives behind it, the
 // number big at the bottom with its context.
 function kpi({ title, sub, value, note, go: filter }) {
-  return h('div', { class: 'card kpi' },
+  return h('div', { class: 'card kpi', title: sub },
     h('div', { class: 'kpi-head' }, h('div', {}, h('div', { class: 'kpi-title' }, title), h('div', { class: 'kpi-sub' }, sub)),
       filter ? h('button', { class: 'kpi-open', 'aria-label': `Open ${title} in the backlog`, title: 'Open in the backlog', onClick: () => { Object.assign(S.f, { q: '', project: '', status: '', mission: '', tier: '', effort: '', champion: '', ...filter }); go('backlog'); } }, '↗') : null),
     h('div', { class: 'kpi-foot' }, h('div', { class: 'kpi-value' }, value), h('div', { class: 'kpi-note' }, note || '')));
@@ -76,7 +76,7 @@ export function overview() {
   const cards = [
     { title: 'Ranked items', sub: `In ${A.name}`, value: cy.length, note: `${all.length} initiatives in total`, go: inCycle },
     { title: 'On track', sub: 'Reporting on track', value: n(i => i.status === 'on-track'), note: `of ${cy.length} ranked`, go: { ...inCycle, status: 'On Track' } },
-    { title: 'At risk or off track', sub: 'Needs a decision', value: n(i => i.hot), note: n(i => i.hot) ? 'see the panel on the right' : 'nothing to decide', go: { ...inCycle, status: 'At Risk' } },
+    { title: 'At risk or off track', sub: 'Needs a decision', value: n(i => i.hot), note: `of ${cy.length} ranked`, go: { ...inCycle, status: 'At Risk' } },
     { title: 'Not started', sub: `${left} days left in the cycle`, value: n(i => i.status === 'not-started'), note: `of ${cy.length} ranked`, go: { ...inCycle, status: 'Not Started' } },
     { title: 'No status', sub: 'The champion has not updated', value: n(i => !i.status), note: `of ${cy.length} ranked`, go: { ...inCycle, status: 'No status' } },
     { title: 'Shipped', sub: `In ${A.name}`, value: n(i => i.status === 'complete'), note: 'done', go: { status: 'Shipped' } },

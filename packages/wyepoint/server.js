@@ -12,6 +12,7 @@ const { Store, STATUSES, TASK_STATUSES, EFFORTS, BUCKETS } = require('./lib/stor
 const analysis = require('./lib/analysis');
 const ingest = require('./lib/ingest');
 const agent = require('./lib/agent');
+const T = require('./lib/types');
 
 const args = process.argv.slice(2);
 const opt = (f, d) => { const i = args.indexOf(f); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
@@ -79,7 +80,7 @@ function state() {
   const cycles = a.cycles.map(c => { const rows = cycleRows(a, c); return { ...c, snap: undefined, snapshot: c.status === 'closed' && c.snap.length > 0, rows, shipped: rows.filter(r => r.status === 'complete').length, avg: rows.length ? Math.round(rows.reduce((s, r) => s + (r.pct || 0), 0) / rows.length) : 0 }; });
   return {
     brand: 'WyePoint', config: ctx.cfg, today: ctx.todayIso, active: ctx.active, nx: ctx.nx.n, cycles, projects: ctx.projects, initiatives: a.items, people: a.people,
-    checks: a.checks, canRelease: a.canRelease,
+    checks: a.checks, canRelease: a.canRelease, types: store.types().map(t => ({ ...t, used: store.typeUsage(t.slug) })), fieldKinds: T.FIELD_KINDS,
     enums: { statuses: STATUSES, taskStatuses: TASK_STATUSES, efforts: EFFORTS, buckets: BUCKETS, labels: analysis.LABEL },
   };
 }
@@ -124,6 +125,11 @@ async function api(req, res, url) {
   const body = method === 'GET' || method === 'DELETE' ? {} : parseJson(await readBody(req));
 
   if (a === 'config' && method === 'PATCH') return json(res, 200, store.setConfig(body));
+  if (a === 'types') {                                     // the types a person defines: a risk, a decision, a customer ask …
+    if (method === 'POST' && !b) return json(res, 201, store.createType(body));
+    if (method === 'PUT' && b) return json(res, 200, store.updateType(b, body));
+    if (method === 'DELETE' && b) { store.deleteType(b); return json(res, 200, { ok: true }); }
+  }
   if (a === 'people') {
     if (method === 'POST' && !b) return json(res, 201, store.createPerson(body));
     if (method === 'PATCH' && b) return json(res, 200, store.updatePerson(b, body));

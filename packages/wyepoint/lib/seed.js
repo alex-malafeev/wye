@@ -26,9 +26,12 @@ module.exports = function seed(store) {
     description: 'New accounts reach their first dashboard without talking to anyone.', ships: 'Onboarding checklist, teammate invites and an activation metric. Success: 70% of trials activate within a day.', risks: 'Depends on the analytics events from Data foundations.',
     tasks: [{ title: 'Onboarding checklist UI', status: 'done', owner: 'Dana', due: ago(3) }, { title: 'Invite teammates step', status: 'in-progress', owner: 'Lee', due: ahead(7) }, { title: 'Activation metric in analytics', status: 'todo', due: ahead(14) }],
     links: [{ label: 'Design spec', url: 'https://example.com/specs/onboarding', source: 'figma' }], prs: [{ title: 'Checklist component', url: 'https://github.com/example/app/pull/101' }], log: [{ text: 'Checklist shipped to 10% of trials' }] });
-  mk(web.slug, 'Billing page rewrite', { owner: 'Lee', contributors: ['Dana'], mission: 'Reliability', effort: 'M', status: 'at-risk', cycle: 0, rank: 2, approved: true, target: ago(2),
+  store.createType({ name: 'Risk', plural: 'Risks', purpose: 'Something that could go wrong, and who is on it', statuses: 'open, mitigated, accepted, closed',
+    fields: [{ name: 'severity', kind: 'choice', options: 'low, medium, high' }, { name: 'responsible', kind: 'person' }, { name: 'next-step', kind: 'text' }] });
+  const billing = mk(web.slug, 'Billing page rewrite', { owner: 'Lee', contributors: ['Dana'], mission: 'Reliability', effort: 'M', status: 'at-risk', cycle: 0, rank: 2, approved: true, target: ago(2),
     description: 'Replace the legacy billing page; keep invoices and plan changes in one place.', ships: 'New invoice list and plan change flow.', risks: 'Payments provider sandbox is flaky; plan change flow is blocked on it.',
     tasks: [{ title: 'Invoice list', status: 'review', owner: 'Lee' }, { title: 'Plan change flow', status: 'blocked', owner: 'Lee' }] });
+  store.update(billing.id, { body: store.get(billing.id).body.replace('## Milestones', `- risk:${billing.project}.${billing.slug}.1 Payments sandbox is flaky #open (severity: high, responsible: person:lee, next-step: ask the provider for a stable sandbox)\n\n## Milestones`) });
   mk(web.slug, 'Public API v2', { owner: 'Dana', mission: 'New bets', effort: 'XL', approved: true, bucket: 'next', description: 'A versioned public API with scoped tokens.', ships: 'v2 endpoints, scoped tokens, a migration guide.' });
   mk(web.slug, 'Dark mode', { owner: '', mission: 'Growth', effort: 'S', bucket: 'later', description: 'Customers keep asking for it.' });
   mk(data.slug, 'Warehouse migration', { owner: 'Sam', contributors: ['Priya', 'Mika'], mission: 'Reliability', effort: 'XL', status: 'on-track', cycle: 0, rank: 3, approved: true, target: ahead(25),

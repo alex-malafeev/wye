@@ -14,7 +14,7 @@ test('a person is a page: role, team, email and where they came from', () => {
   const p = s.createPerson({ name: 'Priya Nair', role: 'Data engineer', team: 'Data foundations', email: 'priya@example.com' });
   assert.deepStrictEqual([p.slug, p.name, p.source], ['priya-nair', 'Priya Nair', 'manual']);
   const md = fs.readFileSync(path.join(dir, 'people/priya-nair.md'), 'utf8');
-  assert.match(md, /^---\ntitle: Priya Nair\nkind: person\nrole: Data engineer\nteam: Data foundations\nemail: priya@example\.com\nsource: manual\n---\n# Priya Nair\n/);
+  assert.match(md, /^---\nnode: person:priya-nair\ntitle: Priya Nair\nrole: Data engineer\nteam: Data foundations\nemail: priya@example\.com\nsource: manual\n---\n# Priya Nair\n/);
   assert.strictEqual(s.updatePerson('priya-nair', { team: 'Platform' }).team, 'Platform');
   assert.strictEqual(s.people()[0].name, 'Priya Nair');                      // the name is how initiatives refer to them: not changed here
   s.removePerson('priya-nair'); assert.deepStrictEqual(s.people(), []);

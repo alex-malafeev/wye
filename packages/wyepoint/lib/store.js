@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const cyclesLib = require('./cycles');
 const L = require('./lines');
+const T = require('./types');
 
 const STATUSES = ['not-started', 'on-track', 'at-risk', 'off-track', 'paused', 'complete'];
 const TASK_STATUSES = ['todo', 'in-progress', 'blocked', 'review', 'done'];
@@ -125,10 +126,8 @@ class Store {
   init() {
     if (fs.existsSync(this.productFile)) {
       if (this.config().title === 'Tempo') this.setConfig({ title: 'WyePoint' });   // the name before the rename
-      this.migrateRoster();
-      return;
-    }
-    write(this.productFile, joinFm({ title: 'WyePoint', icon: '🧭', description: 'Projects and initiatives planned in cycles.', 'cycle-weeks': 6, 'cycle-start': day(), 'cycle-cooldown': 7 }, ''));
+    } else write(this.productFile, joinFm({ title: 'WyePoint', icon: '🧭', description: 'Projects and initiatives planned in cycles.', 'cycle-weeks': 6, 'cycle-start': day(), 'cycle-cooldown': 7 }, ''));
+    this.migrateRoster(); this.ensureTypes(); this.migrateTypes(); this.loadKinds();
   }
 
   // ---- config
@@ -160,13 +159,13 @@ class Store {
     if (email && !/^\S+@\S+$/.test(oneLine(email))) throw bad('that does not look like an email address');
     if (this.people().some(p => p.name.toLowerCase() === name.toLowerCase())) throw Object.assign(new Error(`${name} is already in the directory`), { status: 409 });
     const slug = this.uniqueSlug(slugify(name), s => fs.existsSync(path.join(this.peopleDir(), s + '.md')));
-    write(path.join(this.peopleDir(), slug + '.md'), joinFm({ title: name, kind: 'person', role: oneLine(role), team: oneLine(team), email: oneLine(email), source: oneLine(source) || 'manual', 'external-id': oneLine(externalId) }, `# ${name}\n`));
+    write(path.join(this.peopleDir(), slug + '.md'), joinFm({ node: `person:${slug}`, title: name, role: oneLine(role), team: oneLine(team), email: oneLine(email), source: oneLine(source) || 'manual', 'external-id': oneLine(externalId) }, `# ${name}\n`));
     return this.people().find(p => p.slug === slug);
   }
   updatePerson(slug, patch) {   // the name is how initiatives refer to them, so it is not changed here
     const file = path.join(this.peopleDir(), String(slug).replace(/[^\w-]/g, '') + '.md');
     if (!fs.existsSync(file)) throw notFound('person');
-    const { fm, body } = splitFm(read(file));
+    const { fm, body } = splitFm(read(file)); fm.node = fm.node || `person:${slug}`; delete fm.kind;
     for (const k of ['role', 'team']) if (patch[k] !== undefined) fm[k] = oneLine(patch[k]);
     if (patch.email !== undefined) { const e = oneLine(patch.email); if (e && !/^\S+@\S+$/.test(e)) throw bad('that does not look like an email address'); fm.email = e; }
     write(file, joinFm(fm, body));
@@ -182,6 +181,51 @@ class Store {
     const file = path.join(this.dir, '_roster.md'); if (!fs.existsSync(file)) return;
     for (const n of names(read(file).split('\n'))) { try { this.createPerson({ name: n }); } catch { /* already there */ } }
     fs.unlinkSync(file);
+  }
+
+  // ---- types: WyePoint's entities are Wye types (lib/types.js). types/ontology.md declares the app's own, types/custom.md the
+  // ones a person defines; an instance of a custom type is a list line in a page (lib/lines.js).
+  customFile() { return path.join(this.dir, 'types', 'custom.md'); }
+  ensureTypes() {
+    const f = path.join(this.dir, 'types', 'ontology.md');
+    if (!read(f).includes(`wyepoint-types v${T.VERSION}:`)) write(f, T.coreDocument());
+  }
+  // pages written before the types: a person and a cycle become nodes of their type, a goal an initiative
+  migrateTypes() {
+    for (const p of this.people()) {
+      const file = path.join(this.peopleDir(), p.slug + '.md'), { fm, body } = splitFm(read(file));
+      if (!fm.node || fm.kind) { fm.node = fm.node || `person:${p.slug}`; delete fm.kind; write(file, joinFm(fm, body)); }
+    }
+    let files = []; try { files = fs.readdirSync(path.join(this.dir, 'cycles')).filter(f => /^\d+\.md$/.test(f)); } catch { /* none */ }
+    for (const f of files) {
+      const file = path.join(this.dir, 'cycles', f), { fm, body } = splitFm(read(file));
+      if (!fm.node || fm.type) { delete fm.type; write(file, joinFm({ node: `cycle:${fm.n}`, ...fm, node: `cycle:${fm.n}` }, body)); }
+    }
+    for (const p of this.projects()) {
+      const dir = path.join(this.projectsDir(), p.slug, 'docs'); let docs = []; try { docs = fs.readdirSync(dir).filter(f => f.endsWith('.md')); } catch { /* none */ }
+      for (const f of docs) {
+        const md = read(path.join(dir, f)), { fm } = splitFm(md);
+        if (/^goal:/.test(fm.node || '') || /^\d+$/.test(fm.cycle || '')) { const it = this.parseInitiative(p.slug, f.slice(0, -3), md); if (it) this.save(it); }
+      }
+    }
+  }
+  loadKinds() { L.setKinds(this.types().map(t => t.slug)); }
+  types() { return T.parseCustom(read(this.customFile())); }
+  saveTypes(list) { write(this.customFile(), T.renderCustom(list)); this.loadKinds(); }
+  createType(input) { const list = this.types(), t = T.normalise(input, { taken: new Set(list.map(x => x.slug)) }); list.push(t); this.saveTypes(list); return t; }
+  updateType(slug, input) {
+    const list = this.types(), i = list.findIndex(x => x.slug === slug); if (i < 0) throw notFound('type');
+    list[i] = T.normalise({ ...input, slug }); this.saveTypes(list); return list[i];
+  }
+  deleteType(slug) {
+    const list = this.types(); if (!list.some(x => x.slug === slug)) throw notFound('type');
+    const used = this.typeUsage(slug);
+    if (used) throw Object.assign(new Error(`${used} instance${used > 1 ? 's' : ''} of it ${used > 1 ? 'are' : 'is'} still in pages; remove ${used > 1 ? 'them' : 'it'} first`), { status: 409 });
+    this.saveTypes(list.filter(x => x.slug !== slug));
+  }
+  typeUsage(slug) {
+    const bodies = [...this.initiatives().map(i => i.body), ...this.projects().map(p => p.body)];
+    return bodies.reduce((n, b) => n + b.split('\n').filter(l => { const x = L.parseLine(l); return x && x.type === 'node' && x.kind === slug; }).length, 0);
   }
 
   // ---- cycles. Dates come from the settings; a record under cycles/ overrides them and holds the status, the
@@ -216,7 +260,7 @@ class Store {
     if (patch.start !== undefined && patch.start !== '' && !isDate(patch.start)) throw bad('start must be YYYY-MM-DD');
     if (patch.end !== undefined && patch.end !== '' && !isDate(patch.end)) throw bad('end must be YYYY-MM-DD');
     const snap = (cur.snap || []).map(x => `- ${x.id} · ${x.rank || ''} · ${x.status || ''} · ${x.pct || 0} · ${prop(x.project)} · ${prop(x.champion)} · ${oneLine(x.title)}`);
-    write(path.join(this.dir, 'cycles', `${n}.md`), joinFm({ n, type: 'doc', title: `Cycle ${n}`, status: patch.status !== undefined ? patch.status : recs[n] && recs[n].status, theme: cur.theme, start: patch.start !== undefined ? patch.start : recs[n] && recs[n].start, end: patch.end !== undefined ? patch.end : recs[n] && recs[n].end, 'released-at': cur.releasedAt, 'closed-at': cur.closedAt }, `# Cycle ${n}\n\n## Snapshot\n${snap.join('\n')}\n`));
+    write(path.join(this.dir, 'cycles', `${n}.md`), joinFm({ node: `cycle:${n}`, n, title: `Cycle ${n}`, status: patch.status !== undefined ? patch.status : recs[n] && recs[n].status, theme: cur.theme, start: patch.start !== undefined ? patch.start : recs[n] && recs[n].start, end: patch.end !== undefined ? patch.end : recs[n] && recs[n].end, 'released-at': cur.releasedAt, 'closed-at': cur.closedAt }, `# Cycle ${n}\n\n## Snapshot\n${snap.join('\n')}\n`));
   }
 
   // ---- projects
@@ -283,43 +327,53 @@ class Store {
   // headings the planner looks for by name.
   parseInitiative(project, slug, md) {
     const { fm, body: raw } = splitFm(md);
-    if (!/^goal:/.test(fm.node || '')) return null;           // a page that is not an initiative
-    const body = upgrade(raw.replace(/^\s*# .*\n?/, '')).trim();
-    const tasks = [], links = [], prs = [], log = [], prose = [];
+    if (!/^(goal|initiative):/.test(fm.node || '')) return null;   // a page that is not an initiative
+    const node = fm.node.replace(/^goal:/, 'initiative:');
+    const body = upgrade(raw.replace(/^\s*# .*\n?/, '')).split(fm.node).join(node).trim();   // a goal's milestones are part of the initiative now
+    const tasks = [], links = [], prs = [], log = [], nodes = [], drawings = [], prose = [];
     for (const line of body.split('\n')) {
       const x = L.parseLine(line);
       if (!x) prose.push(line);
       else if (x.type === 'task') tasks.push({ id: x.id, title: x.title, status: x.status, owner: x.owner, due: x.due });
       else if (x.type === 'link') links.push({ label: x.label, url: x.url, source: x.meta });
       else if (x.type === 'pr') prs.push({ title: x.label, url: x.url, ts: x.meta });
+      else if (x.type === 'node') nodes.push({ id: x.id, kind: x.kind, text: x.text, status: x.status, props: x.props });
+      else if (x.type === 'drawing') drawings.push({ title: x.title, src: x.src });
       else log.push({ ts: x.ts, source: x.source, text: x.text });
     }
     log.reverse();                                            // newest first; the page reads oldest first, like any log
     const ps = proseSections(prose.join('\n')), pick = re => (Object.entries(ps).find(([k]) => re.test(k)) || [, ''])[1].trim();
     const num = v => (v === undefined || v === '' ? null : +v);
     return {
-      id: `${project}/${slug}`, project, slug, node: fm.node, title: fm.title || slug, status: fm.status || '', owner: fm.owner || '',
-      contributors: names(fm.contributors), mission: fm.mission || '', effort: fm.effort || '', cycle: num(fm.cycle), rank: num(fm.rank),
+      id: `${project}/${slug}`, project, slug, node, title: fm.title || slug, status: fm.status || '', owner: fm.owner || '',
+      contributors: names(fm.contributors), mission: fm.mission || '', effort: fm.effort || '', cycle: num(String(fm.cycle || '').replace(/^cycle:/, '')), rank: num(fm.rank),
       approved: fm.approved === 'true', bucket: fm.bucket || 'proposed', target: fm.target || '',
       body, description: ps._intro.trim(), ships: pick(/^what ships$/), risks: pick(/^(dependencies\s*\/\s*)?risks?$|^dependencies/),
-      tasks, links, prs, log, updated: fm.updated || '',
+      tasks, links, prs, log, nodes, drawings, updated: fm.updated || '',
     };
   }
 
   render(it) {
-    const fm = { node: it.node, type: 'doc', title: it.title, status: it.status, owner: it.owner, contributors: it.contributors.join(', '), mission: it.mission, effort: it.effort, cycle: it.cycle == null ? '' : it.cycle, rank: it.rank == null ? '' : it.rank, approved: it.approved ? 'true' : '', bucket: it.cycle == null && it.bucket !== 'proposed' ? it.bucket : '', target: it.target, updated: now() };
+    // the people are edges to person nodes where they are in the directory; the names stay as the text people read
+    const dir = this.people(), ref = n => { const p = dir.find(x => x.name.toLowerCase() === String(n || '').toLowerCase()); return p ? `person:${p.slug}` : ''; };
+    const involved = [...new Set([it.owner, ...it.contributors].map(ref).filter(Boolean))];
+    const fm = { node: it.node, title: it.title, status: it.status, owner: it.owner, champion: ref(it.owner), involves: involved.join(', '), contributors: it.contributors.join(', '), mission: it.mission, effort: it.effort, cycle: it.cycle == null ? '' : `cycle:${it.cycle}`, rank: it.rank == null ? '' : it.rank, approved: it.approved ? 'true' : '', bucket: it.cycle == null && it.bucket !== 'proposed' ? it.bucket : '', target: it.target, updated: now() };
     return joinFm(fm, `# ${it.title}\n\n${it.body.trim()}\n`);
   }
-  save(it) { write(this.docFile(it.id), this.render(it)); return this.get(it.id); }
+  save(it) {
+    // an initiative points at its cycle: a cycle that has no page yet gets one, so the edge has somewhere to go
+    if (it.cycle != null && !fs.existsSync(path.join(this.dir, 'cycles', `${it.cycle}.md`))) this.saveCycle(it.cycle, {});
+    write(this.docFile(it.id), this.render(it)); return this.get(it.id);
+  }
 
   createInitiative(o) {
     const { project } = o, title = oneLine(o.title); if (!title) throw bad('title is required');
     if (!this.projects().some(p => p.slug === project)) throw notFound('project');
     const slug = this.uniqueSlug(slugify(title), s => fs.existsSync(this.docFile(`${project}/${s}`)));
-    const node = `goal:${project}.${slug}`;
-    // a page from the dialog may hold milestones numbered before the page had an id (task:new.1, part-of goal:TBD)
+    const node = `initiative:${project}.${slug}`;
+    // a page from the dialog may hold milestones and typed blocks numbered before the page had an id (task:new.1, risk:new.1, part-of initiative:TBD)
     const body = (o.body !== undefined ? String(o.body) : `${String(o.description || '').trim()}\n\n## What ships\n${String(o.ships || '').trim()}\n\n## Risks\n${String(o.risks || '').trim()}\n\n## Milestones\n\n## Updates\n`)
-      .replace(/task:new\.(\d+)/g, `task:${project}.${slug}.$1`).replace(/goal:TBD/g, node);
+      .replace(/\b([a-z][a-z0-9-]*):new\.(\d+)/g, `$1:${project}.${slug}.$2`).replace(/\b(goal|initiative):TBD/g, node);
     const it = { id: `${project}/${slug}`, slug, project, node, title, status: '', owner: '', contributors: [], mission: '', effort: '', cycle: null, rank: null, approved: false, bucket: 'proposed', target: '', body };
     this.apply(it, { ...o, body: undefined, description: undefined, ships: undefined, risks: undefined });
     it.body = appendLine(it.body, L.logLine({ ts: now(), source: 'wyepoint', text: 'Initiative created' }), x => x.type === 'log', 'Updates');   // no status-change line for the status it starts with

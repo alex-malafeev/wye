@@ -164,7 +164,7 @@ main.wrap{padding:8px 12px 0}
 .modal .card{background:#fff;border:0;border-radius:18px;padding:22px;box-shadow:0 18px 50px rgba(16,32,52,.28)}
 .modal .card .row{border-radius:0}
 /* the brand: the owl lockup, as drawn */
-.brand-logo{height:38px;width:auto;display:block}
+.brand-logo{height:32px;width:auto;display:block}
 .brand{margin-right:10px}
 
 /* ---- cards: a tinted ground and a thin line on the left; no other borders ---- */
@@ -358,3 +358,14 @@ main.wrap{padding:8px 12px 0}
 .picker-opt.on{background:#f3f6fb}
 .picker-opt small{display:block;color:var(--muted);font-size:12px}
 .picker-empty{padding:10px 12px;color:var(--muted);font-size:13px}
+
+/* the overview's tiles: small */
+.kpis{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.kpi{min-height:0;padding:12px 14px;gap:4px;justify-content:flex-start}
+.kpi-title{font-size:14px}
+.kpi-sub{display:none}
+.kpi-value{font-size:30px;line-height:1.1}
+.kpi-note{font-size:12px;margin-top:0}
+.kpi-open{font-size:15px;padding:0 2px}
+.kpi-foot{display:flex;flex-direction:column;gap:2px}
+.kpis{grid-auto-rows:1fr;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}
