@@ -75,6 +75,7 @@ redraw while you type, and a save keeps what a webhook or the API added meanwhil
   Markdown the notes are the lines indented under the instance's list line.
 - **Drawings** are Excalidraw: `![Title](drawings/<slug>.excalidraw)`, with the scene, an SVG and a PNG preview and a text
   description kept beside the page (the same files Wye writes).
+- **Mentions:** type `@` and a menu of documents, goals, projects and people opens, filtered as you type (a key like `PROJ-12` works too). The link is written as Wye writes one, `[Acme Freight](doc:acme-freight)` (`goal:<slug>`, `project:<area>.<slug>`, `person:<slug>`), so Wye reads it as a mention of that node. A click on one goes there.
 - **Pictures** pasted or dropped into a page go to `<area>/docs/images/` and are kept as `![name](images/<file>)`
   (PNG, JPEG, GIF, WebP).
 

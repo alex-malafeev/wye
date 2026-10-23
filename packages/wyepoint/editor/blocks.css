@@ -100,3 +100,11 @@
 @media (prefers-reduced-motion:reduce){.tb-overlay,.tb-drawer{animation:none}}
 
 .tb-key{flex:none;font-size:11.5px;font-weight:700;letter-spacing:.03em;color:#7a8696;background:#eef1f6;border-radius:5px;padding:1px 6px}
+
+/* a link to a document, a goal, a project or a person, written [title](kind:id) */
+.bn-editor a[href^="#/d/"],.bn-editor a[href^="#/g/"],.bn-editor a[href^="#/i/"],.bn-editor a[href^="#/u/"]{display:inline-block;background:#eef2f8;color:#1d2433;text-decoration:none;border-radius:6px;padding:0 6px;font-weight:500;cursor:pointer}
+.bn-editor a[href^="#/d/"]::before{content:"▤ ";color:#7a8696}
+.bn-editor a[href^="#/g/"]::before{content:"◎ ";color:#7a8696}
+.bn-editor a[href^="#/i/"]::before{content:"◆ ";color:#7a8696}
+.bn-editor a[href^="#/u/"]::before{content:"@";color:#7a8696}
+.bn-editor a[href^="#/d/"]:hover,.bn-editor a[href^="#/g/"]:hover,.bn-editor a[href^="#/i/"]:hover,.bn-editor a[href^="#/u/"]:hover{background:#e1e8f5}

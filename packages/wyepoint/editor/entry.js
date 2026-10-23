@@ -20,7 +20,7 @@ const stamp = () => new Date().toISOString().slice(0, 16) + 'Z';
 const today = () => new Date().toISOString().slice(0, 10);
 
 // what the editor is told about its page: the types a person defined, the people, where the page lives
-let CTX = { types: [], people: [], scope: 'new', project: '', plain: false };
+let CTX = { types: [], people: [], scope: 'new', project: '', plain: false, mentions: () => [] };
 const typeOf = k => CTX.types.find(t => t.slug === k);
 const nextTid = (editor, kind) => { let n = 0; for (const b of editor.document) if (b.type === 'typed' && b.props.kind === kind) n = Math.max(n, +(/\.(\d+)$/.exec(b.props.tid) || [0, 0])[1]); return `${CTX.scope}.${n + 1}`; };
 
@@ -235,8 +235,14 @@ const readWidths = md => { const widths = {}; return { md: md.replace(WIDTH, (_,
 const applyWidths = (blocks, widths) => { for (const b of blocks) { if (b.type === 'image' && widths[b.props.url]) b.props.previewWidth = widths[b.props.url]; if (b.children) applyWidths(b.children, widths); } return blocks; };
 const pictures = (blocks, out = []) => { for (const b of blocks) { if (b.type === 'image' && b.props.url && Number(b.props.previewWidth) > 0) out.push([b.props.url, Math.round(b.props.previewWidth)]); if (b.children) pictures(b.children, out); } return out; };
 const writeWidths = (md, blocks) => pictures(blocks).reduce((m, [url, w]) => m.replace(new RegExp(`!\\[([^\\]]*)\\]\\(${url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'), (all, alt) => (/\|\d+$/.test(alt) ? all : `![${alt}|${w}](${url})`)), md);
-const parseMd = async (editor, md) => { const r = readWidths(md); return applyWidths(await editor.tryParseMarkdownToBlocks(r.md), r.widths); };
-const toMd = async (editor, blocks) => writeWidths((await editor.blocksToMarkdownLossy(blocks)).trim(), blocks);
+// A link to a document, a goal, a project or a person is [title](kind:id) in the page, which Wye reads as a mention of that node. The
+// editor only keeps links that are web addresses or paths, so inside it the same link is an in-app path.
+const MENTIONS = [[/\]\(doc:([\w-]+)\)/g, '](#/d/$1)', /\]\(#\/d\/([\w-]+)\)/g, '](doc:$1)'], [/\]\(goal:([\w-]+)\)/g, '](#/g/$1)', /\]\(#\/g\/([\w-]+)\)/g, '](goal:$1)'],
+  [/\]\(project:([\w-]+)\.([\w-]+)\)/g, '](#/i/$1/$2)', /\]\(#\/i\/([\w-]+)\/([\w-]+)\)/g, '](project:$1.$2)'], [/\]\(person:([\w-]+)\)/g, '](#/u/$1)', /\]\(#\/u\/([\w-]+)\)/g, '](person:$1)']];
+const mentionsIn = md => MENTIONS.reduce((m, [from, to]) => m.replace(from, to), md);
+const mentionsOut = md => MENTIONS.reduce((m, [, , from, to]) => m.replace(from, to), md);
+const parseMd = async (editor, md) => { const r = readWidths(mentionsIn(md)); return applyWidths(await editor.tryParseMarkdownToBlocks(r.md), r.widths); };
+const toMd = async (editor, blocks) => mentionsOut(writeWidths((await editor.blocksToMarkdownLossy(blocks)).trim(), blocks));
 
 // ---- Markdown → blocks: prose between the item lines is parsed by BlockNote, each item line becomes its block
 async function toBlocks(editor, md) {
@@ -314,12 +320,14 @@ function Editor({ markdown, opts, onReady, onChange }) {
   };
   useEffect(() => { load(markdown); onReady({ setMarkdown: load, flush, insert }); return () => clearTimeout(timer.current); }, []);   // eslint-disable-line
   return e(BlockNoteView, { editor, theme: 'light', slashMenu: false, onChange: () => { if (loading.current) return; clearTimeout(timer.current); timer.current = setTimeout(flush, SAVE_AFTER); }, onBlur: flush },
+    e(SuggestionMenuController, { triggerCharacter: '@', getItems: async q => filterSuggestionItems(CTX.mentions().map(m => ({ title: m.title, subtext: m.sub, group: m.group, aliases: m.keywords || [],
+      onItemClick: () => editor.insertInlineContent([{ type: 'link', href: m.href, content: m.title }, ' ']) })), q).slice(0, 14) }),
     e(SuggestionMenuController, { triggerCharacter: '/', getItems: async q => filterSuggestionItems([...getDefaultReactSlashMenuItems(editor).filter(i => !NOT_ON_A_PAGE.has(i.title)), ...itemMenu(editor, opts.kinds), ...extraMenu(editor)], q) }));
 }
 
 // mountEditor(element, { markdown, onChange(md), node, idPrefix, kinds, types, people, scope, project })
-export function mountEditor(element, { markdown = '', onChange = () => {}, node, idPrefix, kinds, types = [], people = [], scope = 'new', project = '', plain = false }) {
-  CTX = { types, people, scope, project, plain }; L.setKinds(types.map(t => t.slug));
+export function mountEditor(element, { markdown = '', onChange = () => {}, node, idPrefix, kinds, types = [], people = [], scope = 'new', project = '', plain = false, mentions = () => [] }) {
+  CTX = { types, people, scope, project, plain, mentions }; L.setKinds(types.map(t => t.slug));
   const root = createRoot(element); let api = { setMarkdown() {}, flush() {}, insert() {} };
   root.render(e(Editor, { markdown, opts: { node, idPrefix, kinds }, onChange, onReady: a => { api = a; } }));
   return { setMarkdown: md => api.setMarkdown(md), flush: () => api.flush(), insert: k => api.insert(k), destroy: () => { api.flush(); setTimeout(() => root.unmount()); } };
