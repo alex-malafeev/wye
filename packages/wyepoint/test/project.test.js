@@ -18,8 +18,8 @@ test('a project page: description, links and the front matter Wye reads stay in 
   const got = s.updateProject('platform', { title: 'Customer platform', owner: 'Lee', body });
   assert.deepStrictEqual([got.title, got.owner, got.description], ['Customer platform', 'Lee', 'The platform customers use.']);
   assert.deepStrictEqual(got.links.map(l => l.label), ['Roadmap', 'Runbook']);
-  const md = fs.readFileSync(path.join(dir, 'projects/platform/_project.md'), 'utf8');
-  assert.match(md, /^---\ntitle: Customer platform\nkind: project\nowner: Lee\ndescription: The platform customers use\.\n---\n# Customer platform\n/);
+  const md = fs.readFileSync(path.join(dir, 'areas/platform/_area.md'), 'utf8');
+  assert.match(md, /^---\ntitle: Customer platform\nkind: area\nowner: Lee\ndescription: The platform customers use\.\n---\n# Customer platform\n/);
   assert.strictEqual(s.updateProject('platform', { description: 'Changed.' }).description, 'Changed.');
   assert.strictEqual(s.readProject('platform').links.length, 2);              // setting the description keeps the links
   assert.throws(() => s.updateProject('nope', {}), /not found/);
@@ -27,10 +27,11 @@ test('a project page: description, links and the front matter Wye reads stay in 
 });
 
 test('a project written before it was a page (details in the front matter only) reads as one', () => {
-  const dir = tmp(), s = new Store(dir);
+  const dir = tmp();                                                            // the layout from before areas: projects/<p>/_project.md
   fs.mkdirSync(path.join(dir, 'projects/old/docs'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'projects/old/_project.md'), '---\ntitle: Old\nkind: project\nowner: Sam\ndescription: From the front matter.\n---\n');
-  const p = s.projects()[0];
+  const s = new Store(dir), p = s.projects()[0];
+  assert.ok(fs.existsSync(path.join(dir, 'areas/old/_area.md')) && !fs.existsSync(path.join(dir, 'projects')));   // moved over, once
   assert.deepStrictEqual([p.title, p.description, p.body], ['Old', 'From the front matter.', 'From the front matter.']);
 });
 

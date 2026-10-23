@@ -1,19 +1,19 @@
 'use strict';
 // Data pushed in from other systems. One generic shape for anything that can POST JSON, plus a GitHub adapter.
-//   { source: "jira", initiative: "project/slug" | "slug", kind: "log" | "link" | "pr" | "status" | "task", ... }
+//   { source: "jira", project: "area/slug" | "slug", kind: "log" | "link" | "pr" | "status" | "task", ... }
 const crypto = require('crypto');
 
 function resolve(store, ref) {
   ref = String(ref || '').trim();
   const all = store.initiatives();
   const hit = all.find(i => i.id === ref) || all.filter(i => i.slug === ref);
-  if (Array.isArray(hit)) { if (hit.length === 1) return hit[0]; throw Object.assign(new Error(hit.length ? `"${ref}" is ambiguous, use project/slug` : `no initiative "${ref}"`), { status: hit.length ? 409 : 404 }); }
+  if (Array.isArray(hit)) { if (hit.length === 1) return hit[0]; throw Object.assign(new Error(hit.length ? `"${ref}" is ambiguous, use area/slug` : `no project "${ref}"`), { status: hit.length ? 409 : 404 }); }
   return hit;
 }
 
 function ingest(store, msg) {
   const source = String(msg.source || 'api').slice(0, 40);
-  const it = resolve(store, msg.initiative);
+  const it = resolve(store, msg.project || msg.initiative);   // `initiative` is the key it had before the rename
   switch (msg.kind) {
     case 'log': return store.addLog(it.id, { text: msg.text, source });
     case 'link': { const r = store.addLink(it.id, { label: msg.label, url: msg.url, source }); if (msg.text) store.addLog(it.id, { text: msg.text, source }); return r; }
@@ -28,18 +28,18 @@ function ingest(store, msg) {
   }
 }
 
-// A PR or issue names its initiative with `wyepoint:<project>/<slug>` (or `wyepoint:<slug>`) in its title, branch or body.
+// A PR or issue names its project with `wyepoint:<area>/<slug>` (or `wyepoint:<slug>`) in its title, branch or body.
 const REF = /(?:wyepoint|tempo)[:/]([\w-]+(?:\/[\w-]+)?)/i;
 function github(store, event, p) {
   const obj = p.pull_request || p.issue; if (!obj) return { ignored: `${event} carries no pull request or issue` };
   const m = REF.exec([obj.title, obj.head && obj.head.ref, obj.body].filter(Boolean).join('\n'));
-  if (!m) return { ignored: 'no wyepoint:<initiative> reference' };
+  if (!m) return { ignored: 'no wyepoint:<project> reference' };
   const it = resolve(store, m[1]), kind = p.pull_request ? 'PR' : 'Issue';
   const state = obj.merged ? 'merged' : (p.action === 'closed' ? 'closed' : (p.action || 'updated'));
   const label = `${kind} #${obj.number} ${obj.title}`;
   if (p.pull_request) store.addPr(it.id, { title: label, url: obj.html_url }); else store.addLink(it.id, { label, url: obj.html_url, source: 'github' });
   store.addLog(it.id, { text: `${kind} #${obj.number} ${state}: ${obj.title}`, source: 'github' });
-  return { initiative: it.id };
+  return { project: it.id, initiative: it.id };
 }
 function verifySignature(secret, raw, header) {
   const want = 'sha256=' + crypto.createHmac('sha256', secret).update(raw).digest('hex');

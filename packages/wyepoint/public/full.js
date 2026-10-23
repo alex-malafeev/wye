@@ -18,7 +18,7 @@ export function fullView({ kind, id }) { return kind === 'initiative' ? fullInit
 // ---- an initiative
 function fullInitiative(id) {
   const i = items().find(x => x.id === id), d = D();
-  if (!i) return missing('Initiative');
+  if (!i) return missing('Project');
   const A = cyc(d.active), nx = cyc(d.nx), locked = nx.status !== 'planned';
   const upd = patch => act(() => api('PATCH', `/initiatives/${i.id}`, patch));
   const planLine = i.tier === 'cycle' ? `In ${A.name} (active)` : i.tier === 'plan' ? `Planned for Cycle ${i.cycle}${i.rank ? ', rank ' + i.rank : ''}` : i.tier === 'done' ? `Shipped in Cycle ${i.cycle}` : i.tier === 'carry' ? `Carried over from Cycle ${i.cycle}, not shipped` : 'Backlog, not in a cycle';
@@ -58,7 +58,7 @@ function fullInitiative(id) {
 // ---- a project
 function fullProject(slug) {
   const p = D().projects.find(x => x.slug === slug);
-  if (!p) return missing('Project');
+  if (!p) return missing('Area');
   const upd = patch => act(() => api('PATCH', `/projects/${p.slug}`, patch));
   const mine = items().filter(i => i.project === p.slug), cy = mine.filter(i => i.tier === 'cycle');
   const avg = cy.length ? Math.round(cy.reduce((s, i) => s + i.progress, 0) / cy.length) : 0;
@@ -68,14 +68,14 @@ function fullProject(slug) {
   prune(k => k.startsWith(`project:${p.slug}:`) || k.startsWith('modal:'));
   const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 140, kinds: ['link', 'update'], scope: `${p.slug}`, project: p.slug });
   return h('main', { class: 'wrap' }, h('div', { class: 'fwrap' }, h('div', { class: 'panel full' },
-    crumbs([h('button', { class: 'link-btn', onClick: () => go('projects') }, 'Initiatives'), h('span', {}, p.title)],
-      [h('button', { class: 'btn', onClick: () => newInitiativePage(p.slug) }, '+ New initiative')]),
-    h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: p.title, 'aria-label': 'Project name', onChange: e => upd({ title: e.target.value }) })),
+    crumbs([h('button', { class: 'link-btn', onClick: () => go('projects') }, 'Projects'), h('span', {}, p.title)],
+      [h('button', { class: 'btn', onClick: () => newInitiativePage(p.slug) }, '+ New project')]),
+    h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: p.title, 'aria-label': 'Area name', onChange: e => upd({ title: e.target.value }) })),
     S.err ? h('div', { class: 'err' }, S.err) : null,
-    h('div', { class: 'hrow' }, chip('s-none', `${mine.length} initiative${mine.length === 1 ? '' : 's'}`), chip('s-none', `${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => chip('s-none', `${n} ${l.toLowerCase()}`))),
+    h('div', { class: 'hrow' }, chip('s-none', `${mine.length} project${mine.length === 1 ? '' : 's'}`), chip('s-none', `${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => chip('s-none', `${n} ${l.toLowerCase()}`))),
     h('div', { class: 'fmain' }, page,
-      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h' }, `Initiatives (${mine.length})`),
-        h('div', { class: 'mini-list' }, ...mine.map(it => itemRow(it, `${it.owner || 'No champion'} · ${it.cycle == null ? it.tierLabel : 'Cycle ' + it.cycle}${it.effort ? ' · ' + it.effort : ''}`)), mine.length ? null : muted('No initiatives yet. Use + New initiative.', 'small'))))),
+      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h' }, `Projects (${mine.length})`),
+        h('div', { class: 'mini-list' }, ...mine.map(it => itemRow(it, `${it.owner || 'No champion'} · ${it.cycle == null ? it.tierLabel : 'Cycle ' + it.cycle}${it.effort ? ' · ' + it.effort : ''}`)), mine.length ? null : muted('No projects yet. Use + New project.', 'small'))))),
       h('aside', { class: 'panel fside' },
         sideCard('Properties', h('div', { class: 'fprops' }, fprop('Owner', personPicker({ value: p.owner, onChange: v => upd({ owner: v }), placeholder: 'No owner', label: 'Owner' })),
           fprop('Progress', h('div', { class: 'fval' }, h('div', { class: 'fval-line' }, h('b', {}, avg + '%'), h('span', { class: 'muted small' }, 'Average of the active cycle')), bar(avg, cy.some(i => i.status === 'off-track')))))),

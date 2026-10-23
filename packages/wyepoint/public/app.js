@@ -17,8 +17,8 @@ function subtitle(view, d, A) {
   const nx = cyc(d.nx);
   return {
     overview: `${A.name} · ${range(A)}${A.theme ? ' · ' + A.theme : ''}`,
-    projects: 'Every initiative, grouped by project. Open a project to edit its page, details and links.',
-    backlog: `${items().length} initiatives. Filter, group and sort them any way you like.`,
+    projects: 'Every project, grouped by area. Open an area to edit its page, details and links.',
+    backlog: `${items().length} projects. Filter, group and sort them any way you like.`,
     people: 'Who is carrying what in the active cycle, and who has room.',
     plan: `${nx.name} · ${range(nx)}. Pick from the pool, rank, check and release.`,
     history: 'Every cycle. A closed one shows the snapshot taken when it closed.',
@@ -46,7 +46,7 @@ function cyclePill(d, A) {
 const GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z\"/></svg>';
 function gear() { const s = document.createElement('span'); s.style.display = 'inline-flex'; s.innerHTML = GEAR; return s; }
 
-const footnote = d => muted(`Stored in a Wye vault: every initiative and project is a Markdown page. Cycles are ${d.config.weeks} weeks${d.config.cooldown ? ` plus ${d.config.cooldown} days cooldown` : ''}.`, 'small');
+const footnote = d => muted(`Stored in a Wye vault: every project and area is a Markdown page. Cycles are ${d.config.weeks} weeks${d.config.cooldown ? ` plus ${d.config.cooldown} days cooldown` : ''}.`, 'small');
 
 // The overview is two floating panels: the numbers, the timeline and the people; and what needs attention beside them.
 function overviewPage(d, A) {
@@ -89,7 +89,7 @@ function draw() {
     header(view, d, A),
     isFull ? fullView(full) : view === 'overview' ? overviewPage(d, A) : h('main', { class: 'wrap' }, h('div', { class: 'panel' },
       h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, TABS.find(t => t[0] === view)[1]), h('div', { class: 'muted' }, subtitle(view, d, A))),
-        view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New initiative') : null),
+        view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New project') : null),
       h('div', { class: 'main' }, S.err && !open && !project && !person && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](), footnote(d)))),
     h('button', { class: 'fab', title: 'Status agent: a briefing on the whole portfolio', 'aria-label': 'Status agent', onClick: runPortfolio }, h('img', { src: '/owl.svg', alt: '' })),
     !isFull && open ? drawer(open) : !isFull && project ? projectDrawer(project) : !isFull && person ? personDrawer(person) : null, modal(), simulateModal(),

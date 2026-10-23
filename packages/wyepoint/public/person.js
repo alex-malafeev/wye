@@ -1,4 +1,4 @@
-// A person's drawer, like an initiative's or a project's: who they are, how loaded they are, and what they carry.
+// A person's drawer, like a project's or an area's: who they are, how loaded they are, and what they carry.
 import { S, h, chip, muted, api, act, openPerson, items, D } from './core.js';
 import { itemRow, list, meter, LOAD_RULE } from './views.js';
 
@@ -10,7 +10,7 @@ export function personDrawer(name) {
   if (!p) return shell(h('div', { class: 'hrow between' }, h('b', {}, 'Person not found'), h('button', { class: 'btn sm', onClick: () => openPerson(null) }, '✕ Close')));
   const byId = Object.fromEntries(items().map(i => [i.id, i]));
   const field = (label, key, ph) => h('input', { class: 'pfield', value: p[key], placeholder: ph, disabled: !p.inDirectory, 'aria-label': label, onChange: e => act(() => api('PATCH', `/people/${p.slug}`, { [key]: e.target.value })) });
-  const source = !p.inDirectory ? 'Named on initiatives, not in the directory yet' : p.source === 'manual' ? 'Added by hand' : `Synced from ${p.source}`;
+  const source = !p.inDirectory ? 'Named on projects, not in the directory yet' : p.source === 'manual' ? 'Added by hand' : `Synced from ${p.source}`;
   const carrying = [...p.ch.map(id => [byId[id], 'Champion']), ...p.co.map(id => [byId[id], 'Contributor'])].filter(x => x[0]);
   return shell(
     h('div', { class: 'hrow between drawer-head', style: 'align-items:flex-start;flex-wrap:nowrap' }, h('h2', { class: 'drawer-title' }, p.n),
@@ -25,6 +25,6 @@ export function personDrawer(name) {
       prop('Load', h('div', { class: 'pd-load' }, meter(p), muted(LOAD_RULE, 'small')))),
     h('div', { class: 'stack' }, h('div', { class: 'lbl' }, `Carrying (${carrying.length})`),
       list(carrying.map(([i, role]) => itemRow(i, `${role} · ${i.projectTitle} · ${i.tierLabel}`))),
-      carrying.length ? null : muted('Not on any initiative, so they have room. Name them as a champion or contributor on one to give them work.', 'small')),
+      carrying.length ? null : muted('Not on any project, so they have room. Name them as a champion or contributor on one to give them work.', 'small')),
     h('div', { class: 'muted small' }, p.inDirectory ? ['Stored in the vault as ', h('code', {}, `people/${p.slug}.md`), '.'] : 'Add them to the directory to give them a role, a team and an email.'));
 }

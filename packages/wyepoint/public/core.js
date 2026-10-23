@@ -1,7 +1,7 @@
 // Shared by every view: the page's state, the DOM helper, the API calls and the routing.
 // All state comes from GET /api/state; every change is an API call followed by a reload of that state, so what is on
 // screen is what is in the vault. The DOM is built with textContent only — nothing from the vault is ever HTML.
-export const TABS = [['overview', 'Overview'], ['projects', 'Initiatives'], ['backlog', 'Backlog'], ['people', 'People'], ['plan', 'Plan'], ['history', 'History'], ['settings', 'Settings']];
+export const TABS = [['overview', 'Overview'], ['projects', 'Projects'], ['backlog', 'Backlog'], ['people', 'People'], ['plan', 'Plan'], ['history', 'History'], ['settings', 'Settings']];
 export const TOKEN_KEY = 'wyepoint_token';
 
 export const S = {

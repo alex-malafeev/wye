@@ -5,8 +5,10 @@
 //                                            and where they came from (added by hand for now; a sync from a people
 //                                            system of record would write the same pages with a source of its own)
 //   <vault>/cycles/<n>.md                    what is recorded about one cycle: status, theme, dates, the snapshot taken at close
-//   <vault>/projects/<p>/_project.md         a project (what the planner calls a workstream)
-//   <vault>/projects/<p>/docs/<slug>.md      an initiative: a page that is a goal node, its tasks and milestones as task
+//   Words: a GOAL is what is being worked towards, a PROJECT is the unit that is planned in a cycle and ships (the code still
+//   calls it an "initiative"), an AREA groups projects (the code still calls it a "project"), a CYCLE is the time-box.
+//   <vault>/areas/<a>/_area.md               an area
+//   <vault>/areas/<a>/docs/<slug>.md         a project: a page that is a goal node, its tasks and milestones as task
 //                                            lines between <!-- tasks --> markers — graph nodes `wye build` and
 //                                            `wye query` read like any other page.
 const fs = require('fs');
@@ -126,8 +128,8 @@ class Store {
   init() {
     if (fs.existsSync(this.productFile)) {
       if (this.config().title === 'Tempo') this.setConfig({ title: 'WyePoint' });   // the name before the rename
-    } else write(this.productFile, joinFm({ title: 'WyePoint', icon: '🧭', description: 'Projects and initiatives planned in cycles.', 'cycle-weeks': 6, 'cycle-start': day(), 'cycle-cooldown': 7 }, ''));
-    this.migrateRoster(); this.ensureTypes(); this.migrateTypes(); this.loadKinds();
+    } else write(this.productFile, joinFm({ title: 'WyePoint', icon: '🧭', description: 'Goals and projects planned in cycles.', 'cycle-weeks': 6, 'cycle-start': day(), 'cycle-cooldown': 7 }, ''));
+    this.migrateVocabulary(); this.migrateRoster(); this.ensureTypes(); this.migrateTypes(); this.loadKinds();
   }
 
   // ---- config
@@ -187,7 +189,7 @@ class Store {
   // (the same files Wye writes), so an agent reads what a drawing says and Wye can show it
   drawingFile(project, file) {
     const m = /^([a-z0-9][a-z0-9._-]*)\.(excalidraw|svg|png|md)$/.exec(String(file || '')); if (!m) throw bad('that is not a drawing file');
-    if (!this.projects().some(p => p.slug === project)) throw notFound('project');
+    if (!this.projects().some(p => p.slug === project)) throw notFound('area');
     return { slug: m[1], ext: m[2], path: path.join(this.projectsDir(), project, 'docs', 'drawings', file) };
   }
   readDrawing(project, file) {
@@ -209,7 +211,7 @@ class Store {
   // ---- pictures: a pasted or dropped image is a file in <project>/docs/images; the page holds `![caption](images/<file>)`
   imageFile(project, file) {
     if (!/^[a-z0-9][a-z0-9._-]*\.(png|jpe?g|gif|webp)$/i.test(String(file || ''))) throw bad('that is not a picture file');
-    if (!this.projects().some(p => p.slug === project)) throw notFound('project');
+    if (!this.projects().some(p => p.slug === project)) throw notFound('area');
     return path.join(this.projectsDir(), project, 'docs', 'images', file);
   }
   readImage(project, file) {
@@ -231,6 +233,19 @@ class Store {
   ensureTypes() {
     const f = path.join(this.dir, 'types', 'ontology.md');
     if (!read(f).includes(`wyepoint-types v${T.VERSION}:`)) write(f, T.coreDocument());
+  }
+  // Words changed: an initiative became a project (`project:<area>.<slug>`) and what held them, once a project, an area
+  // (`areas/<a>/_area.md`). A vault written before is moved over, once, the first time it is opened.
+  migrateVocabulary() {
+    const old = path.join(this.dir, 'projects');
+    if (fs.existsSync(old) && !fs.existsSync(this.projectsDir())) fs.renameSync(old, this.projectsDir());
+    let dirs = []; try { dirs = fs.readdirSync(this.projectsDir(), { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name); } catch { /* none yet */ }
+    for (const slug of dirs) {
+      const base = path.join(this.projectsDir(), slug), was = path.join(base, '_project.md'), now = path.join(base, '_area.md');
+      if (fs.existsSync(was) && !fs.existsSync(now)) { const { fm, body } = splitFm(read(was)); fm.kind = 'area'; write(now, joinFm(fm, body)); fs.unlinkSync(was); }
+      let docs = []; try { docs = fs.readdirSync(path.join(base, 'docs')).filter(f => f.endsWith('.md')); } catch { /* none */ }
+      for (const f of docs) { const file = path.join(base, 'docs', f), md = read(file); if (/\binitiative:/.test(md)) write(file, md.replace(/\binitiative:(?=[\w-]+\.[\w-]|TBD)/g, 'project:')); }
+    }
   }
   // pages written before the types: a person and a cycle become nodes of their type, a goal an initiative
   migrateTypes() {
@@ -309,7 +324,7 @@ class Store {
   }
 
   // ---- projects
-  projectsDir() { return path.join(this.dir, 'projects'); }
+  projectsDir() { return path.join(this.dir, 'areas'); }
   // A project is a page too: `_project.md` — its details in the front matter, then a free body (what it is, links,
   // anything else), read the way an initiative's is. Its description in the front matter follows the page, which is
   // where Wye's own views read it.
@@ -317,7 +332,7 @@ class Store {
     let dirs = []; try { dirs = fs.readdirSync(this.projectsDir(), { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name); } catch { /* none yet */ }
     return dirs.sort().map(slug => this.readProject(slug));
   }
-  projectFile(slug) { return path.join(this.projectsDir(), String(slug).replace(/[^\w-]/g, ''), '_project.md'); }
+  projectFile(slug) { return path.join(this.projectsDir(), String(slug).replace(/[^\w-]/g, ''), '_area.md'); }
   readProject(slug) {
     const { fm, body: raw } = splitFm(read(this.projectFile(slug)));
     const body = raw.replace(/^\s*# .*\n?/, '').trim() || oneLine(fm.description);
@@ -328,7 +343,7 @@ class Store {
   createProject({ title, description = '', owner = '' }) {
     title = oneLine(title); if (!title) throw bad('title is required');
     const slug = this.uniqueSlug(slugify(title), s => fs.existsSync(path.join(this.projectsDir(), s)));
-    write(path.join(this.projectsDir(), slug, '_project.md'), joinFm({ title, kind: 'project', owner: oneLine(owner), description: oneLine(description) }, `# ${title}\n\n${String(description).trim()}\n`));
+    write(path.join(this.projectsDir(), slug, '_area.md'), joinFm({ title, kind: 'area', owner: oneLine(owner), description: oneLine(description) }, `# ${title}\n\n${String(description).trim()}\n`));
     fs.mkdirSync(path.join(this.projectsDir(), slug, 'docs'), { recursive: true });
     return this.readProject(slug);
   }
@@ -350,7 +365,7 @@ class Store {
   // ---- initiatives (ids are "<project>/<slug>")
   docFile(id) {
     const [p, s, extra] = String(id).split('/');
-    if (!p || !s || extra !== undefined || !/^[\w-]+$/.test(p) || !/^[\w-]+$/.test(s)) throw bad('bad initiative id');
+    if (!p || !s || extra !== undefined || !/^[\w-]+$/.test(p) || !/^[\w-]+$/.test(s)) throw bad('bad project id');
     return path.join(this.projectsDir(), p, 'docs', s + '.md');
   }
   initiatives() {
@@ -363,7 +378,7 @@ class Store {
     return out;
   }
   get(id) {
-    const file = this.docFile(id); if (!fs.existsSync(file)) throw notFound('initiative');
+    const file = this.docFile(id); if (!fs.existsSync(file)) throw notFound('project');
     const [p, s] = id.split('/'); return this.parseInitiative(p, s, read(file));
   }
 
@@ -372,8 +387,8 @@ class Store {
   // headings the planner looks for by name.
   parseInitiative(project, slug, md) {
     const { fm, body: raw } = splitFm(md);
-    if (!/^(goal|initiative):/.test(fm.node || '')) return null;   // a page that is not an initiative
-    const node = fm.node.replace(/^goal:/, 'initiative:');
+    if (!/^(goal|initiative|project):/.test(fm.node || '')) return null;   // a page that is not a project
+    const node = fm.node.replace(/^(goal|initiative):/, 'project:');
     const body = upgrade(raw.replace(/^\s*# .*\n?/, '')).split(fm.node).join(node).trim();   // a goal's milestones are part of the initiative now
     const tasks = [], links = [], prs = [], log = [], nodes = [], drawings = [], prose = [];
     const all = body.split('\n'), noteAt = L.noteMask(all);
@@ -415,15 +430,15 @@ class Store {
 
   createInitiative(o) {
     const { project } = o, title = oneLine(o.title); if (!title) throw bad('title is required');
-    if (!this.projects().some(p => p.slug === project)) throw notFound('project');
+    if (!this.projects().some(p => p.slug === project)) throw notFound('area');
     const slug = this.uniqueSlug(slugify(title), s => fs.existsSync(this.docFile(`${project}/${s}`)));
-    const node = `initiative:${project}.${slug}`;
-    // a page from the dialog may hold milestones and typed blocks numbered before the page had an id (task:new.1, risk:new.1, part-of initiative:TBD)
+    const node = `project:${project}.${slug}`;
+    // a page from the dialog may hold milestones and typed blocks numbered before the page had an id (task:new.1, risk:new.1, part-of project:TBD)
     const body = (o.body !== undefined ? String(o.body) : `${String(o.description || '').trim()}\n\n## What ships\n${String(o.ships || '').trim()}\n${String(o.risks || '').trim() ? `\n## Risks\n${String(o.risks).trim()}\n` : ''}\n## Milestones\n\n## Updates\n`)
-      .replace(/\b([a-z][a-z0-9-]*):new\.(\d+)/g, `$1:${project}.${slug}.$2`).replace(/\b(goal|initiative):TBD/g, node);
+      .replace(/\b([a-z][a-z0-9-]*):new\.(\d+)/g, `$1:${project}.${slug}.$2`).replace(/\b(goal|initiative|project):TBD/g, node);
     const it = { id: `${project}/${slug}`, slug, project, node, title, status: '', owner: '', contributors: [], mission: '', effort: '', cycle: null, rank: null, approved: false, bucket: 'proposed', target: '', body };
     this.apply(it, { ...o, body: undefined, description: undefined, ships: undefined, risks: undefined });
-    it.body = appendLine(it.body, L.logLine({ ts: now(), source: 'wyepoint', text: 'Initiative created' }), x => x.type === 'log', 'Updates');   // no status-change line for the status it starts with
+    it.body = appendLine(it.body, L.logLine({ ts: now(), source: 'wyepoint', text: 'Project created' }), x => x.type === 'log', 'Updates');   // no status-change line for the status it starts with
     return this.save(it);
   }
   apply(it, patch) {
@@ -437,7 +452,7 @@ class Store {
     if (patch.status !== undefined) {
       if (patch.status && !STATUSES.includes(patch.status)) throw bad('unknown status');
       // a new page has no status-change line for the status it starts with
-      if (patch.status !== it.status && / · (wyepoint|tempo) · Initiative created/.test(it.body)) it.body = appendLine(it.body, L.logLine({ ts: now(), source: patch.source || 'wyepoint', text: `Status ${it.status || 'none'} → ${patch.status || 'none'}` }), x => x.type === 'log', 'Updates');
+      if (patch.status !== it.status && / · (wyepoint|tempo) · (Project|Initiative) created/.test(it.body)) it.body = appendLine(it.body, L.logLine({ ts: now(), source: patch.source || 'wyepoint', text: `Status ${it.status || 'none'} → ${patch.status || 'none'}` }), x => x.type === 'log', 'Updates');
       it.status = patch.status;
     }
     if (patch.effort !== undefined) { if (patch.effort && !EFFORTS.includes(patch.effort)) throw bad('effort must be S, M, L or XL'); it.effort = patch.effort; }

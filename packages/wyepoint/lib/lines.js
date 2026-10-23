@@ -1,7 +1,7 @@
 'use strict';
 // How the items of an initiative are written into its page. The page is one free-form Markdown document; four kinds of
 // line in it are items, wherever the person put them:
-//   - task:<id> Title #status (owner: x, due: y, part-of: goal:…)      a milestone — a task node Wye reads
+//   - task:<id> Title #status (owner: x, due: y, part-of: project:…)      a milestone — a task node Wye reads
 //   - [label](https://…) · link · source                              a link
 //   - [title](https://…) · pr · 2026-10-22                            a pull request
 //   - 2026-10-22T10:27Z · source · text                               an update (the log)

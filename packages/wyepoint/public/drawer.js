@@ -17,7 +17,7 @@ export const txt = (value, onChange, label, ph = 'Empty') => h('input', { class:
 export function drawer(id) {
   const i = items().find(x => x.id === id), d = D();
   const shell = (...kids) => h('div', { class: 'scrim' }, h('button', { class: 'back', 'aria-label': 'Close detail', onClick: () => openIt(null) }), h('aside', { class: 'drawer' }, ...kids));
-  if (!i) return shell(h('div', { class: 'hrow between' }, h('b', {}, 'Initiative not found'), h('button', { class: 'btn sm', onClick: () => openIt(null) }, 'Close')));
+  if (!i) return shell(h('div', { class: 'hrow between' }, h('b', {}, 'Project not found'), h('button', { class: 'btn sm', onClick: () => openIt(null) }, 'Close')));
   const A = cyc(d.active), nx = cyc(d.nx), locked = nx.status !== 'planned';
   const upd = patch => act(() => api('PATCH', `/initiatives/${i.id}`, patch));
   const planLine = i.tier === 'cycle' ? `In ${A.name} (active)` : i.tier === 'plan' ? `Planned for Cycle ${i.cycle}${i.rank ? ', rank ' + i.rank : ''}` : i.tier === 'done' ? `Shipped in Cycle ${i.cycle}` : i.tier === 'carry' ? `Carried over from Cycle ${i.cycle}, not shipped` : 'Backlog, not in a cycle';
@@ -53,7 +53,7 @@ export function drawer(id) {
         i.tier === 'plan' && i.cycle === nx.n && !locked ? h('button', { class: 'btn', onClick: () => upd({ cycle: null, rank: null }) }, 'Remove from cycle plan') : null)),
     h('div', { class: 'hrow' }, h('button', { class: 'btn pri', onClick: () => runItemAgent(i.id) }, 'Ask status agent'),
       canSimulate(i) ? h('button', { class: 'btn', onClick: () => openSimulation(i) }, 'Simulate') : null),
-    h('div', { class: 'muted small' }, 'Stored in the vault as ', h('code', {}, `projects/${i.project}/docs/${i.slug}.md`), ' (', h('code', {}, i.node), ').'));
+    h('div', { class: 'muted small' }, 'Stored in the vault as ', h('code', {}, `areas/${i.project}/docs/${i.slug}.md`), ' (', h('code', {}, i.node), ').'));
 }
 
 export function modal() {
@@ -68,20 +68,20 @@ export function modal() {
     if (m.kind === 'project') { await api('POST', '/projects', v); S.modal = null; return; }
     let project = v.project;
     if (v.newProject.trim()) project = (await api('POST', '/projects', { title: v.newProject })).slug;
-    if (!project) throw new Error('choose a project, or name a new one');
+    if (!project) throw new Error('choose an area, or name a new one');
     const r = await api('POST', '/initiatives', { ...v, project });
     S.modal = null; go(route().view, r.id);
   });
   const field = (name, el, style) => h('label', { class: 'f', style }, h('span', { class: 'lbl' }, name), el);
   const input = (key, extra = {}) => h('input', { class: 'field', value: v[key], onInput: e => { v[key] = e.target.value; }, ...extra });
   return h('div', { class: 'modal' }, h('div', { class: 'card' },
-    h('div', { class: 'hrow between' }, h('h3', {}, m.kind === 'project' ? 'New project' : 'New initiative'), h('button', { class: 'btn sm', onClick: close }, 'Cancel')),
-    muted(m.kind === 'project' ? 'A project groups related initiatives.' : 'It lands in the backlog as proposed. Approve it on the Plan page to include it in a cycle.', 'small'),
+    h('div', { class: 'hrow between' }, h('h3', {}, m.kind === 'project' ? 'New area' : 'New project'), h('button', { class: 'btn sm', onClick: close }, 'Cancel')),
+    muted(m.kind === 'project' ? 'An area groups related projects.' : 'It lands in the backlog as proposed. Approve it on the Plan page to include it in a cycle.', 'small'),
     S.err ? h('div', { class: 'err' }, S.err) : null,
     field('Title', input('title', { autofocus: true })),
     m.kind === 'initiative' ? h('div', { class: 'hrow' },
-      field('Project', h('select', { class: 'field', onChange: e => { v.project = e.target.value; } }, d.projects.map(p => h('option', { value: p.slug, selected: p.slug === v.project }, p.title))), 'flex:1 1 180px'),
-      field('Or a new project', input('newProject', { placeholder: 'Name' }), 'flex:1 1 180px')) : null,
+      field('Area', h('select', { class: 'field', onChange: e => { v.project = e.target.value; } }, d.projects.map(p => h('option', { value: p.slug, selected: p.slug === v.project }, p.title))), 'flex:1 1 180px'),
+      field('Or a new area', input('newProject', { placeholder: 'Name' }), 'flex:1 1 180px')) : null,
     m.kind === 'initiative'
       ? [field('Page', rich('modal:body', v.body, md => { v.body = md; }, { minHeight: 200, scope: 'new' })), h('div', { class: 'hrow' },
         field('Effort', h('select', { class: 'field', onChange: e => { v.effort = e.target.value; } }, opts([['', 'Unsized'], ...d.enums.efforts.map(s => [s, s])], v.effort))),
@@ -100,7 +100,7 @@ function personModal(m) {
     h('div', { class: 'hrow between' }, h('h3', {}, 'New person'), h('button', { class: 'btn sm', type: 'button', onClick: close }, 'Cancel')),
     muted('Added by hand for now. When people come from the company directory they will appear here on their own, with the same fields.', 'small'),
     S.err ? h('div', { class: 'err' }, S.err) : null,
-    field('Name', 'name', 'As it is written on initiatives', { autofocus: true }),
+    field('Name', 'name', 'As it is written on projects', { autofocus: true }),
     h('div', { class: 'hrow' }, h('div', { style: 'flex:1 1 200px' }, field('Role', 'role', 'e.g. Staff engineer')), h('div', { style: 'flex:1 1 200px' }, field('Team', 'team', 'e.g. Data foundations', { list: 'person-teams' }))),
     h('datalist', { id: 'person-teams' }, ...teams.map(t => h('option', { value: t }))),
     field('Email', 'email', 'name@company.com', { type: 'email' }),
@@ -145,8 +145,8 @@ function updateDrawer(m) {
       h('div', { class: 'upd-text' }, ...linked(l.text)),
       h('div', { class: 'stack info' },
         row('Source', l.source || 'manual'), row('Received', stamped(l.ts)),
-        row('Initiative', h('button', { class: 'link-btn', onClick: () => { S.modal = null; openIt(m.item.id); } }, m.item.title)),
-        row('Project', m.item.projectTitle))));
+        row('Project', h('button', { class: 'link-btn', onClick: () => { S.modal = null; openIt(m.item.id); } }, m.item.title)),
+        row('Area', m.item.projectTitle))));
 }
 
 // The status agent's answer: its own drawer, with the light Markdown it writes (bold, bullets) shown as such.
@@ -177,5 +177,5 @@ function agentDrawer(m) {
 export async function newInitiativePage(project) {
   const p = project || (D().projects[0] && D().projects[0].slug);
   if (!p) { S.modal = { kind: 'project' }; S.err = ''; render(); return; }                       // nothing to put it in yet
-  await act(async () => { const r = await api('POST', '/initiatives', { project: p, title: 'Untitled initiative', body: TEMPLATE }); S.focusTitle = true; openFull('initiative', r.id); });
+  await act(async () => { const r = await api('POST', '/initiatives', { project: p, title: 'Untitled project', body: TEMPLATE }); S.focusTitle = true; openFull('initiative', r.id); });
 }

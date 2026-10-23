@@ -148,7 +148,7 @@ function itemPrompt(a, id) {
   const same = a.items.filter(x => x.project === it.project && x.id !== it.id && x.tier === 'cycle').map(x => `${x.title} [${x.statusLabel}]`).slice(0, 12);
   return ctxText(a, 'status agent') + ' Rules: the champion updates status weekly, effort is calendar time, unshipped items roll into the next cycle ranking without a free pass, flag cross-team risks early.\n'
     + 'Item: ' + J({ title: it.title, project: it.projectTitle, rank: it.rank, status: it.statusLabel, effort: it.effort, target: it.target, champion: it.owner, contributors: it.contributors, ships: it.ships, risks: it.risks, mission: it.mission, milestones: it.tasks.map(t => `${t.title} [${t.status}${t.due ? ', due ' + t.due : ''}]`), recentLog: it.log.slice(0, 5).map(l => `${l.ts.slice(0, 10)} ${l.text}`) })
-    + '\nPlanner checks: ' + J(it.flags) + '\nOther cycle items in the same project: ' + J(same)
+    + '\nPlanner checks: ' + J(it.flags) + '\nOther cycle items in the same area: ' + J(same)
     + '\nWrite a status read in under 140 words: (1) health verdict in one line, (2) what looks wrong or stale, (3) the one question to ask the champion this week, (4) likely outcome by the end of the cycle (ship, interim milestone, roll over). Only use facts given; say when something is unknown.';
 }
 function portfolioPrompt(a) {
@@ -159,7 +159,7 @@ function portfolioPrompt(a) {
   const risky = flagged.filter(i => i.hot).slice(0, 25).map(i => ({ t: i.title, project: i.projectTitle, status: i.statusLabel, champion: i.owner, risks: i.risks }));
   const stale = flagged.filter(i => i.flags.some(f => /has passed/.test(f))).slice(0, 25).map(i => ({ t: i.title, project: i.projectTitle, target: i.target, status: i.statusLabel, champion: i.owner }));
   const load = a.people.slice(0, 10).map(p => ({ n: p.n, score: p.load.score, active: p.load.active }));
-  return ctxText(a, 'portfolio status agent') + ' Data: status counts ' + J(counts) + '; ranked items per project ' + J(byProject)
+  return ctxText(a, 'portfolio status agent') + ' Data: status counts ' + J(counts) + '; ranked items per area ' + J(byProject)
     + '; at-risk or off-track items ' + J(risky) + '; items past target date and not shipped ' + J(stale)
     + '; most loaded people (score = 2 x champion + 1 x contributor on unshipped cycle items) ' + J(load)
     + '. Write a briefing for the Director in under 260 words with short headed sections: Overall, Needs a decision now, Stale or unreliable status, People at risk of overload, What to fix in the planner before cycle close. Use only these facts and name items and people.';
@@ -167,9 +167,9 @@ function portfolioPrompt(a) {
 function simPrompt(a, input, sim) {
   const when = input.when === 'cycle2' ? 'now, inside the active cycle' : input.when === 'later' ? 'later' : `the next cycle (${a.ctx.nx.start} to ${a.ctx.nx.end})`;
   return ctxText(a, 'simulation agent') + ' Rules: forced rank with no ties, cap of 3-6 ranked items per team, an XL should be the only rank 1, a mid-cycle addition pushes another priority to backlog, effort is calendar time.\n'
-    + 'Proposed initiative: ' + J({ title: input.title, description: input.description, effort: input.effort, target: when })
+    + 'Proposed project: ' + J({ title: input.title, description: input.description, effort: input.effort, target: when })
     + '\nMost relevant people with load: ' + J(sim.people.map(r => ({ n: r.n, why: r.why, loadScore: r.load, activeItems: r.active })))
-    + '\nRelated initiatives: ' + J(sim.related) + '\nCandidate items to bump or sequence behind (same projects, not yet on track): ' + J(sim.bump)
+    + '\nRelated projects: ' + J(sim.related) + '\nCandidate items to bump or sequence behind (same areas, not yet on track): ' + J(sim.bump)
     + '\nWrite under 260 words with short headed sections: Suggested champion and core team, What it affects (dependencies, overlaps, duplicated work), Capacity impact (who gets stretched, what to bump or defer), Recommended placement (cycle and tier) and the first 2 questions to answer. Use only the facts given and say what you cannot tell.';
 }
 

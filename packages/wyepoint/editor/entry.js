@@ -255,7 +255,7 @@ async function fromBlocks(editor, o) {
     if (!ITEM.has(b.type)) { group.push(b); continue; }
     await flush();
     const title = plainText(b.content), p = b.props;
-    if (b.type === 'milestone') parts.push({ line: L.taskLine({ id: p.mid || `${o.idPrefix || 'task:new.'}${++n}`, title: title || 'Untitled milestone', status: p.status, owner: p.owner, due: p.due }, o.node || 'initiative:TBD') });
+    if (b.type === 'milestone') parts.push({ line: L.taskLine({ id: p.mid || `${o.idPrefix || 'task:new.'}${++n}`, title: title || 'Untitled milestone', status: p.status, owner: p.owner, due: p.due }, o.node || 'project:TBD') });
     else if (b.type === 'ref') parts.push({ line: L.refLine({ type: p.kind, label: title, url: p.url || 'https://', meta: p.meta || (p.kind === 'pr' ? today() : 'manual') }) });
     else if (b.type === 'typed') { let data = {}; try { data = JSON.parse(p.data); } catch { /* none */ } parts.push({ line: L.nodeLine({ id: `${p.kind}:${p.tid || `${CTX.scope}.1`}`, text: title, status: p.status, props: data }) + (p.notes && p.notes.trim() ? '\n' + p.notes.trim().split('\n').map(l => ('  ' + l).replace(/\s+$/, l.trim() ? '' : '  ')).join('\n') : '') }); }
     else if (b.type === 'drawing') parts.push({ line: L.drawingLine({ title: p.title, src: p.src }) });

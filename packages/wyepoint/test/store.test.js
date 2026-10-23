@@ -36,9 +36,9 @@ test('initiative round-trips through Markdown and is a goal node', () => {
   assert.strictEqual(got.links.length, 1);
   assert.strictEqual(got.log[0].text, 'multi line text'); assert.strictEqual(got.log[0].source, 'jira-ops');
   assert.strictEqual(got.description, 'Line one\n\nline two');
-  const md = fs.readFileSync(path.join(dir, 'projects/web/docs/onboarding-v2.md'), 'utf8');
-  assert.match(md, /^---\nnode: initiative:web\.onboarding-v2\n/);
-  assert.match(md, /\n- task:web\.onboarding-v2\.1 Checklist #todo \(owner: Lee, part-of: initiative:web\.onboarding-v2\)\n/);
+  const md = fs.readFileSync(path.join(dir, 'areas/web/docs/onboarding-v2.md'), 'utf8');
+  assert.match(md, /^---\nnode: project:web\.onboarding-v2\n/);
+  assert.match(md, /\n- task:web\.onboarding-v2\.1 Checklist #todo \(owner: Lee, part-of: project:web\.onboarding-v2\)\n/);
   assert.match(md, /\n- \[Spec v2\]\(https:\/\/example\.com\/a\(b%29\) · link · manual\n/);
 });
 
@@ -58,8 +58,8 @@ test('validation: bad status, bad url, path traversal', () => {
   const it = s.createInitiative({ project: 'p', title: 'A' });
   assert.throws(() => s.update(it.id, { status: 'wat' }), /unknown status/);
   assert.throws(() => s.addLink(it.id, { url: 'javascript:alert(1)' }), /http/);
-  assert.throws(() => s.get('../../etc/passwd'), /bad initiative id/);
-  assert.throws(() => s.get('p/../x'), /bad initiative id/);
+  assert.throws(() => s.get('../../etc/passwd'), /bad project id/);
+  assert.throws(() => s.get('p/../x'), /bad project id/);
   assert.throws(() => s.setConfig({ weeks: 0 }), /weeks/);
 });
 
@@ -67,7 +67,7 @@ test('ingest: generic push and the GitHub adapter', () => {
   const s = new Store(tmp()); s.createProject({ title: 'P' });
   const it = s.createInitiative({ project: 'p', title: 'Billing' });
   ingest.ingest(s, { source: 'jira', initiative: 'billing', kind: 'link', label: 'PROJ-1', url: 'https://j.example/PROJ-1', text: 'PROJ-1 done' });
-  ingest.ingest(s, { source: 'jira', initiative: it.id, kind: 'task', title: 'T', status: 'todo' });
+  ingest.ingest(s, { source: 'jira', project: it.id, kind: 'task', title: 'T', status: 'todo' });
   ingest.ingest(s, { source: 'jira', initiative: it.id, kind: 'task', title: 'T', status: 'done' });
   let got = s.get(it.id);
   assert.strictEqual(got.tasks.length, 1); assert.strictEqual(got.tasks[0].status, 'done');
@@ -76,6 +76,6 @@ test('ingest: generic push and the GitHub adapter', () => {
   assert.strictEqual(r.initiative, 'p/billing');
   got = s.get(it.id);
   assert.strictEqual(got.prs.length, 1); assert.match(got.prs[0].title, /PR #7/);
-  assert.deepStrictEqual(ingest.github(s, 'pull_request', { pull_request: { number: 8, title: 'unrelated' } }).ignored, 'no wyepoint:<initiative> reference');
-  assert.throws(() => ingest.ingest(s, { initiative: 'nope', kind: 'log', text: 'x' }), /no initiative/);
+  assert.deepStrictEqual(ingest.github(s, 'pull_request', { pull_request: { number: 8, title: 'unrelated' } }).ignored, 'no wyepoint:<project> reference');
+  assert.throws(() => ingest.ingest(s, { initiative: 'nope', kind: 'log', text: 'x' }), /no project/);
 });

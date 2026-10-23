@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const VERSION = 3;
+const VERSION = 4;
 
 // the core types, as Wye cards. Props are optional (`?`) so a page without one is not a warning.
 const CORE = `- id: type:person
@@ -31,22 +31,23 @@ const CORE = `- id: type:person
     theme: string?
     released-at: date?
     closed-at: date?
-- id: type:initiative
-  extends: type:goal
+- id: type:project
+  extends: type:node
   purpose: a piece of work planned in a cycle, with a champion, contributors, milestones, links and updates
-  plural: Initiatives
+  plural: Projects
   open: true
   statuses: [not-started, proposed, on-track, at-risk, off-track, paused, complete]
   props:
     champion: ref person? -(inverse)-> champions
     involves: list of person? -(inverse)-> involved-in
-    cycle: ref cycle? -(inverse)-> initiatives
+    cycle: ref cycle? -(inverse)-> projects
     contributors: string?
     effort: enum [S, M, L, XL]?
     mission: string?
     approved: bool?
     bucket: enum [proposed, next, later, icebox]?
     rank: number?
+    target: string?
     updated: string?`;
 
 // the types WyePoint ships beyond its entities: usable on any page, not editable in Settings
@@ -61,7 +62,7 @@ function coreDocument() {
 function baseKinds() {
   let md = ''; try { md = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'schema', 'base-ontology.md'), 'utf8'); } catch { /* not beside the repo */ }
   const kinds = new Set([...md.matchAll(/^- id: type:([\w-]+)/gm)].map(m => m[1]));
-  ['person', 'cycle', 'initiative', 'risk', 'project', 'milestone', 'link', 'update', 'drawing', 'pr', 'task', 'goal'].forEach(k => kinds.add(k));
+  ['person', 'cycle', 'initiative', 'risk', 'project', 'area', 'milestone', 'link', 'update', 'drawing', 'pr', 'task', 'goal'].forEach(k => kinds.add(k));
   return kinds;
 }
 const RESERVED_PROPS = new Set(['title', 'status', 'owner', 'text', 'icon', 'cover', 'tags', 'since', 'until', 'by', 'session', 'evidence', 'supersedes', 'content', 'related-to', 'mentions', 'part-of', 'depends-on', 'contradicts', 'see', 'resolves', 'produced', 'id', 'type', 'kind', 'node', 'target', 'progress', 'due', 'worker', 'priority', 'blocked-by', 'change', 'ready']);

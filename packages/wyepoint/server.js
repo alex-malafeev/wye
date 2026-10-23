@@ -180,7 +180,7 @@ async function api(req, res, url) {
     // ids are project/slug, so they take two path segments
     const id = `${b}/${c}`, taskId = parts[4];
     if (b && c) {
-      if (method === 'GET' && !d) return json(res, 200, analysis.analyze(store).items.find(i => i.id === id) || (() => { throw fail(404, 'initiative not found'); })());
+      if (method === 'GET' && !d) return json(res, 200, analysis.analyze(store).items.find(i => i.id === id) || (() => { throw fail(404, 'project not found'); })());
       if (method === 'PATCH' && !d) return json(res, 200, store.update(id, body));
       if (method === 'DELETE' && !d) { store.remove(id); return json(res, 200, { ok: true }); }
       if (d === 'tasks') {
