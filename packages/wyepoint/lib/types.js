@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const VERSION = 5;
+const VERSION = 6;
 
 // the core types, as Wye cards. Props are optional (`?`) so a page without one is not a warning.
 const CORE = `- id: type:person
@@ -31,20 +31,20 @@ const CORE = `- id: type:person
     theme: string?
     released-at: date?
     closed-at: date?
-- id: type:project
+- id: type:initiative
   extends: type:node
-  key: PROJ
+  key: INIT
   purpose: a piece of work planned in a cycle, with a champion, contributors, milestones, links and updates
-  plural: Projects
+  plural: Initiatives
   open: true
   statuses: [not-started, proposed, on-track, at-risk, off-track, paused, complete]
   props:
     champion: ref person? -(inverse)-> champions
     involves: list of person? -(inverse)-> involved-in
-    cycle: ref cycle? -(inverse)-> projects
+    cycle: ref cycle? -(inverse)-> initiatives
     contributors: string?
     effort: enum [S, M, L, XL]?
-    goal: ref goal? -(inverse)-> projects
+    goal: ref goal? -(inverse)-> initiatives
     approved: bool?
     bucket: enum [proposed, next, later, icebox]?
     rank: number?

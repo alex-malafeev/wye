@@ -8,7 +8,7 @@ const STATUS_ORDER = { 'off-track': 0, 'at-risk': 1, 'on-track': 2, 'not-started
 const EFFORT_ORDER = { S: 1, M: 2, L: 3, XL: 4 };
 const STATUS_LABELS = ['On Track', 'At Risk', 'Off Track', 'Not Started', 'Paused', 'Shipped', 'No status', 'Planned', 'Proposed', 'Backlog'];
 const TIERS = [['', 'All tiers'], ['cycle', 'Active cycle'], ['plan', 'Planned'], ['next', 'Next cycle'], ['later', 'Later'], ['icebox', 'Icebox'], ['proposed', 'Proposed'], ['carry', 'Carry-over'], ['done', 'Shipped, past cycle']];
-const DIMS = [['project', 'Area'], ['status', 'Status'], ['mission', 'Goal'], ['tier', 'Tier'], ['effort', 'Effort'], ['champion', 'Champion'], ['flag', 'Planner checks']];
+const DIMS = [['project', 'Team'], ['status', 'Status'], ['mission', 'Goal'], ['tier', 'Tier'], ['effort', 'Effort'], ['champion', 'Champion'], ['flag', 'Planner checks']];
 const dimName = d => (DIMS.find(x => x[0] === d) || [0, 'None'])[1];
 const dimVals = (it, d) => ({ project: [it.projectTitle], status: [it.statusLabel], mission: [it.mission || 'No goal'], tier: [it.tierLabel], effort: [it.effort || 'Unsized'], champion: [it.owner || 'No champion'], flag: [it.flags.length ? 'Has flags' : 'Clean'] }[d] || ['All']);
 const uniq = a => [...new Set(a)].sort();
@@ -24,7 +24,7 @@ export const cycleSel = i => {
 export function itemRow(i, sub, selected) {
   // the layout of a project card's list: name and detail on the left; status, progress and its percentage on the right
   return h('button', { class: 'mini ranked' + (selected ? ' sel' : ''), onClick: () => openIt(i.id) },
-    h('span', { class: 'mini-rank' }, i.rank == null ? '' : i.rank),   // the column is always there, so titles line up
+    h('span', { class: 'mini-rank', title: i.rank == null ? '' : `Rank ${i.rank}: its priority in the cycle plan, 1 first (each goal was ranked on its own)` }, i.rank == null ? '' : i.rank),   // the column is always there, so titles line up
     h('span', { class: 'mini-main' }, h('span', { class: 'mini-title' }, i.title, i.key ? h('span', { class: 'mini-key' }, i.key) : null), h('span', { class: 'mini-sub' }, sub || `${i.projectTitle} · ${i.owner || 'No champion'} · ${i.tierLabel}${i.effort ? ' · ' + i.effort : ''}`)),
     h('span', { class: 'mini-chips' }, i.flags.length ? chip('s-off', `${i.flags.length} flag${i.flags.length > 1 ? 's' : ''}`) : null, chip(i.statusClass, i.statusLabel)),
     h('span', { class: 'mini-progress' }, bar(i.progress, i.hot), h('span', {}, i.progress + '%')));
@@ -61,7 +61,7 @@ export function listFilters(key, rows) {
     funnel, active ? h('span', { class: 'filter-badge' }, active) : null);
   const field = (name, k, values) => h('div', { class: 'f' }, h('span', { class: 'lbl' }, name), dropdown([['', 'Any'], ...values.map(v => [v, v])], f[k], v => { f[k] = v; render(); }, name));
   const panel = f.open ? h('div', { class: 'filter-panel' },
-    h('input', { class: 'field', type: 'search', 'data-k': `lf-q-${key}`, placeholder: 'Search these projects, or a key', 'aria-label': 'Search these projects', value: f.q, onInput: e => { f.q = e.target.value; render(); } }),
+    h('input', { class: 'field', type: 'search', 'data-k': `lf-q-${key}`, placeholder: 'Search these initiatives, or a key', 'aria-label': 'Search these initiatives', value: f.q, onInput: e => { f.q = e.target.value; render(); } }),
     h('div', { class: 'filter-grid' }, field('Status', 'status', uniq(rows.map(i => i.statusLabel))), field('Champion', 'champion', uniq(rows.map(i => i.owner || 'No champion'))),
       field('Goal', 'goal', uniq(rows.map(i => i.mission || 'No goal'))), field('Cycle', 'cycle', uniq(rows.map(cycleOf)))),
     h('div', { class: 'hrow between' }, h('span', { class: 'muted small' }, `${shown.length} of ${rows.length}`),
@@ -147,9 +147,9 @@ export function goals() {
         h('div', { class: 'goal-title' }, g.title),
         g.description ? h('div', { class: 'muted small goal-desc' }, g.description) : null,
         h('div', { class: 'goal-meter' }, bar(g.progress, g.hot), h('b', {}, g.progress + '%')),
-        h('div', { class: 'muted small' }, `${mine} project${mine === 1 ? '' : 's'}`, g.owner ? ` · ${g.owner}` : '', g.target ? ` · by ${fmtDate(g.target)}` : ''));
-    })) : muted('No goals yet. A goal is what projects work towards: create one, then put projects under it.'),
-    loose ? muted(`${loose} open project${loose === 1 ? ' is' : 's are'} not under any goal.`, 'small') : null);
+        h('div', { class: 'muted small' }, `${mine} initiative${mine === 1 ? '' : 's'}`, g.owner ? ` · ${g.owner}` : '', g.target ? ` · by ${fmtDate(g.target)}` : ''));
+    })) : muted('No goals yet. A goal is what initiatives work towards: create one, then put initiatives under it.'),
+    loose ? muted(`${loose} open initiative${loose === 1 ? ' is' : 's are'} not under any goal.`, 'small') : null);
 }
 
 // ---- overview
@@ -180,7 +180,7 @@ export function overview() {
   const attention = cy.filter(i => i.hot || past(i) || i.tasks.some(t => t.status === 'blocked')).sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
   const inCycle = { tier: 'cycle' };
   const cards = [
-    { title: 'Ranked items', sub: `In ${A.name}`, value: cy.length, note: `${all.length} projects in total`, go: inCycle },
+    { title: 'Ranked items', sub: `In ${A.name}`, value: cy.length, note: `${all.length} initiatives in total`, go: inCycle },
     { title: 'On track', sub: 'Reporting on track', value: n(i => i.status === 'on-track'), note: `of ${cy.length} ranked`, go: { ...inCycle, status: 'On Track' } },
     { title: 'At risk or off track', sub: 'Needs a decision', value: n(i => i.hot), note: `of ${cy.length} ranked`, go: { ...inCycle, status: 'At Risk' } },
     { title: 'Not started', sub: `${left} days left in the cycle`, value: n(i => i.status === 'not-started'), note: `of ${cy.length} ranked`, go: { ...inCycle, status: 'Not Started' } },
@@ -196,7 +196,7 @@ export function overview() {
         bar(el, false, true),
         h('div', { class: 'hrow between muted', style: 'font-size:12px;flex-wrap:nowrap' }, h('span', {}, fmtDate(A.start)), h('span', {}, 'Today, ' + fmtDate(d.today)), h('span', {}, fmtDate(A.end)), h('span', {}, d.config.cooldown ? `Cooldown ${d.config.cooldown} days after` : ''))),
       h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('div', { class: 'card-h' }, 'Most loaded people'), h('div', { class: 'card-sub' }, 'Champion counts twice, contributor once')), h('button', { class: 'btn sm', onClick: () => go('people') }, 'All people')),
-        list(d.people.slice(0, 6).map(personRow)), d.people.length ? null : muted('No people yet. Name a champion on a project or add a roster in People.', 'small'))),
+        list(d.people.slice(0, 6).map(personRow)), d.people.length ? null : muted('No people yet. Name a champion on an initiative or add a roster in People.', 'small'))),
     h('aside', { class: 'sidepanel' }, h('div', { class: 'card-h' }, 'Needs attention'),
       ...(S.attnAll ? attention : attention.slice(0, 5)).map(i => h('div', { class: 'card step clickable', role: 'button', tabIndex: 0, 'aria-label': `Open ${i.title}`, onClick: () => openIt(i.id), onKeyDown: e => { if (e.key === 'Enter') openIt(i.id); } },
         h('div', { class: 'step-title' }, h('span', { class: 'dot ' + (i.status === 'off-track' ? 'dot-off' : i.status === 'at-risk' ? 'dot-risk' : 'dot-flag'), 'aria-hidden': 'true' }), i.title),
@@ -204,7 +204,7 @@ export function overview() {
         h('ul', { class: 'step-why' }, ...whyLines(i).map(t => h('li', {}, t))),
         )),
       attention.length > 5 ? h('button', { class: 'mini-more', onClick: () => { S.attnAll = !S.attnAll; render(); } }, S.attnAll ? 'Show fewer' : `+ ${attention.length - 5} more`) : null,
-      attention.length ? null : h('div', { class: 'card step' }, h('div', { class: 'step-title' }, h('span', { class: 'dot dot-ok', 'aria-hidden': 'true' }), 'Nothing needs attention'), h('div', { class: 'step-sub' }, `Every ranked project in ${A.name} is on course.`))));
+      attention.length ? null : h('div', { class: 'card step' }, h('div', { class: 'step-title' }, h('span', { class: 'dot dot-ok', 'aria-hidden': 'true' }), 'Nothing needs attention'), h('div', { class: 'step-sub' }, `Every ranked initiative in ${A.name} is on course.`))));
 }
 
 // A project's open initiatives as a compact list: name, who and when under it, status and progress at the right.
@@ -221,7 +221,7 @@ function miniList(list, more, max = 5) {
 export function projects() {
   const d = D();
   return [
-    h('div', { class: 'hrow' }, h('button', { class: 'btn', onClick: () => { S.modal = { kind: 'project' }; S.err = ''; render(); } }, 'New area')),
+    h('div', { class: 'hrow' }, h('button', { class: 'btn', onClick: () => { S.modal = { kind: 'project' }; S.err = ''; render(); } }, 'New team')),
     h('div', { class: 'grid' }, d.projects.map(p => {
       const all = items().filter(i => i.project === p.slug), cy = all.filter(i => i.tier === 'cycle');
       const avg = cy.length ? Math.round(cy.reduce((s, i) => s + i.progress, 0) / cy.length) : 0;
@@ -237,9 +237,9 @@ export function projects() {
         h('div', { class: 'hrow' }, STATUS_LABELS.filter(l => mix[l]).map(l => chip(statusClassOf(l), `${mix[l]} ${l.toLowerCase()}`))),
         muted('People: ' + top, 'small'),
         miniList(all.filter(i => i.status !== 'complete' && i.tier !== 'done').sort((a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || (a.rank ?? 999) - (b.rank ?? 999)), () => openProject(p.slug)),
-        h('div', { class: 'hrow' }, h('button', { class: 'btn', onClick: () => { Object.assign(S.f, { q: '', project: p.slug, status: '', tier: '' }); go('backlog'); } }, 'Open in backlog'), h('button', { class: 'btn', onClick: () => newInitiativePage(p.slug) }, 'New project')));
+        h('div', { class: 'hrow' }, h('button', { class: 'btn', onClick: () => { Object.assign(S.f, { q: '', project: p.slug, status: '', tier: '' }); go('backlog'); } }, 'Open in backlog'), h('button', { class: 'btn', onClick: () => newInitiativePage(p.slug) }, 'New initiative')));
     })),
-    d.projects.length ? null : muted('No areas yet. Create one to start adding projects.'),
+    d.projects.length ? null : muted('No teams yet. Create one to start adding initiatives.'),
   ];
 }
 const statusClassOf = l => ({ 'On Track': 's-on', 'At Risk': 's-risk', 'Off Track': 's-off', 'Not Started': 's-ns', Shipped: 's-ship' }[l] || 's-none');
@@ -251,7 +251,7 @@ function select(key, name, options, value, set) {
 export function backlog() {
   const f = S.f, q = f.q.trim().toLowerCase(), all = items();
   const sortKey = it => ({ title: it.title.toLowerCase(), status: STATUS_ORDER[it.status] ?? 9, project: it.projectTitle.toLowerCase(), effort: EFFORT_ORDER[it.effort] || 9, date: it.target ? new Date(it.target).getTime() : 9e15, champion: (it.owner || '~').toLowerCase() }[S.sortKey] ?? (TIER_ORDER[it.tier] * 1000 + (it.rank ?? 999)));
-  const shown = all.filter(it => (!f.project || it.project === f.project) && (!f.status || it.statusLabel === f.status) && (!f.mission || (it.mission || 'No goal') === f.mission) && (!f.tier || it.tier === f.tier) && (!f.effort || (it.effort || 'Unsized') === f.effort) && (!f.champion || it.owner === f.champion)
+  const shown = all.filter(it => (!f.project || it.project === f.project) && (!f.cycle || (f.cycle === 'none' ? it.cycle == null : String(it.cycle) === f.cycle)) && (!f.status || it.statusLabel === f.status) && (!f.mission || (it.mission || 'No goal') === f.mission) && (!f.tier || it.tier === f.tier) && (!f.effort || (it.effort || 'Unsized') === f.effort) && (!f.champion || it.owner === f.champion)
     && (!q || [it.title, it.key, it.projectTitle, it.owner, it.contributors.join(' '), it.ships, it.risks, it.description, ...it.tasks.map(t => `${t.key} ${t.title}`), ...(it.nodes || []).map(n => `${(n.props || {}).key || ''} ${n.text}`)].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => { const x = sortKey(a), y = sortKey(b); return (x < y ? -1 : x > y ? 1 : a.id.localeCompare(b.id)) * S.sortDir; });
   const groupMap = dim => { const m = {}, order = []; shown.forEach(it => dimVals(it, dim).forEach(k => { if (!m[k]) { m[k] = []; order.push(k); } m[k].push(it); })); return { m, order }; };
@@ -275,7 +275,7 @@ export function backlog() {
     if (open && S.lk.fresh) { S.lk.fresh = false; setTimeout(() => input.focus(), 0); }
     return h('div', { class: 'lookup' },
       h('button', { class: 'fsel' + (value ? ' active' : ''), 'aria-haspopup': 'listbox', 'aria-expanded': String(open), title: name, onClick: () => { S.lk = open ? null : { key, q: '', at: 0, fresh: true }; render(); } },
-        value ? h('span', {}, h('span', { class: 'fsel-l' }, name + ': '), cur || value) : name, h('span', { class: 'fsel-caret', 'aria-hidden': 'true' }, '⌄')),
+        value ? h('span', {}, h('span', { class: 'fsel-l' }, name + ': '), cur || value) : name, h('span', { class: 'fsel-caret', 'aria-hidden': 'true' })),
       open ? h('div', { class: 'lk-menu', role: 'listbox' }, input,
         h('div', { class: 'lk-list' }, ...rows.map(([v, l], k) => h('div', { class: 'lk-opt' + (k === S.lk.at ? ' on' : ''), role: 'option', 'aria-selected': String(v === value),
           onMouseDown: e => { e.preventDefault(); commit(v); } }, h('span', {}, l), v === value && v ? h('span', { class: 'lk-check' }, '✓') : null)),
@@ -286,20 +286,21 @@ export function backlog() {
   const active = Object.values(f).filter(Boolean).length;
   const filters = h('div', { class: 'filterbar' },
     h('div', { class: 'fb-row' },
-      h('input', { class: 'fb-search', type: 'search', 'data-k': 'q', value: f.q, placeholder: 'Search projects, people, tasks, keys', 'aria-label': 'Search', onInput: e => { f.q = e.target.value; render(); },
+      h('input', { class: 'fb-search', type: 'search', 'data-k': 'q', value: f.q, placeholder: 'Search initiatives, people, tasks, keys', 'aria-label': 'Search', onInput: e => { f.q = e.target.value; render(); },
         onKeyDown: e => { if (e.key === 'Enter' && KEY_PATTERN.test(e.target.value.trim())) { const hit = findKey(e.target.value); if (hit) { f.q = ''; location.hash = hit.href; } } } }),
-      pill('f-project', 'Area', D().projects.map(p => [p.slug, p.title]), f.project, v => { f.project = v; }),
+      pill('f-project', 'Team', D().projects.map(p => [p.slug, p.title]), f.project, v => { f.project = v; }),
+      pill('f-cycle', 'Cycle', [['none', 'No cycle'], ...D().cycles.filter(c => c.status !== 'closed' || items().some(i => i.cycle === c.n)).map(c => [String(c.n), c.status === 'active' ? `${c.name} · now` : c.n === D().nx ? `${c.name} · next` : c.name])], f.cycle, v => { f.cycle = v; }),
       pill('f-status', 'Status', STATUS_LABELS.map(x => [x, x]), f.status, v => { f.status = v; }),
       pill('f-mission', 'Goal', uniq(all.map(i => i.mission || 'No goal')).map(m => [m, m]), f.mission, v => { f.mission = v; }),
       pill('f-tier', 'Tier', TIERS.slice(1), f.tier, v => { f.tier = v; }),
       pill('f-effort', 'Effort', ['S', 'M', 'L', 'XL', 'Unsized'].map(x => [x, x]), f.effort, v => { f.effort = v; }),
       pill('f-champion', 'Champion', uniq(all.map(i => i.owner).filter(Boolean)).map(n => [n, n]), f.champion, v => { f.champion = v; }),
-      active ? h('button', { class: 'fb-clear', onClick: () => { Object.assign(f, { q: '', project: '', status: '', mission: '', tier: '', effort: '', champion: '' }); render(); } }, `Clear filters (${active})`) : null,
-      h('span', { class: 'fb-count' }, `${shown.length} of ${all.length} projects`)),
+      active ? h('button', { class: 'fb-clear', onClick: () => { Object.assign(f, { q: '', project: '', cycle: '', status: '', mission: '', tier: '', effort: '', champion: '' }); render(); } }, `Clear filters (${active})`) : null,
+      h('span', { class: 'fb-count' }, `${shown.length} of ${all.length} initiatives`)),
     h('div', { class: 'fb-row fb-view' },
       inline('gy', 'Group by', DIMS, S.gy, v => { S.gy = v; }),
       inline('gx', 'Columns', [['none', 'None'], ...DIMS], S.gx, v => { S.gx = v; }),
-      inline('sort', 'Sort', [['rank', 'Tier and rank'], ['title', 'Title'], ['status', 'Status'], ['project', 'Area'], ['effort', 'Effort'], ['date', 'Target date'], ['champion', 'Champion']], S.sortKey, v => { S.sortKey = v; }),
+      inline('sort', 'Sort', [['rank', 'Tier and rank'], ['title', 'Title'], ['status', 'Status'], ['project', 'Team'], ['effort', 'Effort'], ['date', 'Target date'], ['champion', 'Champion']], S.sortKey, v => { S.sortKey = v; }),
       h('button', { class: 'fsel fsel-btn', 'aria-label': 'Reverse the order', onClick: () => { S.sortDir = -S.sortDir; render(); } }, S.sortDir === 1 ? '↑ Ascending' : '↓ Descending')));
   let body;
   if (S.gx !== 'none') {
@@ -339,12 +340,12 @@ export function people() {
   const over = d.people.filter(p => p.tag === 'Overloaded' || p.tag === 'Heavy').length;
   const filtered = S.pq.trim() || S.pf !== 'all' || S.pt;
   const row = p => h('button', { class: 'mini person' + (p.n === open ? ' sel' : ''), onClick: () => openPerson(p.n) },
-    h('span', { class: 'mini-main' }, h('span', { class: 'mini-title' }, p.n), h('span', { class: 'mini-sub' }, [p.role, p.team].filter(Boolean).join(' · ') || (projectsOf(p) || 'Not on any project') + (p.inDirectory ? '' : ' · not in the directory'))),
+    h('span', { class: 'mini-main' }, h('span', { class: 'mini-title' }, p.n), h('span', { class: 'mini-sub' }, [p.role, p.team].filter(Boolean).join(' · ') || (projectsOf(p) || 'Not on any initiative') + (p.inDirectory ? '' : ' · not in the directory'))),
     h('span', { class: 'person-load' }, h('span', { class: 'mini-sub' }, h('b', {}, `Load ${p.load.score} of 10`), ` · ${p.load.c} champion, ${p.load.k} contributor`), meter(p)),
     h('span', { class: 'person-tag' }, chip(p.tagClass, p.tag)));
   return h('div', { class: 'stack', style: 'gap:14px' },
     h('div', { class: 'filterbar', style: 'border-bottom:0;padding-bottom:0' }, h('div', { class: 'fb-row' },
-      h('input', { class: 'fb-search', type: 'search', 'data-k': 'pq', value: S.pq, placeholder: 'Search by name, role, team or area', 'aria-label': 'Search people', onInput: e => { S.pq = e.target.value; render(); } }),
+      h('input', { class: 'fb-search', type: 'search', 'data-k': 'pq', value: S.pq, placeholder: 'Search by name, role or team', 'aria-label': 'Search people', onInput: e => { S.pq = e.target.value; render(); } }),
       pillSel('pf', 'Show', [['over', 'Heavy or overloaded'], ['champ', 'Champions'], ['contrib', 'Contributors only'], ['none', 'Has room']], S.pf === 'all' ? '' : S.pf, v => { S.pf = v || 'all'; }),
       teams.length ? pillSel('pt', 'Team', teams.map(t => [t, t]), S.pt || '', v => { S.pt = v; }) : null,
       filtered ? h('button', { class: 'fb-clear', onClick: () => { S.pq = ''; S.pf = 'all'; S.pt = ''; render(); } }, 'Clear filters') : null,

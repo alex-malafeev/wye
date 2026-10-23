@@ -20,7 +20,7 @@ const mentionList = () => {
     ...(d.docs || []).map(x => ({ group: 'Documents', title: x.title, sub: [x.key, x.folder].filter(Boolean).join(' · '), href: `#/d/${x.slug}`, keywords: [x.key, x.category, x.folder].filter(Boolean) })),
     ...(d.goals || []).map(g => ({ group: 'Goals', title: g.title, sub: g.key, href: `#/g/${g.slug}`, keywords: [g.key] })),
     ...d.people.filter(p => p.inDirectory).map(p => ({ group: 'People', title: p.n, sub: p.role || '', href: `#/u/${p.slug}`, keywords: [p.role, p.team].filter(Boolean) })),
-    ...items().map(i => ({ group: 'Projects', title: i.title, sub: `${i.key} · ${i.projectTitle}`, href: `#/i/${i.project}/${i.slug}`, keywords: [i.key] })),
+    ...items().map(i => ({ group: 'Initiatives', title: i.title, sub: `${i.key} · ${i.projectTitle}`, href: `#/i/${i.project}/${i.slug}`, keywords: [i.key] })),
   ];
 };
 const MENTION = /^#\/(d|g|i|u)\/(.+)$/;                                    // inside the editor a mention is an in-app path

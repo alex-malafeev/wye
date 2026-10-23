@@ -15,12 +15,12 @@ const wye = (...args) => spawnSync(process.execPath, [WYE, ...args], { encoding:
 test('the core types are declared in the vault and pages are nodes of them', () => {
   const dir = tmp(), s = new Store(dir);
   const onto = fs.readFileSync(path.join(dir, 'types/ontology.md'), 'utf8');
-  for (const t of ['person', 'cycle', 'project']) assert.match(onto, new RegExp(`- id: type:${t}\\n`));
-  assert.match(onto, /- id: type:project\n  extends: type:node/);
+  for (const t of ['person', 'cycle', 'initiative']) assert.match(onto, new RegExp(`- id: type:${t}\\n`));
+  assert.match(onto, /- id: type:initiative\n  extends: type:node/);
   s.createProject({ title: 'P' }); s.createPerson({ name: 'Lee', role: 'Eng' }); s.createPerson({ name: 'Dana' });
   const it = s.createInitiative({ project: 'p', title: 'Thing', owner: 'Lee', contributors: 'Dana, Outsider', cycle: 1, approved: true });
-  const md = fs.readFileSync(path.join(dir, 'areas/p/docs/thing.md'), 'utf8');
-  assert.match(md, /node: project:p\.thing\n/); assert.match(md, /champion: person:lee\n/);
+  const md = fs.readFileSync(path.join(dir, 'teams/p/docs/thing.md'), 'utf8');
+  assert.match(md, /node: initiative:p\.thing\n/); assert.match(md, /champion: person:lee\n/);
   assert.match(md, /involves: person:lee, person:dana\n/);                    // the one who is not in the directory has no edge, only a name
   assert.match(md, /contributors: Dana, Outsider\n/); assert.match(md, /cycle: cycle:1\n/);
   assert.deepStrictEqual([it.cycle, it.owner, it.contributors], [1, 'Lee', ['Dana', 'Outsider']]);
@@ -36,8 +36,8 @@ test('pages written before the types are migrated: goal → initiative, person a
   fs.writeFileSync(path.join(dir, 'people/lee.md'), '---\ntitle: Lee\nkind: person\nsource: manual\n---\n# Lee\n');
   fs.writeFileSync(path.join(dir, 'cycles/2.md'), '---\nn: 2\ntype: doc\ntitle: Cycle 2\nstatus: planned\n---\n# Cycle 2\n');
   const s = new Store(dir);
-  const md = fs.readFileSync(path.join(dir, 'areas/p/docs/old.md'), 'utf8');
-  assert.match(md, /node: project:p\.old\n/); assert.match(md, /cycle: cycle:2\n/); assert.match(md, /part-of: project:p\.old/); assert.ok(!/goal:/.test(md));
+  const md = fs.readFileSync(path.join(dir, 'teams/p/docs/old.md'), 'utf8');
+  assert.match(md, /node: initiative:p\.old\n/); assert.match(md, /cycle: cycle:2\n/); assert.match(md, /part-of: initiative:p\.old/); assert.ok(!/goal:/.test(md));
   assert.match(fs.readFileSync(path.join(dir, 'people/lee.md'), 'utf8'), /node: person:lee/); assert.ok(!/kind:/.test(fs.readFileSync(path.join(dir, 'people/lee.md'), 'utf8')));
   assert.match(fs.readFileSync(path.join(dir, 'cycles/2.md'), 'utf8'), /node: cycle:2/);
   assert.strictEqual(s.get('p/old').cycle, 2);
@@ -89,7 +89,7 @@ test('a pasted picture is a file of its project: checked, named by the server, r
   assert.deepStrictEqual(s.readImage('p', url.slice(7)), { buf: png, type: 'image/png' });
   assert.throws(() => s.saveImage('p', Buffer.from('<svg onload="x()"></svg> not a picture')), /not a PNG/);
   assert.throws(() => s.readImage('p', '../../etc/passwd'), /not a picture file/);
-  assert.throws(() => s.saveImage('nope', png), /area not found/);
+  assert.throws(() => s.saveImage('nope', png), /team not found/);
 });
 
 test('Risk is built in: on every page, not editable in Settings', () => {
@@ -106,13 +106,13 @@ test('Wye itself reads it: wye check is clean and the graph has the edges and th
   const dir = tmp(), s = new Store(dir); require('../lib/seed')(s);
   assert.deepStrictEqual(s.types().map(t => t.slug), ['risk']);                  // Risk is built in, and the sample vault uses it
   const built = wye('build', '--root', dir); assert.strictEqual(built.status, 0, built.stderr + built.stdout);
-  assert.match(built.stdout, /project \d+/); assert.match(built.stdout, /person 6/); assert.match(built.stdout, /risk 3/); assert.match(built.stdout, /cycle \d/);
+  assert.match(built.stdout, /initiative \d+/); assert.match(built.stdout, /person 6/); assert.match(built.stdout, /risk 3/); assert.match(built.stdout, /cycle \d/);
   const check = wye('check', '--root', dir); assert.match(check.stdout, /0 error\(s\), 0 warning\(s\)/, check.stdout);
-  const node = wye('graph', 'get', 'project:customer-platform.billing-page-rewrite', '--root', dir).stdout;
+  const node = wye('graph', 'get', 'initiative:customer-platform.billing-page-rewrite', '--root', dir).stdout;
   assert.match(node, /champion → person:lee/); assert.match(node, /involves → person:/); assert.match(node, /cycle → cycle:0/);
   const lee = wye('graph', 'get', 'person:lee', '--root', dir).stdout;                       // the inverses the types declare
-  assert.match(lee, /champions → project:customer-platform\.billing-page-rewrite/); assert.match(lee, /involved-in → project:/); assert.match(lee, /responsible by risk:customer-platform\.billing-page-rewrite\.1/);
-  assert.match(wye('graph', 'get', 'cycle:0', '--root', dir).stdout, /projects → project:/);
+  assert.match(lee, /champions → initiative:customer-platform\.billing-page-rewrite/); assert.match(lee, /involved-in → initiative:/); assert.match(lee, /responsible by risk:customer-platform\.billing-page-rewrite\.1/);
+  assert.match(wye('graph', 'get', 'cycle:0', '--root', dir).stdout, /initiatives → initiative:/);
   assert.match(wye('graph', 'get', 'risk:customer-platform.billing-page-rewrite.1', '--root', dir).stdout, /Payments sandbox is flaky/);
 });
 
@@ -120,30 +120,30 @@ test('every project, milestone and typed item has a global key: PREFIX-n, the pr
   const dir = tmp(), s = new Store(dir); s.createProject({ title: 'P' });
   const a = s.createInitiative({ project: 'p', title: 'A', body: 'Intro\n\n- task:new.1 First #todo\n- risk:new.1 Flaky #open (severity: high)\n' });
   const b = s.createInitiative({ project: 'p', title: 'B', body: '- task:new.1 Other #todo\n' });
-  assert.deepStrictEqual([a.key, b.key], ['PROJ-1', 'PROJ-2']);
+  assert.deepStrictEqual([a.key, b.key], ['INIT-1', 'INIT-2']);
   assert.deepStrictEqual([a.tasks[0].key, b.tasks[0].key, a.nodes[0].props.key], ['TASK-1', 'TASK-2', 'RISK-1']);
   const t = s.createType({ name: 'Customer ask' });
   assert.strictEqual(t.key, 'CUST'); assert.match(fs.readFileSync(path.join(dir, 'types/custom.md'), 'utf8'), /key: CUST\n/);
-  assert.match(fs.readFileSync(path.join(dir, 'types/ontology.md'), 'utf8'), /- id: type:project\n {2}extends: type:node\n {2}key: PROJ\n/);
-  assert.throws(() => s.createType({ name: 'Another', key: 'proj' }), /already used/);
+  assert.match(fs.readFileSync(path.join(dir, 'types/ontology.md'), 'utf8'), /- id: type:initiative\n {2}extends: type:node\n {2}key: INIT\n/);
+  assert.throws(() => s.createType({ name: 'Another', key: 'init' }), /already used/);
   assert.throws(() => s.createType({ name: 'Bad', key: '1x' }), /capital letters/);
   assert.strictEqual(s.updateType('customer-ask', { name: 'Customer ask', key: 'ZZZ' }).key, 'CUST');           // the ids already given keep their prefix
   // a page saved again (the editor does not know the keys) keeps them; an added line gets the next one
   const bare = a.body.replace(/, key: TASK-1/, '').replace(', key: RISK-1', '') + '\n- task:p.a.9 Added #todo\n';
   const again = s.update(a.id, { body: bare });
-  assert.deepStrictEqual(again.tasks.map(x => x.key), ['TASK-1', 'TASK-3']); assert.strictEqual(again.nodes[0].props.key, 'RISK-1'); assert.strictEqual(again.key, 'PROJ-1');
-  assert.strictEqual(s.createInitiative({ project: 'p', title: 'C' }).key, 'PROJ-3');
-  assert.strictEqual(new Store(dir).get(a.id).key, 'PROJ-1');                                                    // read back from the page
+  assert.deepStrictEqual(again.tasks.map(x => x.key), ['TASK-1', 'TASK-3']); assert.strictEqual(again.nodes[0].props.key, 'RISK-1'); assert.strictEqual(again.key, 'INIT-1');
+  assert.strictEqual(s.createInitiative({ project: 'p', title: 'C' }).key, 'INIT-3');
+  assert.strictEqual(new Store(dir).get(a.id).key, 'INIT-1');                                                    // read back from the page
 });
 
 test('a vault from before keys is given them once, and the Slack link of a project is checked', () => {
   const dir = tmp(), s = new Store(dir); s.createProject({ title: 'P' });
   const a = s.createInitiative({ project: 'p', title: 'A', body: '- task:new.1 First #todo\n' });
-  const file = path.join(dir, 'areas/p/docs/a.md');
-  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/key: PROJ-1\n/, '').replace(/, key: TASK-1/, ''));
+  const file = path.join(dir, 'teams/p/docs/a.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/key: INIT-1\n/, '').replace(/, key: TASK-1/, ''));
   fs.unlinkSync(path.join(dir, '_keys.json'));
   const again = new Store(dir).get(a.id);
-  assert.deepStrictEqual([again.key, again.tasks[0].key], ['PROJ-1', 'TASK-1']);
+  assert.deepStrictEqual([again.key, again.tasks[0].key], ['INIT-1', 'TASK-1']);
   assert.throws(() => s.update(a.id, { slack: 'not a link' }), /link/);
   assert.strictEqual(s.update(a.id, { slack: 'https://acme.slack.com/archives/C123' }).slack, 'https://acme.slack.com/archives/C123');
   assert.strictEqual(s.update(a.id, { slack: '' }).slack, '');

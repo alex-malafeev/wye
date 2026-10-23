@@ -39,7 +39,7 @@ test('an editor saving does not lose what an API push added meanwhile', () => {
 
 test('a page in the older layout (a section for each kind of item) is read as one document', () => {
   const dir = tmp(), s = new Store(dir); s.createProject({ title: 'P' });
-  const file = path.join(dir, 'areas/p/docs/old.md');
+  const file = path.join(dir, 'teams/p/docs/old.md');
   fs.writeFileSync(file, '---\nnode: goal:p.old\ntype: doc\ntitle: Old\nstatus: on-track\n---\n# Old\n\nIntro text\n\n## What ships\nA thing\n\n## Risks\nNone\n\n## Links\n- [Spec](https://e.com/spec) · figma\n\n## Pull requests\n- [PR 1](https://e.com/pr1) · 2026-10-20\n\n## Tasks\n<!-- tasks -->\n- task:p.old.1 One #done (owner: Lee, part-of: goal:p.old)\n<!-- /tasks -->\n\n## Log\n- 2026-10-20T09:00Z · manual · started\n');
   const got = s.get('p/old');
   assert.deepStrictEqual([got.description, got.ships, got.risks], ['Intro text', 'A thing', 'None']);

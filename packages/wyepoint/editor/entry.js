@@ -218,7 +218,7 @@ const plainText = content => (Array.isArray(content) ? content.map(c => (c.type 
 
 // ---- pictures: pasted or dropped, uploaded to the project, kept in the page as images/<file>
 async function uploadFile(file) {
-  if (!CTX.project) throw new Error('Create the initiative first; a picture is kept with its project');
+  if (!CTX.project) throw new Error('Create the initiative first; a picture is kept with its initiative');
   const token = localStorage.getItem('wyepoint_token') || '';
   const send = async tok => fetch(`/api/images/${encodeURIComponent(CTX.project)}`, { method: 'POST', headers: { 'content-type': file.type || 'application/octet-stream', ...(tok ? { authorization: 'Bearer ' + tok } : {}) }, body: file });
   let r = await send(token);
@@ -235,10 +235,10 @@ const readWidths = md => { const widths = {}; return { md: md.replace(WIDTH, (_,
 const applyWidths = (blocks, widths) => { for (const b of blocks) { if (b.type === 'image' && widths[b.props.url]) b.props.previewWidth = widths[b.props.url]; if (b.children) applyWidths(b.children, widths); } return blocks; };
 const pictures = (blocks, out = []) => { for (const b of blocks) { if (b.type === 'image' && b.props.url && Number(b.props.previewWidth) > 0) out.push([b.props.url, Math.round(b.props.previewWidth)]); if (b.children) pictures(b.children, out); } return out; };
 const writeWidths = (md, blocks) => pictures(blocks).reduce((m, [url, w]) => m.replace(new RegExp(`!\\[([^\\]]*)\\]\\(${url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'), (all, alt) => (/\|\d+$/.test(alt) ? all : `![${alt}|${w}](${url})`)), md);
-// A link to a document, a goal, a project or a person is [title](kind:id) in the page, which Wye reads as a mention of that node. The
+// A link to a document, a goal, an initiative or a person is [title](kind:id) in the page, which Wye reads as a mention of that node. The
 // editor only keeps links that are web addresses or paths, so inside it the same link is an in-app path.
 const MENTIONS = [[/\]\(doc:([\w-]+)\)/g, '](#/d/$1)', /\]\(#\/d\/([\w-]+)\)/g, '](doc:$1)'], [/\]\(goal:([\w-]+)\)/g, '](#/g/$1)', /\]\(#\/g\/([\w-]+)\)/g, '](goal:$1)'],
-  [/\]\(project:([\w-]+)\.([\w-]+)\)/g, '](#/i/$1/$2)', /\]\(#\/i\/([\w-]+)\/([\w-]+)\)/g, '](project:$1.$2)'], [/\]\(person:([\w-]+)\)/g, '](#/u/$1)', /\]\(#\/u\/([\w-]+)\)/g, '](person:$1)']];
+  [/\]\(initiative:([\w-]+)\.([\w-]+)\)/g, '](#/i/$1/$2)', /\]\(#\/i\/([\w-]+)\/([\w-]+)\)/g, '](initiative:$1.$2)'], [/\]\(person:([\w-]+)\)/g, '](#/u/$1)', /\]\(#\/u\/([\w-]+)\)/g, '](person:$1)']];
 const mentionsIn = md => MENTIONS.reduce((m, [from, to]) => m.replace(from, to), md);
 const mentionsOut = md => MENTIONS.reduce((m, [, , from, to]) => m.replace(from, to), md);
 const parseMd = async (editor, md) => { const r = readWidths(mentionsIn(md)); return applyWidths(await editor.tryParseMarkdownToBlocks(r.md), r.widths); };
@@ -273,7 +273,7 @@ async function fromBlocks(editor, o) {
     if (!ITEM.has(b.type)) { group.push(b); continue; }
     await flush();
     const title = plainText(b.content), p = b.props;
-    if (b.type === 'milestone') parts.push({ line: L.taskLine({ id: p.mid || `${o.idPrefix || 'task:new.'}${++n}`, title: title || 'Untitled milestone', status: p.status, owner: p.owner, due: p.due, key: p.key }, o.node || 'project:TBD') });
+    if (b.type === 'milestone') parts.push({ line: L.taskLine({ id: p.mid || `${o.idPrefix || 'task:new.'}${++n}`, title: title || 'Untitled milestone', status: p.status, owner: p.owner, due: p.due, key: p.key }, o.node || 'initiative:TBD') });
     else if (b.type === 'ref') parts.push({ line: L.refLine({ type: p.kind, label: title, url: p.url || 'https://', meta: p.meta || (p.kind === 'pr' ? today() : 'manual') }) });
     else if (b.type === 'typed') { let data = {}; try { data = JSON.parse(p.data); } catch { /* none */ } parts.push({ line: L.nodeLine({ id: `${p.kind}:${p.tid || `${CTX.scope}.1`}`, text: title, status: p.status, props: data }) + (p.notes && p.notes.trim() ? '\n' + p.notes.trim().split('\n').map(l => ('  ' + l).replace(/\s+$/, l.trim() ? '' : '  ')).join('\n') : '') }); }
     else if (b.type === 'drawing') parts.push({ line: L.drawingLine({ title: p.title, src: p.src }) });

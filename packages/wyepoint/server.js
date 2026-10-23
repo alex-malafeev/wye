@@ -81,7 +81,7 @@ function goalsView(items) {
   return store.goals().map(g => {
     const mine = items.filter(i => i.goal === g.slug), cyc = mine.filter(i => i.tier === 'cycle'), pool = cyc.length ? cyc : mine.filter(i => i.status !== 'complete');
     const progress = pool.length ? Math.round(pool.reduce((s, i) => s + i.progress, 0) / pool.length) : 0;
-    return { ...g, projects: mine.map(i => i.id), progress, basis: pool.length ? (cyc.length ? 'Average of its projects in the active cycle' : 'Average of its open projects') : 'No projects yet', hot: mine.some(i => i.hot) };
+    return { ...g, projects: mine.map(i => i.id), progress, basis: pool.length ? (cyc.length ? 'Average of its initiatives in the active cycle' : 'Average of its open initiatives') : 'No initiatives yet', hot: mine.some(i => i.hot) };
   });
 }
 
@@ -205,7 +205,7 @@ async function api(req, res, url) {
     // ids are project/slug, so they take two path segments
     const id = `${b}/${c}`, taskId = parts[4];
     if (b && c) {
-      if (method === 'GET' && !d) return json(res, 200, analysis.analyze(store).items.find(i => i.id === id) || (() => { throw fail(404, 'project not found'); })());
+      if (method === 'GET' && !d) return json(res, 200, analysis.analyze(store).items.find(i => i.id === id) || (() => { throw fail(404, 'initiative not found'); })());
       if (method === 'PATCH' && !d) return json(res, 200, store.update(id, body));
       if (method === 'DELETE' && !d) { store.remove(id); return json(res, 200, { ok: true }); }
       if (d === 'tasks') {

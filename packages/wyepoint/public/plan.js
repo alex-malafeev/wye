@@ -19,7 +19,7 @@ export function plan() {
   const unapproved = planned.some(i => !i.approved);
   return [
     h('div', { class: 'card' }, h('div', { class: 'hrow between', style: 'align-items:baseline' }, h('h3', {}, `Plan ${nx.name}`), cycleChip(nx)),
-      muted('Anything can be added to the backlog at any time. Only approved projects can be added to a cycle, and releasing locks the plan.', 'small'),
+      muted('Anything can be added to the backlog at any time. Only approved initiatives can be added to a cycle, and releasing locks the plan.', 'small'),
       h('div', { class: 'hrow', style: 'align-items:flex-end' },
         label('Theme', h('input', { class: 'field', value: pe.theme, placeholder: 'Theme or goal for the cycle', onInput: e => { pe.theme = e.target.value; } }), 'flex:1 1 220px'),
         label('Start (YYYY-MM-DD)', h('input', { class: 'field', style: 'width:150px', value: pe.start, onInput: e => { pe.start = e.target.value; } })),
@@ -44,7 +44,7 @@ export function plan() {
             h('button', { class: 'btn sm', onClick: () => openSimulation(i) }, 'Simulate'),
             locked ? null : [h('button', { class: 'btn sm', 'aria-label': 'Move up', onClick: () => move(i, -1) }, 'Up'), h('button', { class: 'btn sm', 'aria-label': 'Move down', onClick: () => move(i, 1) }, 'Down'),
               h('button', { class: 'btn sm', 'aria-label': 'Remove from plan', onClick: () => act(() => api('PATCH', `/initiatives/${i.id}`, { cycle: null, rank: null })) }, 'Remove')]))),
-          planned.length ? null : muted('Nothing planned yet. Approve projects in the pool, then add them.')),
+          planned.length ? null : muted('Nothing planned yet. Approve initiatives in the pool, then add them.')),
         h('div', { class: 'card' }, h('div', { class: 'lbl' }, 'Plan checks'), ...d.checks.map(c => h('div', { style: 'color:#8a1c12' }, '• ' + c)), d.checks.length ? null : muted('No issues found.')),
         h('div', { class: 'card' }, h('div', { class: 'lbl' }, 'Release'),
           h('div', { class: 'hrow' },
@@ -62,7 +62,7 @@ export function history() {
   const d = D(), sel = S.histSel ?? d.active, c = cyc(sel);
   const rows = c.rows.slice().sort((a, b) => (parseInt(a.rank, 10) || 999) - (parseInt(b.rank, 10) || 999));
   const note = c.status === 'closed' && c.snapshot ? `Snapshot saved when the cycle closed on ${c.closedAt}. ${c.rows.length - c.shipped} item(s) were not shipped and became carry-overs.`
-    : c.status === 'closed' ? 'Closed without a snapshot, so this shows the projects now recorded against the cycle.' : c.status === 'active' ? 'Live view of the active cycle.' : 'Planned items, ranked.';
+    : c.status === 'closed' ? 'Closed without a snapshot, so this shows the initiatives now recorded against the cycle.' : c.status === 'active' ? 'Live view of the active cycle.' : 'Planned items, ranked.';
   return h('div', { class: 'cols' },
     h('div', { class: 'stack', style: 'flex:1 1 300px;max-width:420px' }, list(d.cycles.map(x => h('button', { class: 'row' + (x.n === sel ? ' sel' : ''), style: 'flex-direction:column;align-items:stretch;gap:6px', onClick: () => { S.histSel = x.n; render(); } },
       h('div', { class: 'hrow between', style: 'flex-wrap:nowrap' }, h('b', {}, x.name), cycleChip(x)), h('div', { class: 'muted small' }, range(x) + (x.theme ? ' · ' + x.theme : '')),
@@ -72,7 +72,7 @@ export function history() {
         h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, r.title), h('div', { class: 'muted small' }, `${r.project} · ${r.champion || 'No champion'}`)),
         h('div', { style: 'width:44px;text-align:right;font-size:12px;font-weight:600' }, (r.pct || 0) + '%'),
         chip(stClass(statusLabel(r.status)), r.status ? statusLabel(r.status) : (c.status === 'planned' || c.status === 'released' ? 'Planned' : 'No status'))))),
-      rows.length ? null : muted('No projects recorded for this cycle.')));
+      rows.length ? null : muted('No initiatives recorded for this cycle.')));
 }
 const statusLabel = s => (D().enums.labels[s]) || '';
 
@@ -88,7 +88,7 @@ export function settings() {
         label('Cooldown (days)', h('input', { class: 'field', type: 'number', min: 0, max: 60, style: 'width:140px', value: v.cooldown, onInput: e => { v.cooldown = e.target.value; } })),
         label('Cycle 0 starts (YYYY-MM-DD)', h('input', { class: 'field', style: 'width:170px', value: v.start, onInput: e => { v.start = e.target.value; } })),
         h('button', { class: 'btn pri', onClick: () => act(() => api('PATCH', '/config', v)) }, 'Save'))),
-    h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('h3', {}, 'Cycles'), h('div', { class: 'card-sub' }, 'Dates follow from the length above. Give a cycle a theme or dates of its own here, and add cycles to plan further ahead; projects are put into them from the backlog.')),
+    h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('h3', {}, 'Cycles'), h('div', { class: 'card-sub' }, 'Dates follow from the length above. Give a cycle a theme or dates of its own here, and add cycles to plan further ahead; initiatives are put into them from the backlog.')),
         h('div', { class: 'hrow' }, c.horizon > 2 && !items().some(i => i.cycle === D().active + c.horizon) ? h('button', { class: 'btn sm', onClick: () => act(() => api('PATCH', '/config', { horizon: c.horizon - 1 })) }, 'Remove the last') : null,
           h('button', { class: 'btn sm pri', onClick: () => act(() => api('PATCH', '/config', { horizon: c.horizon + 1 })) }, '+ Add cycle'))),
       list(D().cycles.filter(cy => cy.status !== 'closed').map(cy => h('div', { class: 'row cycle-row', style: 'cursor:default' },
@@ -96,10 +96,10 @@ export function settings() {
         h('input', { class: 'field', style: 'flex:1 1 180px', value: cy.theme || '', placeholder: 'Theme', 'aria-label': `${cy.name} theme`, onChange: e => act(() => api('PATCH', `/cycles/${cy.n}`, { theme: e.target.value })) }),
         h('input', { class: 'field', style: 'width:130px', value: cy.start, placeholder: 'YYYY-MM-DD', 'aria-label': `${cy.name} start`, onChange: e => act(() => api('PATCH', `/cycles/${cy.n}`, { start: e.target.value })) }),
         h('input', { class: 'field', style: 'width:130px', value: cy.end, placeholder: 'YYYY-MM-DD', 'aria-label': `${cy.name} end`, onChange: e => act(() => api('PATCH', `/cycles/${cy.n}`, { end: e.target.value })) }),
-        h('span', { class: 'muted small', style: 'width:80px;text-align:right' }, (n => `${n} project${n === 1 ? '' : 's'}`)(items().filter(i => i.cycle === cy.n).length)))))),
+        h('span', { class: 'muted small', style: 'width:80px;text-align:right' }, (n => `${n} initiative${n === 1 ? '' : 's'}`)(items().filter(i => i.cycle === cy.n).length)))))),
     h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('h3', {}, 'Types'), h('div', { class: 'card-sub' }, 'WyePoint is built on Wye\'s type system. Define your own — a risk, a decision, a customer ask — and insert it anywhere in a page with /.')),
         h('button', { class: 'btn sm pri', onClick: () => { S.modal = { kind: 'type' }; S.err = ''; render(); } }, '+ New type')),
-      h('div', { class: 'type-core' }, h('span', { class: 'lbl' }, 'Built in'), ...['Person', 'Cycle', 'Goal · GOAL', 'Project · PROJ', 'Milestone · TASK'].map(n => chip('s-none', n)), h('span', { class: 'muted small' }, 'declared in types/ontology.md')),
+      h('div', { class: 'type-core' }, h('span', { class: 'lbl' }, 'Built in'), ...['Person', 'Cycle', 'Goal · GOAL', 'Initiative · INIT', 'Milestone · TASK'].map(n => chip('s-none', n)), h('span', { class: 'muted small' }, 'declared in types/ontology.md')),
       list(D().types.map(t => h('div', { class: 'row type-row', style: 'cursor:default' },
         h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, t.name, h('span', { class: 'key-chip' }, t.key), h('span', { class: 'muted small' }, `  ${t.slug}:`)), h('div', { class: 'muted small' }, t.purpose),
           h('div', { class: 'hrow', style: 'gap:6px;margin-top:4px' }, ...t.statuses.map(s => chip('s-ns', s)), ...t.fields.map(f => chip('s-none', `${f.name} · ${(D().fieldKinds.find(k => k[0] === f.kind) || [0, f.kind])[1].toLowerCase()}`)))),
@@ -107,9 +107,9 @@ export function settings() {
         t.builtin ? chip('s-none', 'Built in') : h('button', { class: 'btn sm', onClick: () => { S.modal = { kind: 'type', slug: t.slug, v: { key: t.key, name: t.name, plural: t.plural, purpose: t.purpose, statuses: t.statuses.join(', '), fields: t.fields.map(f => ({ name: f.name, kind: f.kind, options: (f.options || []).join(', ') })) } }; S.err = ''; render(); } }, 'Edit'),
         t.builtin ? null : h('button', { class: 'btn sm', onClick: () => act(() => api('DELETE', `/types/${t.slug}`)) }, 'Delete')))),
       D().types.some(t => !t.builtin) ? null : muted('No types of your own yet.', 'small')),
-    h('div', { class: 'card' }, h('h3', {}, 'Push data in'), muted('Anything that can POST JSON can add a log line, a link, a pull request, a milestone or a status to a project. Needs the write token.', 'small'),
-      h('div', { class: 'code' }, `curl -X POST ${origin}/api/ingest \\\n  -H "authorization: Bearer $WYEPOINT_TOKEN" -H "content-type: application/json" \\\n  -d '{"source":"jira","project":"area/slug","kind":"link","label":"PROJ-123","url":"https://…","text":"PROJ-123 moved to Done"}'`),
-      muted('kind is log (text), link (label, url), pr (title, url), status (status) or task (title, owner, due, status; the same title again updates it). GitHub: point a webhook for pull requests and issues at /api/ingest/github with WYEPOINT_GITHUB_SECRET set, and put wyepoint:<area>/<slug> in the PR title, branch or description.', 'small')),
+    h('div', { class: 'card' }, h('h3', {}, 'Push data in'), muted('Anything that can POST JSON can add a log line, a link, a pull request, a milestone or a status to an initiative. Needs the write token.', 'small'),
+      h('div', { class: 'code' }, `curl -X POST ${origin}/api/ingest \\\n  -H "authorization: Bearer $WYEPOINT_TOKEN" -H "content-type: application/json" \\\n  -d '{"source":"jira","initiative":"team/slug","kind":"link","label":"PROJ-123","url":"https://…","text":"PROJ-123 moved to Done"}'`),
+      muted('kind is log (text), link (label, url), pr (title, url), status (status) or task (title, owner, due, status; the same title again updates it). GitHub: point a webhook for pull requests and issues at /api/ingest/github with WYEPOINT_GITHUB_SECRET set, and put wyepoint:<team>/<slug> in the PR title, branch or description.', 'small')),
     h('div', { class: 'card' }, h('h3', {}, 'Write token'), muted(hasToken ? 'A token is saved in this browser.' : 'No token saved in this browser. You are asked for it when you first save something on a server that needs one.', 'small'),
       h('div', {}, h('button', { class: 'btn', onClick: () => { try { localStorage.removeItem(TOKEN_KEY); } catch { /* storage blocked */ } render(); } }, 'Forget token'))),
   ];

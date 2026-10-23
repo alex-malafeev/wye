@@ -575,3 +575,7 @@ main.wrap{padding:8px 12px 0}
 .lib-path{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:14px}
 .folder-row .mini-title{display:inline-flex;align-items:center;gap:8px}
 @media (max-width:900px){.lib{grid-template-columns:1fr}.lib-tree{position:static;border-right:0;border-bottom:1px solid var(--line);padding-bottom:10px}}
+
+/* the arrow of a dropdown: a drawn chevron, centred on the text */
+.fsel-caret,.dd-caret{flex:none;display:inline-block;width:6px;height:6px;margin:-3px 3px 0 5px;border-right:1.7px solid currentColor;border-bottom:1.7px solid currentColor;transform:rotate(45deg);font-size:0;color:var(--muted)}
+.fsel-caret{opacity:.6}

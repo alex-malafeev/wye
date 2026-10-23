@@ -19,7 +19,7 @@ export function fullView({ kind, id }) { return kind === 'initiative' ? fullInit
 // ---- an initiative
 function fullInitiative(id) {
   const i = items().find(x => x.id === id), d = D();
-  if (!i) return missing('Project');
+  if (!i) return missing('Initiative');
   const A = cyc(d.active), nx = cyc(d.nx), locked = nx.status !== 'planned';
   const upd = patch => act(() => api('PATCH', `/initiatives/${i.id}`, patch));
   const planLine = i.tier === 'cycle' ? `In ${A.name} (active)` : i.tier === 'plan' ? `Planned for Cycle ${i.cycle}${i.rank ? ', rank ' + i.rank : ''}` : i.tier === 'done' ? `Shipped in Cycle ${i.cycle}` : i.tier === 'carry' ? `Carried over from Cycle ${i.cycle}, not shipped` : 'Backlog, not in a cycle';
@@ -60,7 +60,7 @@ function fullInitiative(id) {
 // ---- a project
 function fullProject(slug) {
   const p = D().projects.find(x => x.slug === slug);
-  if (!p) return missing('Area');
+  if (!p) return missing('Team');
   const upd = patch => act(() => api('PATCH', `/projects/${p.slug}`, patch));
   const mine = items().filter(i => i.project === p.slug), cy = mine.filter(i => i.tier === 'cycle');
   const flt = listFilters(`area:${p.slug}`, mine);
@@ -71,14 +71,14 @@ function fullProject(slug) {
   prune(k => k.startsWith(`project:${p.slug}:`) || k.startsWith('modal:'));
   const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 56, kinds: ['link', 'update'], scope: `${p.slug}`, project: p.slug });
   return h('main', { class: 'wrap' }, h('div', { class: 'fwrap' }, h('div', { class: 'panel full' },
-    crumbs([h('button', { class: 'link-btn', onClick: () => go('projects') }, 'Projects'), h('span', {}, p.title)],
-      [h('button', { class: 'btn', onClick: () => newInitiativePage(p.slug) }, '+ New project')]),
-    h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: p.title, 'aria-label': 'Area name', onChange: e => upd({ title: e.target.value }) })),
+    crumbs([h('button', { class: 'link-btn', onClick: () => go('initiatives') }, 'Initiatives'), h('span', {}, p.title)],
+      [h('button', { class: 'btn', onClick: () => newInitiativePage(p.slug) }, '+ New initiative')]),
+    h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: p.title, 'aria-label': 'Team name', onChange: e => upd({ title: e.target.value }) })),
     S.err ? h('div', { class: 'err' }, S.err) : null,
-    h('div', { class: 'hrow' }, tag(`${mine.length} project${mine.length === 1 ? '' : 's'}`), tag(`${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => tag(`${n} ${l.toLowerCase()}`))),
+    h('div', { class: 'hrow' }, tag(`${mine.length} initiative${mine.length === 1 ? '' : 's'}`), tag(`${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => tag(`${n} ${l.toLowerCase()}`))),
     h('div', { class: 'fmain' }, page,
-      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h hrow between' }, flt.active ? `Projects (${flt.shown.length} of ${mine.length})` : `Projects (${mine.length})`, flt.icon), flt.panel,
-        h('div', { class: 'mini-list' }, ...flt.shown.map(it => itemRow(it, `${it.owner || 'No champion'} · ${it.cycle == null ? it.tierLabel : 'Cycle ' + it.cycle}${it.effort ? ' · ' + it.effort : ''}`)), mine.length ? (flt.shown.length ? null : muted('Nothing matches these filters.', 'small')) : muted('No projects yet. Use + New project.', 'small'))))),
+      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h hrow between' }, flt.active ? `Initiatives (${flt.shown.length} of ${mine.length})` : `Initiatives (${mine.length})`, flt.icon), flt.panel,
+        h('div', { class: 'mini-list' }, ...flt.shown.map(it => itemRow(it, `${it.owner || 'No champion'} · ${it.cycle == null ? it.tierLabel : 'Cycle ' + it.cycle}${it.effort ? ' · ' + it.effort : ''}`)), mine.length ? (flt.shown.length ? null : muted('Nothing matches these filters.', 'small')) : muted('No initiatives yet. Use + New initiative.', 'small'))))),
       h('aside', { class: 'panel fside' },
         sideCard('Properties', h('div', { class: 'fprops' }, fprop('Owner', personPicker({ value: p.owner, onChange: v => upd({ owner: v }), placeholder: 'No owner', label: 'Owner' })),
           fprop('Progress', h('div', { class: 'fval' }, h('div', { class: 'fval-line' }, h('b', {}, avg + '%'), h('span', { class: 'muted small' }, 'Average of the active cycle')), bar(avg, cy.some(i => i.status === 'off-track')))))),
@@ -94,15 +94,15 @@ function fullGoal(slug) {
   const mine = items().filter(i => i.goal === g.slug), flt = listFilters(`goal:${g.slug}`, items().filter(i => i.goal === g.slug)), [, label, cls] = goalStatus(g.status), key = `goal:${g.slug}:body`;
   prune(k => k.startsWith(`goal:${g.slug}:`) || k.startsWith('modal:'));
   const page = rich(key, g.body, md => upd({ body: md }), { minHeight: 56, kinds: ['link', 'update'], scope: `goal-${g.slug}`, project: '' });
-  const remove = () => { if (window.confirm(`Delete the goal "${g.title}"? Its page is removed; projects must be moved first.`)) act(async () => { await api('DELETE', `/goals/${g.slug}`); go('goals'); }); };
+  const remove = () => { if (window.confirm(`Delete the goal "${g.title}"? Its page is removed; initiatives must be moved first.`)) act(async () => { await api('DELETE', `/goals/${g.slug}`); go('goals'); }); };
   return h('main', { class: 'wrap' }, h('div', { class: 'fwrap' }, h('div', { class: 'panel full' },
     crumbs([h('button', { class: 'link-btn', onClick: () => go('goals') }, 'Goals'), h('span', {}, g.title)], [h('button', { class: 'btn', onClick: remove }, 'Delete goal')]),
     h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: g.title, 'aria-label': 'Goal title', onChange: e => upd({ title: e.target.value }) })),
     S.err ? h('div', { class: 'err' }, S.err) : null,
-    h('div', { class: 'hrow' }, tag(g.key, '', 'Global id: #/k/' + g.key), tag(label, cls), tag(`${mine.length} project${mine.length === 1 ? '' : 's'}`)),
+    h('div', { class: 'hrow' }, tag(g.key, '', 'Global id: #/k/' + g.key), tag(label, cls), tag(`${mine.length} initiative${mine.length === 1 ? '' : 's'}`)),
     h('div', { class: 'fmain' }, page,
-      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h hrow between' }, flt.active ? `Projects (${flt.shown.length} of ${mine.length})` : `Projects (${mine.length})`, flt.icon), flt.panel,
-        h('div', { class: 'mini-list' }, ...flt.shown.map(it => itemRow(it)), mine.length ? (flt.shown.length ? null : muted('Nothing matches these filters.', 'small')) : muted('No projects under this goal yet. Set the Goal on a project to put it here.', 'small'))))),
+      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h hrow between' }, flt.active ? `Initiatives (${flt.shown.length} of ${mine.length})` : `Initiatives (${mine.length})`, flt.icon), flt.panel,
+        h('div', { class: 'mini-list' }, ...flt.shown.map(it => itemRow(it)), mine.length ? (flt.shown.length ? null : muted('Nothing matches these filters.', 'small')) : muted('No initiatives under this goal yet. Set the Goal on an initiative to put it here.', 'small'))))),
     h('aside', { class: 'panel fside' },
       sideCard('Properties', h('div', { class: 'fprops' },
         fprop('Status', sel(GOAL_STATUS.map(x => [x[0], x[1]]), g.status, v => upd({ status: v }), 'Status', { dot: cls })),
@@ -127,7 +127,7 @@ function fullDoc(slug) {
   const addable = [...(D().goals || []).map(g => [`goal:${g.slug}`, `${g.key} · ${g.title}`]), ...items().map(i => [`project:${i.project}.${i.slug}`, `${i.key} · ${i.title}`])].filter(o => !doc.related.includes(o[0]));
   const related = h('div', { class: 'fval' },
     ...doc.related.map(ref => { const l = labelOf(ref); return h('span', { class: 'pchip rel-chip' }, h('button', { type: 'button', class: 'pchip-name', title: 'Open', onClick: l.open }, l.text), h('button', { type: 'button', 'aria-label': `Remove ${l.text}`, onClick: () => upd({ related: doc.related.filter(r => r !== ref) }) }, '✕')); }),
-    dropdown(addable, '', v => upd({ related: [...doc.related, v] }), 'Add a goal or project', { search: true, placeholder: doc.related.length ? 'Add another…' : 'Link a goal or project…' }));
+    dropdown(addable, '', v => upd({ related: [...doc.related, v] }), 'Add a goal or initiative', { search: true, placeholder: doc.related.length ? 'Add another…' : 'Link a goal or initiative…' }));
   return h('main', { class: 'wrap' }, h('div', { class: 'fwrap' }, h('div', { class: 'panel full' },
     crumbs([h('button', { class: 'link-btn', onClick: () => go('library') }, 'Library'), ...(doc.folder ? [h('button', { class: 'link-btn', onClick: () => { (S.lib = S.lib || {}).folder = doc.folder; go('library'); } }, doc.folder.split('/').join(' / '))] : []), h('span', {}, doc.title)], [h('button', { class: 'btn', onClick: remove }, 'Delete')]),
     h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: doc.title, 'aria-label': 'Title', onChange: e => upd({ title: e.target.value }) })),

@@ -23,14 +23,14 @@ export function simulateModal() {
   const r = s.result;
   return h('div', { class: 'modal', onClick: e => { if (e.target === e.currentTarget) close(); } }, h('div', { class: 'card sim-card' },
     h('div', { class: 'hrow between', style: 'flex-wrap:nowrap;align-items:flex-start' }, h('div', {}, h('div', { class: 'lbl' }, 'Simulation'), h('h3', {}, s.title)), h('button', { class: 'btn sm', onClick: close }, 'Close')),
-    muted('What starting this now would touch: the people closest to it, the projects it overlaps with, and who gets stretched.', 'small'),
+    muted('What starting this now would touch: the people closest to it, the initiatives it overlaps with, and who gets stretched.', 'small'),
     s.err ? h('div', { class: 'err' }, s.err) : null,
     r ? [
       h('div', { class: 'stack' }, h('div', { class: 'lbl' }, 'Most relevant people'),
         list(r.people.map(p => h('button', { class: 'row', onClick: () => { S.sim = null; openPerson(p.n); } }, h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, p.n), h('div', { class: 'muted small' }, p.why)), chip(p.tagClass, `${p.tag} (${p.active} active)`)))),
         r.people.length ? null : muted('Nobody on the plan looks close to this.', 'small')),
-      h('div', { class: 'stack' }, h('div', { class: 'lbl' }, 'Related and affected projects'),
-        list(r.items.map(id => byId[id]).filter(Boolean).map(i => smallRow(i, '', () => { S.sim = null; openIt(i.id); }))), r.items.length ? null : muted('No related projects found.', 'small')),
+      h('div', { class: 'stack' }, h('div', { class: 'lbl' }, 'Related and affected initiatives'),
+        list(r.items.map(id => byId[id]).filter(Boolean).map(i => smallRow(i, '', () => { S.sim = null; openIt(i.id); }))), r.items.length ? null : muted('No related initiatives found.', 'small')),
       h('div', { class: 'stack' }, h('div', { class: 'lbl' }, 'Simulation agent'), h('div', { class: 'agent' }, s.text)),
     ] : (s.err ? null : h('div', { class: 'muted' }, 'Working it out…'))));
 }

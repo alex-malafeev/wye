@@ -28,7 +28,7 @@ test('a project points at its goal; a goal with projects under it cannot be dele
   const it = s.createInitiative({ project: 'p', title: 'Thing', goal: g.slug });
   assert.deepStrictEqual([it.goal, it.mission], ['reliability', 'Reliability']);
   assert.throws(() => s.update(it.id, { goal: 'nope' }), /goal not found/);
-  assert.throws(() => s.deleteGoal(g.slug), /1 project is still under/);
+  assert.throws(() => s.deleteGoal(g.slug), /1 initiative is still under/);
   s.update(it.id, { goal: '' }); s.deleteGoal(g.slug);
   assert.deepStrictEqual(s.goals(), []);
 });
@@ -42,7 +42,7 @@ test('the older free-text mission is a goal now: by name, one for each distinct 
 test('a vault whose pages carry a mission is migrated to goals once', () => {
   const dir = tmp(), s = new Store(dir); s.createProject({ title: 'P' });
   const a = s.createInitiative({ project: 'p', title: 'A' });
-  const file = path.join(dir, 'areas/p/docs/a.md');
+  const file = path.join(dir, 'teams/p/docs/a.md');
   fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('\ntitle: A\n', '\ntitle: A\nmission: Platform health\n'));
   const again = new Store(dir).get(a.id);
   assert.deepStrictEqual([again.goal, again.mission], ['platform-health', 'Platform health']);
@@ -87,10 +87,10 @@ test('the library holds documents: a doc node with a key, a category, an owner a
   const d = s.createDoc({ title: 'Acme Freight', category: 'Customer', owner: 'Dana', body: 'A carrier.\n\n## Notes\nCalls on Thursday.' });
   assert.deepStrictEqual([d.slug, d.key, d.category, d.owner, d.description], ['acme-freight', 'DOC-1', 'Customer', 'Dana', 'A carrier.']);
   assert.match(fs.readFileSync(path.join(dir, 'library/acme-freight.md'), 'utf8'), /^---\nnode: doc:acme-freight\nkey: DOC-1\n/);
-  const rel = s.updateDoc(d.slug, { related: [`goal:${g.slug}`, `project:${it.id.replace('/', '.')}`, `goal:${g.slug}`] });
-  assert.deepStrictEqual(rel.related, ['goal:growth', 'project:p.onboarding']);
-  assert.match(fs.readFileSync(path.join(dir, 'library/acme-freight.md'), 'utf8'), /\nrelated-to: goal:growth, project:p\.onboarding\n/);
-  assert.throws(() => s.updateDoc(d.slug, { related: ['goal:nope'] }), /not a goal or project/);
+  const rel = s.updateDoc(d.slug, { related: [`goal:${g.slug}`, `initiative:${it.id.replace('/', '.')}`, `goal:${g.slug}`] });
+  assert.deepStrictEqual(rel.related, ['goal:growth', 'initiative:p.onboarding']);
+  assert.match(fs.readFileSync(path.join(dir, 'library/acme-freight.md'), 'utf8'), /\nrelated-to: goal:growth, initiative:p\.onboarding\n/);
+  assert.throws(() => s.updateDoc(d.slug, { related: ['goal:nope'] }), /not a goal or initiative/);
   assert.throws(() => s.updateDoc('nope', {}), /document not found/);
   assert.throws(() => s.createDoc({ title: ' ' }), /title is required/);
   assert.strictEqual(s.createDoc({ title: 'Second' }).key, 'DOC-2');
@@ -126,4 +126,22 @@ test('library folders are real folders: nested, kept when empty, renamed and rem
   s.deleteFolder('Customers/Acme Freight'); assert.deepStrictEqual(s.libraryFolders(), ['Customers']);
   assert.strictEqual(s.docs().length, 1);
   assert.strictEqual(s.createDoc({ title: 'Call notes' }).slug, 'call-notes-2');                    // a slug is unique across folders
+});
+
+test('a vault from the last wording (areas/, project: nodes, PROJ keys) is moved to teams and initiatives, once', () => {
+  const dir = tmp(), w = (f, md) => { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), md); };
+  w('areas/web/_area.md', '---\ntitle: Web\nkind: area\n---\n# Web\n');
+  w('areas/web/docs/onboarding.md', '---\nnode: project:web.onboarding\nkey: PROJ-7\ntitle: Onboarding\ngoal: goal:growth\n---\n# Onboarding\n\n- task:web.onboarding.1 Checklist #todo (part-of: project:web.onboarding, key: TASK-1)\n');
+  w('goals/growth.md', '---\nnode: goal:growth\nkey: GOAL-1\ntitle: Growth\n---\n# Growth\n\nSee [Onboarding](project:web.onboarding).\n');
+  w('library/notes.md', '---\nnode: doc:notes\nkey: DOC-1\ntitle: Notes\nrelated-to: goal:growth, project:web.onboarding\n---\n# Notes\n');
+  w('_keys.json', '{"PROJ": 7, "TASK": 1, "GOAL": 1, "DOC": 1}');
+  const s = new Store(dir), it = s.get('web/onboarding');
+  assert.ok(fs.existsSync(path.join(dir, 'teams/web/_team.md')) && !fs.existsSync(path.join(dir, 'areas')));
+  assert.deepStrictEqual([it.node, it.key, it.goal, it.tasks[0].key], ['initiative:web.onboarding', 'INIT-7', 'growth', 'TASK-1']);
+  assert.match(fs.readFileSync(path.join(dir, 'teams/web/docs/onboarding.md'), 'utf8'), /part-of: initiative:web\.onboarding/);
+  assert.match(fs.readFileSync(path.join(dir, 'goals/growth.md'), 'utf8'), /\(initiative:web\.onboarding\)/);
+  assert.deepStrictEqual(s.readDoc('notes').related, ['goal:growth', 'initiative:web.onboarding']);
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, '_keys.json'), 'utf8')).INIT, 7);
+  assert.strictEqual(s.createInitiative({ project: 'web', title: 'Next' }).key, 'INIT-8');                       // the numbering goes on
+  assert.strictEqual(new Store(dir).get('web/onboarding').key, 'INIT-7');                                         // and opening it again changes nothing
 });

@@ -1,12 +1,12 @@
 // Shared by every view: the page's state, the DOM helper, the API calls and the routing.
 // All state comes from GET /api/state; every change is an API call followed by a reload of that state, so what is on
 // screen is what is in the vault. The DOM is built with textContent only — nothing from the vault is ever HTML.
-export const TABS = [['overview', 'Overview'], ['goals', 'Goals'], ['projects', 'Projects'], ['backlog', 'Backlog'], ['people', 'People'], ['library', 'Library'], ['plan', 'Plan'], ['history', 'History'], ['settings', 'Settings']];
+export const TABS = [['overview', 'Overview'], ['goals', 'Goals'], ['initiatives', 'Initiatives'], ['backlog', 'Backlog'], ['people', 'People'], ['library', 'Library'], ['plan', 'Plan'], ['history', 'History'], ['settings', 'Settings']];
 export const TOKEN_KEY = 'wyepoint_token';
 
 export const S = {
   data: null, err: '', modal: null, confirmStart: false,
-  f: { q: '', project: '', status: '', mission: '', tier: '', effort: '', champion: '' }, gy: 'project', gx: 'none', sortKey: 'rank', sortDir: 1,
+  f: { q: '', project: '', cycle: '', status: '', mission: '', tier: '', effort: '', champion: '' }, gy: 'project', gx: 'none', sortKey: 'rank', sortDir: 1,
   pq: '', pf: 'all', pt: '', selP: '', planQ: '', histSel: null,
   agents: {}, portfolio: { show: false, text: '' }, sim: null,   // the simulation open on an initiative: { id, title, result, text }
 };
@@ -59,6 +59,7 @@ export function route() {
   const full = /^(i|p|g|d)\/(.+)$/.exec(p);                 // a full view: #/i/<project>/<slug> or #/p/<project>
   if (full) return { view: 'full', full: { kind: { i: 'initiative', p: 'project', g: 'goal', d: 'doc' }[full[1]], id: decodeURIComponent(full[2]) }, open: null, project: null };
   const sp = new URLSearchParams(q || '');
+  if (p === 'projects') return { view: 'initiatives', open: null, project: sp.get('p'), person: null };   // the name it had
   return { view: TABS.some(t => t[0] === p) ? p : 'overview', open: sp.get('i'), project: sp.get('p'), person: sp.get('u') };
 }
 // the page's address: a view, and optionally an initiative (i) or a project (p) open on top of it
@@ -68,7 +69,7 @@ export function go(view, open, project, person) {
 }
 // opening an initiative or a project from a full view goes to its full view; from anywhere else, to a drawer over the page
 export const openFull = (kind, id) => { location.hash = `#/${{ initiative: 'i', project: 'p', goal: 'g', doc: 'd' }[kind]}/${id}`; };
-export const openIt = id => { const r = route(); if (id && (r.view === 'backlog' || r.view === 'projects')) return openFull('initiative', id);   // the backlog and the initiatives page open an item full screen
+export const openIt = id => { const r = route(); if (id && (r.view === 'backlog' || r.view === 'initiatives')) return openFull('initiative', id);   // the backlog and the initiatives page open an item full screen
   if (r.view === 'full') { if (id) openFull('initiative', id); else history.back(); } else go(r.view, id); };
 export const openProject = slug => { const r = route(); if (r.view === 'full') { if (slug) openFull('project', slug); else history.back(); } else go(r.view, null, slug); };   // null closes it
 // leaving a full view: back to where it was opened from, or to the backlog if it was opened directly
@@ -81,7 +82,7 @@ window.addEventListener('hashchange', () => {
   if (typeof n === 'number') depth = n;                                  // an entry visited before: Back or Forward
   else { depth = ++top; history.replaceState({ n: depth }, ''); }        // a new one
 });
-const HOME = { initiative: 'projects', project: 'projects', goal: 'goals', doc: 'library' };
+const HOME = { initiative: 'initiatives', project: 'initiatives', goal: 'goals', doc: 'library' };
 export const closeFull = () => { if (depth > 0) history.back(); else go(HOME[(route().full || {}).kind] || 'backlog'); };
 // a person opens in a drawer over whatever page is showing (a full view goes to People); null closes it
 export function openPerson(n) { S.err = ''; const r = route(); go(r.view === 'full' ? 'people' : r.view, null, null, n || undefined); }
@@ -99,7 +100,7 @@ export const cycleChip = c => chip({ closed: 's-ns', active: 's-on', released: '
 // Every project, milestone and typed item has a global key (PROJ-12, TASK-5, RISK-2). It names the item wherever it is
 // written, and #/k/<KEY> opens it: a project in its full view, anything inside one in the project it belongs to.
 export function findKey(k) {
-  const key = String(k || '').trim().toUpperCase();
+  const key = String(k || '').trim().toUpperCase().replace(/^PROJ-/, 'INIT-');   // PROJ-n was the key of an initiative for a while
   for (const i of items()) {
     if (i.key === key) return { id: i.id, href: `#/i/${i.id}`, what: 'project', title: i.title };
     const t = i.tasks.find(x => x.key === key); if (t) return { id: i.id, href: `#/i/${i.id}`, what: 'milestone', title: t.title };
@@ -109,7 +110,7 @@ export function findKey(k) {
   const d = (S.data.docs || []).find(x => x.key === key); if (d) return { id: d.slug, href: `#/d/${d.slug}`, what: 'document', title: d.title };
   return null;
 }
-// a tag: the one pill the page uses for a status, a cycle, an area, a key; a status has a dot of its colour
+// a tag: the one pill the page uses for a status, a cycle, a team, a key; a status has a dot of its colour
 export const tag = (text, dot, title) => h('span', { class: 'tag', title }, dot ? h('i', { class: 'tdot ' + dot, 'aria-hidden': 'true' }) : null, text);
 export const KEY_PATTERN = /^[A-Za-z][A-Za-z0-9]*-\d+$/;
 

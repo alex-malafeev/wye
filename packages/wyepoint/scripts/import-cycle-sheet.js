@@ -7,7 +7,7 @@
 //
 // Each team tab is a goal; its rows are projects. A tab that is a plan ("Rank | Initiative | Team | …") has its rows above
 // the cut line in the cycle named in its header, and the rest in the backlog; a tab that is a backlog ("Priority Tier |
-// Initiative | …") is all backlog. The team column is the area. The example tabs, the instructions and drafts are left out.
+// Initiative | …") is all backlog. The team column is the team. The example tabs, the instructions and drafts are left out.
 const fs = require('fs');
 const path = require('path');
 const { Store } = require('../lib/store');
