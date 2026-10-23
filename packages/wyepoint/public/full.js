@@ -46,8 +46,8 @@ function fullInitiative(id) {
       fprop('Target', txt(i.target, v => upd({ target: v }), 'Target date', 'YYYY-MM-DD')),
       fprop('Progress', h('div', { class: 'fval' }, h('div', { class: 'fval-line' }, h('b', {}, i.progress + '%'), h('span', { class: 'muted small' }, i.progressBasis)), bar(i.progress, i.hot))),
       fprop('Checks', h('div', { class: 'fval' }, ...i.flags.map(f => h('div', { class: 'check' }, '• ' + f)), i.flags.length ? null : muted(i.tier === 'cycle' ? 'No issues found.' : 'Run on items in the active cycle.', 'small'))),
+      fprop('Approval', sel([['draft', 'Draft'], ['approved', 'Approved']], i.approved ? 'approved' : 'draft', v => upd({ approved: v === 'approved' }), 'Approval')),
       fprop('Planning', h('div', { class: 'fval' }, muted(planLine, 'small'), h('div', { class: 'hrow' },
-        h('button', { class: 'btn sm' + (i.approved ? ' on' : ''), onClick: () => upd({ approved: !i.approved }) }, i.approved ? 'Approved' : 'Approve'),
         i.approved && POOL.includes(i.tier) && !locked ? h('button', { class: 'btn sm pri', onClick: () => upd({ cycle: nx.n, rank: items().filter(x => x.cycle === nx.n).length + 1 }) }, `Add to ${nx.name}`) : null,
         i.tier === 'plan' && i.cycle === nx.n && !locked ? h('button', { class: 'btn sm', onClick: () => upd({ cycle: null, rank: null }) }, 'Remove from plan') : null)))
     )),
