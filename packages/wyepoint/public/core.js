@@ -72,7 +72,17 @@ export const openIt = id => { const r = route(); if (id && (r.view === 'backlog'
   if (r.view === 'full') { if (id) openFull('initiative', id); else history.back(); } else go(r.view, id); };
 export const openProject = slug => { const r = route(); if (r.view === 'full') { if (slug) openFull('project', slug); else history.back(); } else go(r.view, null, slug); };   // null closes it
 // leaving a full view: back to where it was opened from, or to the backlog if it was opened directly
-export const closeFull = () => { if (history.length > 1 && document.referrer.startsWith(location.origin)) history.back(); else go('backlog'); };
+// How deep in this visit's own history the page is, so Back goes back where there is somewhere in the app to go, and to the page the
+// item belongs to where there is not (a link opened it, or the page was reloaded at its start).
+let depth = (history.state && history.state.n) || 0, top = depth;
+if (!(history.state && typeof history.state.n === 'number')) history.replaceState({ n: 0 }, '');
+window.addEventListener('hashchange', () => {
+  const n = history.state && history.state.n;
+  if (typeof n === 'number') depth = n;                                  // an entry visited before: Back or Forward
+  else { depth = ++top; history.replaceState({ n: depth }, ''); }        // a new one
+});
+const HOME = { initiative: 'projects', project: 'projects', goal: 'goals', doc: 'library' };
+export const closeFull = () => { if (depth > 0) history.back(); else go(HOME[(route().full || {}).kind] || 'backlog'); };
 // a person opens in a drawer over whatever page is showing (a full view goes to People); null closes it
 export function openPerson(n) { S.err = ''; const r = route(); go(r.view === 'full' ? 'people' : r.view, null, null, n || undefined); }
 
