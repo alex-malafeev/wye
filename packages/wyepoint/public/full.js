@@ -1,7 +1,7 @@
 // The full view of an initiative or a project: its properties across the top, the whole page as a wide editor on the
 // left, and cards that stay in view on the right (progress, checks, planning, milestones, links, updates).
 import { S, h, chip, bar, muted, safeUrl, api, act, render, go, openFull, openIt, openProject, openPerson, closeFull, items, cyc, D } from './core.js';
-import { rich, prune, insertInto } from './rich.js';
+import { rich, prune } from './rich.js';
 import { sel, txt, BUCKETS, POOL } from './drawer.js';
 import { runItemAgent } from './views.js';
 import { openSimulation, canSimulate } from './simulate.js';
@@ -34,8 +34,7 @@ function fullInitiative(id) {
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip(i.statusClass, i.statusLabel), chip('s-none', i.tierLabel), chip('s-none', i.projectTitle), i.flags.length ? chip('s-off', `${i.flags.length} check${i.flags.length > 1 ? 's' : ''}`) : null),
     h('div', { class: 'fcols' },
-      h('div', { class: 'fmain' }, h('div', { class: 'page-bar' }, h('div', { class: 'lbl' }, 'Page'), h('div', { class: 'hrow', style: 'gap:4px' }, h('span', { class: 'muted small' }, 'Type / for blocks ·'),
-        ...[['milestone', 'Milestone'], ['link', 'Link'], ['pr', 'PR'], ['update', 'Update'], ['drawing', 'Drawing'], ...d.types.map(t => ['type:' + t.slug, t.name])].map(([k, l]) => h('button', { class: 'btn sm', onClick: () => insertInto(key, k) }, '+ ' + l)))), page),
+      h('div', { class: 'fmain' }, page),
       h('aside', { class: 'fside' },
         sideCard('Properties', h('div', { class: 'fprops' },
       fprop('Status', sel([['', 'No status'], ...d.enums.statuses.map(s => [s, d.enums.labels[s]])], i.status, v => upd({ status: v }), 'Status')),
@@ -83,8 +82,7 @@ function fullProject(slug) {
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip('s-none', `${mine.length} initiative${mine.length === 1 ? '' : 's'}`), chip('s-none', `${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => chip('s-none', `${n} ${l.toLowerCase()}`))),
     h('div', { class: 'fcols' },
-      h('div', { class: 'fmain' }, h('div', { class: 'page-bar' }, h('div', { class: 'lbl' }, 'Page'), h('div', { class: 'hrow', style: 'gap:4px' }, h('span', { class: 'muted small' }, 'Type / for blocks ·'),
-        ...[['link', 'Link'], ['update', 'Update'], ['drawing', 'Drawing'], ...D().types.map(t => ['type:' + t.slug, t.name])].map(([k, l]) => h('button', { class: 'btn sm', onClick: () => insertInto(key, k) }, '+ ' + l)))), page),
+      h('div', { class: 'fmain' }, page),
       h('aside', { class: 'fside' },
         sideCard('Properties', h('div', { class: 'fprops' }, fprop('Owner', personPicker({ value: p.owner, onChange: v => upd({ owner: v }), placeholder: 'No owner', label: 'Owner' })),
           fprop('Progress', h('div', { class: 'fval' }, h('div', { class: 'fval-line' }, h('b', {}, avg + '%'), h('span', { class: 'muted small' }, 'Average of the active cycle')), bar(avg, cy.some(i => i.status === 'off-track')))))),

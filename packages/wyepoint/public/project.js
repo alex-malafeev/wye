@@ -1,6 +1,6 @@
 // A project's page: its details over one page of its own — what it is, links, anything else — edited like an initiative.
 import { S, h, chip, bar, muted, api, act, render, openProject, openFull, openIt, openPerson, items, D } from './core.js';
-import { rich, prune, insertInto } from './rich.js';
+import { rich, prune } from './rich.js';
 import { itemRow, list } from './views.js';
 import { personPicker } from './picker.js';
 
@@ -29,8 +29,6 @@ export function projectDrawer(slug) {
       prop('Progress', h('div', {}, h('div', { class: 'hrow between small', style: 'flex-wrap:nowrap' }, h('span', { class: 'muted' }, 'Average of the active cycle'), h('b', {}, avg + '%')), bar(avg, cy.some(i => i.status === 'off-track')))),
       people.length ? prop('People', h('div', { class: 'hrow' }, ...people.map(n => h('button', { class: 'pill', onClick: () => openPerson(n) }, n)))) : null),
 
-    h('div', { class: 'page-bar' }, h('div', { class: 'lbl' }, 'Page'), h('div', { class: 'hrow', style: 'gap:4px' }, h('span', { class: 'muted small' }, 'Type / for blocks ·'),
-      ...[['link', 'Link'], ['update', 'Update'], ['drawing', 'Drawing'], ...D().types.map(t => ['type:' + t.slug, t.name])].map(([k, l]) => h('button', { class: 'btn sm', onClick: () => insertInto(key, k) }, '+ ' + l)))),
     page,
 
     h('div', { class: 'stack' }, h('div', { class: 'hrow between' }, h('div', { class: 'lbl' }, `Initiatives (${mine.length})`),
