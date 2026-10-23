@@ -1,5 +1,5 @@
-// Overview, Projects, Backlog, People, Simulate and the status-agent card. (Plan, History and Settings are in plan.js.)
-import { S, h, chip, bar, muted, label, opts, api, act, render, go, openIt, openPerson, items, cyc, D, fmtDate, range } from './core.js';
+// Overview, Projects, Backlog, People and the status-agent card. (Plan, History and Settings are in plan.js.)
+import { S, h, chip, bar, muted, label, opts, api, act, render, go, openIt, openPerson, openProject, safeUrl, items, cyc, D, fmtDate, range } from './core.js';
 
 const TIER_ORDER = { cycle: 0, plan: 1, next: 2, later: 3, icebox: 4, proposed: 5, carry: 6, done: 7 };
 const STATUS_ORDER = { 'off-track': 0, 'at-risk': 1, 'on-track': 2, 'not-started': 3, paused: 4, complete: 5 };
@@ -22,7 +22,7 @@ export function itemRow(i, sub, selected) {
       h('div', { class: 'hrow', style: 'flex-wrap:nowrap;justify-content:flex-end' }, i.flags.length ? chip('s-off', `${i.flags.length} flag`) : null, chip('s-none', i.tierLabel), chip('s-none', i.effort || 'Unsized'), chip(i.statusClass, i.statusLabel)),
       h('div', { class: 'hrow', style: 'flex-wrap:nowrap;justify-content:flex-end;width:100%' }, h('div', { style: 'width:130px' }, bar(i.progress, i.hot)), h('div', { style: 'font-size:12px;font-weight:600;width:36px;text-align:right' }, i.progress + '%'))));
 }
-const smallRow = (i, why) => h('button', { class: 'row', onClick: () => openIt(i.id) },
+export const smallRow = (i, why, onClick) => h('button', { class: 'row', onClick: onClick || (() => openIt(i.id)) },
   h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, i.title), h('div', { class: 'muted small' }, `${i.projectTitle} · ${i.owner || 'No champion'}${why ? ' · ' + why : ''}`)), chip(i.statusClass, i.statusLabel));
 const personRow = p => h('button', { class: 'row', onClick: () => openPerson(p.n) }, h('div', { style: 'flex:1 1 auto;font-weight:600' }, p.n), h('div', { class: 'muted', style: 'font-size:12px' }, `${p.load.c} champion, ${p.load.k} contributor`), chip(p.tagClass, p.tag));
 
@@ -76,8 +76,10 @@ export function projects() {
       const champs = {}; all.forEach(i => { if (i.owner) champs[i.owner] = (champs[i.owner] || 0) + 1; });
       const top = Object.keys(champs).sort((a, b) => champs[b] - champs[a]).slice(0, 4).join(', ') || 'No champions named';
       return h('div', { class: 'card' },
-        h('div', { class: 'hrow between' }, h('h3', {}, p.title), h('span', { class: 'muted small' }, `${all.length} items`)),
+        h('div', { class: 'hrow between', style: 'flex-wrap:nowrap' }, h('button', { class: 'card-title', onClick: () => openProject(p.slug) }, p.title),
+          h('div', { class: 'hrow', style: 'gap:8px;flex-wrap:nowrap' }, h('span', { class: 'muted small' }, `${all.length} items`), h('button', { class: 'btn sm', onClick: () => openProject(p.slug) }, 'Edit'))),
         p.description ? muted(p.description, 'small') : null,
+        p.links.length ? h('div', { class: 'hrow', style: 'gap:6px' }, ...p.links.slice(0, 4).map(l => h('a', { class: 'pill', href: safeUrl(l.url), target: '_blank', rel: 'noopener noreferrer' }, l.label + ' ↗'))) : null,
         h('div', {}, h('div', { class: 'hrow between small' }, h('span', { class: 'muted' }, 'Average progress'), h('b', {}, avg + '%')), bar(avg, cy.some(i => i.status === 'off-track'))),
         h('div', { class: 'hrow' }, STATUS_LABELS.filter(l => mix[l]).map(l => chip(statusClassOf(l), `${mix[l]} ${l.toLowerCase()}`))),
         muted('People: ' + top, 'small'),
@@ -163,31 +165,3 @@ export function people() {
         sp.ch.length || sp.co.length ? null : muted('Not on any item.')) : null));
 }
 const personItem = (i, role) => h('button', { class: 'pill', onClick: () => openIt(i.id) }, h('span', { class: 'chip ' + i.statusClass, style: 'margin-right:6px' }, i.statusLabel), `${role} · ${i.title}`);
-
-// ---- simulate
-export function simulate() {
-  const s = S.sim, r = s.result, byId = Object.fromEntries(items().map(i => [i.id, i]));
-  const run = async () => {
-    if (!(s.title + s.description).trim()) { S.err = 'Describe the idea first'; render(); return; }
-    S.err = ''; s.text = 'Thinking…'; s.result = null; render();
-    const input = { title: s.title, description: s.description, effort: s.effort, when: s.when };
-    try { s.result = await api('POST', '/simulate', input); } catch (e) { S.err = e.message; s.text = ''; render(); return; }
-    render();
-    try { s.text = (await api('POST', '/agent/sim', input)).text; } catch (e) { s.text = e.message; }
-    render();
-  };
-  return h('div', { class: 'cols' },
-    h('div', { class: 'card', style: 'flex:1 1 340px;max-width:460px' }, h('div', { class: 'lbl' }, 'New initiative or idea'), S.err ? h('div', { class: 'err' }, S.err) : null,
-      label('Title', h('input', { class: 'field', value: s.title, placeholder: 'e.g. Passenger alerts for school buses', onInput: e => { s.title = e.target.value; } })),
-      label('What it is and why now', h('textarea', { class: 'field', style: 'min-height:110px', placeholder: 'Describe the scope, customers, models or surfaces involved', onInput: e => { s.description = e.target.value; } }, s.description)),
-      h('div', { class: 'hrow' },
-        label('Effort', h('select', { class: 'field', onChange: e => { s.effort = e.target.value; } }, opts([['S', 'S (2-3 days)'], ['M', 'M (1-2 weeks)'], ['L', 'L (3-4 weeks)'], ['XL', 'XL (6+ weeks)']], s.effort))),
-        label('Target', h('select', { class: 'field', onChange: e => { s.when = e.target.value; } }, opts([['cycle2', 'This cycle (swap in)'], ['cycle3', 'Next cycle'], ['later', 'Later']], s.when)))),
-      h('button', { class: 'btn pri', onClick: run }, 'Run simulation')),
-    h('div', { class: 'grow stack', style: 'gap:14px;flex-basis:520px' },
-      r ? [
-        h('div', { class: 'card' }, h('div', { class: 'lbl' }, 'Most relevant people'), ...r.people.map(p => h('button', { class: 'row', onClick: () => openPerson(p.n) }, h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, p.n), h('div', { class: 'muted small' }, p.why)), chip(p.tagClass, `${p.tag} (${p.active} active)`))), r.people.length ? null : muted('Nobody on the plan looks close to this idea.')),
-        h('div', { class: 'card' }, h('div', { class: 'lbl' }, 'Related and affected initiatives'), ...r.items.map(id => byId[id]).filter(Boolean).map(i => smallRow(i)), r.items.length ? null : muted('No related initiatives found.')),
-        h('div', { class: 'card' }, h('div', { class: 'lbl' }, 'Simulation agent'), h('div', { class: 'agent' }, s.text)),
-      ] : h('div', { class: 'card muted' }, S.sim.text === 'Thinking…' ? 'Thinking…' : 'Describe an idea and run the simulation. The agent finds the people closest to the work, the initiatives it touches and who would be stretched.')));
-}

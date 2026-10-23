@@ -1,6 +1,7 @@
 // Plan (the next cycle: pool, ranking, checks, release, start), History (every cycle, snapshots once closed) and Settings.
 import { S, TOKEN_KEY, h, chip, bar, muted, label, api, act, render, openIt, items, cyc, D, range, cycleChip, stClass, cap } from './core.js';
 import { pill } from './views.js';
+import { openSimulation } from './simulate.js';
 
 const POOL_RANK = { carry: 0, proposed: 1, next: 2, later: 3, icebox: 4 };
 
@@ -32,6 +33,7 @@ export function plan() {
         ...pool.slice(0, 60).map(i => h('div', { class: 'row', style: 'flex-wrap:wrap;cursor:default' },
           h('div', { style: 'flex:1 1 220px;min-width:0' }, h('button', { class: 'pill', style: 'border:0;padding:0;background:transparent;font-weight:600', onClick: () => openIt(i.id) }, i.title), h('div', { class: 'muted small' }, `${i.projectTitle} · ${i.owner || 'No champion'}`)),
           chip('s-none', i.tierLabel), chip('s-none', i.effort || 'Unsized'),
+          pickBtn('Simulate', () => openSimulation(i)),
           pickBtn(i.approved ? 'Approved' : 'Approve', () => act(() => api('PATCH', `/initiatives/${i.id}`, { approved: !i.approved })), i.approved ? 'on' : ''),
           h('button', { class: 'btn sm pri', disabled: !(i.approved && !locked), onClick: () => act(() => api('PATCH', `/initiatives/${i.id}`, { cycle: nx.n, rank: planned.length + 1, approved: true })) }, i.approved ? `Add to ${nx.name}` : 'Approve first'))),
         pool.length ? null : muted('Nothing to pick from.')),
@@ -39,6 +41,7 @@ export function plan() {
         h('div', { class: 'card' }, h('div', { class: 'lbl' }, `${nx.name} ranked plan (${planned.length})`),
           ...planned.map((i, k) => h('div', { class: 'row', style: 'cursor:default' }, h('div', { style: 'width:28px;font-weight:700;flex:none' }, k + 1),
             h('div', { style: 'flex:1 1 auto;min-width:0' }, h('button', { class: 'pill', style: 'border:0;padding:0;background:transparent;font-weight:600', onClick: () => openIt(i.id) }, i.title), h('div', { class: 'muted small' }, `${i.projectTitle} · ${i.owner || 'No champion'} · ${i.effort || 'Unsized'}`)),
+            h('button', { class: 'btn sm', onClick: () => openSimulation(i) }, 'Simulate'),
             locked ? null : [h('button', { class: 'btn sm', 'aria-label': 'Move up', onClick: () => move(i, -1) }, 'Up'), h('button', { class: 'btn sm', 'aria-label': 'Move down', onClick: () => move(i, 1) }, 'Down'),
               h('button', { class: 'btn sm', 'aria-label': 'Remove from plan', onClick: () => act(() => api('PATCH', `/initiatives/${i.id}`, { cycle: null, rank: null })) }, 'Remove')])),
           planned.length ? null : muted('Nothing planned yet. Approve initiatives in the pool, then add them.')),
@@ -86,8 +89,8 @@ export function settings() {
         label('Cycle 0 starts (YYYY-MM-DD)', h('input', { class: 'field', style: 'width:170px', value: v.start, onInput: e => { v.start = e.target.value; } })),
         h('button', { class: 'btn pri', onClick: () => act(() => api('PATCH', '/config', v)) }, 'Save'))),
     h('div', { class: 'card' }, h('h3', {}, 'Push data in'), muted('Anything that can POST JSON can add a log line, a link, a pull request, a milestone or a status to an initiative. Needs the write token.', 'small'),
-      h('div', { class: 'code' }, `curl -X POST ${origin}/api/ingest \\\n  -H "authorization: Bearer $TEMPO_TOKEN" -H "content-type: application/json" \\\n  -d '{"source":"jira","initiative":"project/slug","kind":"link","label":"PROJ-123","url":"https://…","text":"PROJ-123 moved to Done"}'`),
-      muted('kind is log (text), link (label, url), pr (title, url), status (status) or task (title, owner, due, status; the same title again updates it). GitHub: point a webhook for pull requests and issues at /api/ingest/github with TEMPO_GITHUB_SECRET set, and put tempo:<project>/<slug> in the PR title, branch or description.', 'small')),
+      h('div', { class: 'code' }, `curl -X POST ${origin}/api/ingest \\\n  -H "authorization: Bearer $WYEPOINT_TOKEN" -H "content-type: application/json" \\\n  -d '{"source":"jira","initiative":"project/slug","kind":"link","label":"PROJ-123","url":"https://…","text":"PROJ-123 moved to Done"}'`),
+      muted('kind is log (text), link (label, url), pr (title, url), status (status) or task (title, owner, due, status; the same title again updates it). GitHub: point a webhook for pull requests and issues at /api/ingest/github with WYEPOINT_GITHUB_SECRET set, and put wyepoint:<project>/<slug> in the PR title, branch or description.', 'small')),
     h('div', { class: 'card' }, h('h3', {}, 'Write token'), muted(hasToken ? 'A token is saved in this browser.' : 'No token saved in this browser. You are asked for it when you first save something on a server that needs one.', 'small'),
       h('div', {}, h('button', { class: 'btn', onClick: () => { try { localStorage.removeItem(TOKEN_KEY); } catch { /* storage blocked */ } render(); } }, 'Forget token'))),
   ];

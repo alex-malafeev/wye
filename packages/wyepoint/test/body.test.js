@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const { Store } = require('../lib/store');
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'tempo-body-'));
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'wyepoint-body-'));
 
 test('items stay where they were put, and a change to one edits that line', () => {
   const s = new Store(tmp()); s.createProject({ title: 'P' });

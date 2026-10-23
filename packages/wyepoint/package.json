@@ -1,8 +1,8 @@
 {
-  "name": "@wye/tempo",
+  "name": "@wye/wyepoint",
   "version": "0.1.0",
   "private": true,
-  "description": "Tempo — cycle planning for projects and initiatives, stored in a Wye vault",
+  "description": "WyePoint — cycle planning for projects and initiatives, stored in a Wye vault",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js --seed",

@@ -2,6 +2,7 @@
 import { S, h, chip, bar, muted, opts, api, act, render, go, route, openIt, openPerson, items, cyc, D } from './core.js';
 import { runItemAgent } from './views.js';
 import { rich, prune, insertInto } from './rich.js';
+import { openSimulation, canSimulate } from './simulate.js';
 
 const BUCKETS = [['proposed', 'Proposed'], ['next', 'Next cycle'], ['later', 'Later'], ['icebox', 'Icebox']];
 const POOL = ['carry', 'next', 'later', 'icebox', 'proposed'];
@@ -24,7 +25,7 @@ export function drawer(id) {
   const agent = S.agents[i.id];
   const page = rich(key, i.body, (md, base) => upd({ body: md, base }), { minHeight: 280, node: i.node, idPrefix: `task:${i.project}.${i.slug}.` });
   return shell(
-    h('div', { class: 'hrow between', style: 'align-items:flex-start;flex-wrap:nowrap' }, h('h2', { class: 'drawer-title' }, i.title), h('button', { class: 'btn sm', onClick: () => openIt(null) }, 'Close')),
+    h('div', { class: 'hrow between drawer-head', style: 'align-items:flex-start;flex-wrap:nowrap' }, h('h2', { class: 'drawer-title' }, i.title), h('button', { class: 'btn sm', onClick: () => openIt(null) }, 'Close')),
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip(i.statusClass, i.statusLabel), chip('s-none', i.tierLabel), chip('s-none', i.projectTitle), i.flags.length ? chip('s-off', `${i.flags.length} check${i.flags.length > 1 ? 's' : ''}`) : null),
 
@@ -51,7 +52,7 @@ export function drawer(id) {
         i.approved && POOL.includes(i.tier) && !locked ? h('button', { class: 'btn pri', onClick: () => upd({ cycle: nx.n, rank: items().filter(x => x.cycle === nx.n).length + 1 }) }, `Add to ${nx.name}`) : null,
         i.tier === 'plan' && i.cycle === nx.n && !locked ? h('button', { class: 'btn', onClick: () => upd({ cycle: null, rank: null }) }, 'Remove from cycle plan') : null)),
     h('div', { class: 'hrow' }, h('button', { class: 'btn pri', onClick: () => runItemAgent(i.id) }, 'Ask status agent'),
-      h('button', { class: 'btn', onClick: () => { Object.assign(S.sim, { title: i.title, description: i.ships || i.description, result: null, text: '' }); go('sim'); } }, 'Simulate similar idea')),
+      canSimulate(i) ? h('button', { class: 'btn', onClick: () => openSimulation(i) }, 'Simulate') : null),
     agent ? h('div', { class: 'agent' }, agent) : null,
     h('div', { class: 'muted small' }, 'Stored in the vault as ', h('code', {}, `projects/${i.project}/docs/${i.slug}.md`), ' (', h('code', {}, i.node), ').'));
 }

@@ -1,7 +1,7 @@
 'use strict';
-// Tempo: a web app over a Wye vault. No dependencies — Node's http, the vault's Markdown, a static page.
-//   node server.js [--vault <folder>] [-p 4400] [-H 127.0.0.1] [--public https://tempo.example.com] [--seed]
-// Reading is open (that is what "public" means); writing needs the token — TEMPO_TOKEN, or one generated at start —
+// WyePoint: a web app over a Wye vault. No dependencies — Node's http, the vault's Markdown, a static page.
+//   node server.js [--vault <folder>] [-p 4400] [-H 127.0.0.1] [--public https://wyepoint.example.com] [--seed]
+// Reading is open (that is what "public" means); writing needs the token — WYEPOINT_TOKEN, or one generated at start —
 // except from this machine while the server is bound to loopback only. The status agents spend model calls, so they
 // need the token too, even where writing does not.
 const http = require('http');
@@ -15,13 +15,16 @@ const agent = require('./lib/agent');
 
 const args = process.argv.slice(2);
 const opt = (f, d) => { const i = args.indexOf(f); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
-const vault = path.resolve(opt('--vault', process.env.TEMPO_VAULT || path.join(process.env.HOME || '.', '.wye', 'data', 'products', 'tempo')));
+const products = path.join(process.env.HOME || '.', '.wye', 'data', 'products');
+const vault = path.resolve(opt('--vault', process.env.WYEPOINT_VAULT || path.join(products, 'wyepoint')));
+// before the rename the default vault was called tempo: it is moved, once, to the new name
+if (!args.includes('--vault') && !process.env.WYEPOINT_VAULT && !fs.existsSync(vault) && fs.existsSync(path.join(products, 'tempo'))) fs.renameSync(path.join(products, 'tempo'), vault);
 const port = Number(opt('-p', process.env.PORT || 4400));
-const publicUrl = opt('--public', process.env.TEMPO_PUBLIC_URL || '');
+const publicUrl = opt('--public', process.env.WYEPOINT_PUBLIC_URL || '');
 const host = opt('-H', publicUrl ? '0.0.0.0' : '127.0.0.1');
 const loopbackOnly = !publicUrl && ['127.0.0.1', 'localhost', '::1'].includes(host);
-const token = process.env.TEMPO_TOKEN || crypto.randomBytes(18).toString('base64url');
-const ghSecret = process.env.TEMPO_GITHUB_SECRET || '';
+const token = process.env.WYEPOINT_TOKEN || crypto.randomBytes(18).toString('base64url');
+const ghSecret = process.env.WYEPOINT_GITHUB_SECRET || '';
 
 const store = new Store(vault);
 if (args.includes('--seed') && store.isEmpty()) require('./lib/seed')(store);
@@ -57,7 +60,7 @@ function state() {
   const a = analysis.analyze(store), { ctx } = a;
   const cycles = a.cycles.map(c => { const rows = cycleRows(a, c); return { ...c, snap: undefined, snapshot: c.status === 'closed' && c.snap.length > 0, rows, shipped: rows.filter(r => r.status === 'complete').length, avg: rows.length ? Math.round(rows.reduce((s, r) => s + (r.pct || 0), 0) / rows.length) : 0 }; });
   return {
-    brand: 'Tempo', config: ctx.cfg, today: ctx.todayIso, active: ctx.active, nx: ctx.nx.n, cycles, projects: ctx.projects, initiatives: a.items, people: a.people,
+    brand: 'WyePoint', config: ctx.cfg, today: ctx.todayIso, active: ctx.active, nx: ctx.nx.n, cycles, projects: ctx.projects, initiatives: a.items, people: a.people,
     checks: a.checks, canRelease: a.canRelease, roster: ctx.roster.join('\n'),
     enums: { statuses: STATUSES, taskStatuses: TASK_STATUSES, efforts: EFFORTS, buckets: BUCKETS, labels: analysis.LABEL },
   };
@@ -81,7 +84,7 @@ function startNext() {
   if (a.ctx.nx.status !== 'released') throw fail(409, 'release the next cycle plan first');
   const live = a.items.filter(i => i.tier === 'cycle');
   store.saveCycle(n, { status: 'closed', closedAt: a.ctx.todayIso, snap: live.map(analysis.snapshotOf) });
-  live.filter(i => i.status !== 'complete').forEach(i => store.addLog(i.id, { text: `Not shipped in Cycle ${n}; carried over`, source: 'tempo' }));
+  live.filter(i => i.status !== 'complete').forEach(i => store.addLog(i.id, { text: `Not shipped in Cycle ${n}; carried over`, source: 'wyepoint' }));
   store.saveCycle(n + 1, { status: 'active' });
 }
 
@@ -94,7 +97,7 @@ async function api(req, res, url) {
   // GitHub signs its own deliveries; everything else that changes something needs the token
   if (method === 'POST' && a === 'ingest' && b === 'github') {
     const raw = await readBody(req);
-    if (!ghSecret) return json(res, 503, { error: 'set TEMPO_GITHUB_SECRET to accept GitHub webhooks' });
+    if (!ghSecret) return json(res, 503, { error: 'set WYEPOINT_GITHUB_SECRET to accept GitHub webhooks' });
     if (!ingest.verifySignature(ghSecret, raw, req.headers['x-hub-signature-256'])) return json(res, 401, { error: 'bad signature' });
     return json(res, 200, ingest.github(store, req.headers['x-github-event'], parseJson(raw)));
   }
@@ -185,9 +188,9 @@ const server = http.createServer(async (req, res) => {
   }
 });
 server.listen(port, host, () => {
-  console.log(`Tempo on http://${host === '0.0.0.0' ? 'localhost' : host}:${port}${publicUrl ? ` — reached at ${publicUrl}` : ''}`);
+  console.log(`WyePoint on http://${host === '0.0.0.0' ? 'localhost' : host}:${port}${publicUrl ? ` — reached at ${publicUrl}` : ''}`);
   console.log(`vault: ${vault}`);
   if (!fs.existsSync(path.join(PUB, 'vendor', 'editor.js'))) console.log('block editor not built: rich text fields fall back to plain text. Run: npm run build:editor');
-  if (!loopbackOnly) console.log(`write token: ${token}${process.env.TEMPO_TOKEN ? ' (from TEMPO_TOKEN)' : ' (generated; set TEMPO_TOKEN to keep one)'}`);
+  if (!loopbackOnly) console.log(`write token: ${token}${process.env.WYEPOINT_TOKEN ? ' (from WYEPOINT_TOKEN)' : ' (generated; set WYEPOINT_TOKEN to keep one)'}`);
 });
 module.exports = { server };

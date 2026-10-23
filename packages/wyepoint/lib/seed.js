@@ -10,6 +10,8 @@ module.exports = function seed(store) {
   store.setRoster(['Dana', 'Lee', 'Sam', 'Priya', 'Jo', 'Mika']);
   const web = store.createProject({ title: 'Customer platform', description: 'The product customers log into every day.', owner: 'Dana' });
   const data = store.createProject({ title: 'Data foundations', description: 'Pipelines and the warehouse the rest of the company reads.', owner: 'Sam' });
+  store.updateProject(web.slug, { body: 'The product customers log into every day.\n\n## Links\n\n- [Product roadmap](https://example.com/roadmap) · link · notion\n- [Design system](https://example.com/design) · link · figma' });
+  store.updateProject(data.slug, { body: 'Pipelines and the warehouse the rest of the company reads.\n\n## Links\n\n- [Data catalog](https://example.com/catalog) · link · manual' });
   const mk = (project, title, o) => {
     const it = store.createInitiative({ project, title, ...o });
     for (const t of o.tasks || []) store.addTask(it.id, t);

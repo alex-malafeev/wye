@@ -19,3 +19,8 @@
 .tb-update { background: transparent; border: 0; border-left: 2px solid #d5dae1; border-radius: 0; padding-left: 10px; }
 .tb-when { flex: none; font-size: 12px; color: #5b6573; white-space: nowrap; }
 .tb-when b { font-weight: 600; }
+
+/* page headings are section titles, not poster titles */
+.bn-block-content[data-content-type="heading"][data-level="1"] { --level: 1.6em !important; }
+.bn-block-content[data-content-type="heading"][data-level="2"] { --level: 1.25em !important; }
+.bn-block-content[data-content-type="heading"][data-level="3"] { --level: 1.05em !important; }

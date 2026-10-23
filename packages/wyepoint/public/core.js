@@ -1,14 +1,14 @@
 // Shared by every view: the page's state, the DOM helper, the API calls and the routing.
 // All state comes from GET /api/state; every change is an API call followed by a reload of that state, so what is on
 // screen is what is in the vault. The DOM is built with textContent only — nothing from the vault is ever HTML.
-export const TABS = [['overview', 'Overview'], ['projects', 'Projects'], ['backlog', 'Backlog'], ['people', 'People'], ['sim', 'Simulate'], ['plan', 'Plan'], ['history', 'History'], ['settings', 'Settings']];
-export const TOKEN_KEY = 'tempo_token';
+export const TABS = [['overview', 'Overview'], ['projects', 'Projects'], ['backlog', 'Backlog'], ['people', 'People'], ['plan', 'Plan'], ['history', 'History'], ['settings', 'Settings']];
+export const TOKEN_KEY = 'wyepoint_token';
 
 export const S = {
   data: null, err: '', modal: null, confirmStart: false,
   f: { q: '', project: '', status: '', mission: '', tier: '', effort: '', champion: '' }, gy: 'project', gx: 'none', sortKey: 'rank', sortDir: 1,
   pq: '', pf: 'all', selP: '', planQ: '', histSel: null,
-  agents: {}, portfolio: { show: false, text: '' }, sim: { title: '', description: '', effort: 'M', when: 'cycle3', result: null, text: '' },
+  agents: {}, portfolio: { show: false, text: '' }, sim: null,   // the simulation open on an initiative: { id, title, result, text }
 };
 let renderer = () => {};
 export const setRenderer = fn => { renderer = fn; };
@@ -36,7 +36,7 @@ export const opts = (list, current) => list.map(([v, l]) => h('option', { value:
 
 // ---- api
 export async function api(method, path, body, retry = true) {
-  let token = ''; try { token = localStorage.getItem(TOKEN_KEY) || ''; } catch { /* storage blocked */ }
+  let token = ''; try { token = localStorage.getItem(TOKEN_KEY) || localStorage.getItem('tempo_token') || ''; } catch { /* storage blocked */ }
   const r = await fetch('/api' + path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (r.status === 401 && retry && method !== 'GET') {
     const t = window.prompt('This server needs its write token to save changes:');
@@ -55,10 +55,16 @@ export async function load() { S.data = await api('GET', '/state'); render(); }
 // ---- routing: #/<view>?i=<project>/<slug>
 export function route() {
   const [p, q] = location.hash.replace(/^#\/?/, '').split('?');
-  return { view: TABS.some(t => t[0] === p) ? p : 'overview', open: new URLSearchParams(q || '').get('i') };
+  const sp = new URLSearchParams(q || '');
+  return { view: TABS.some(t => t[0] === p) ? p : 'overview', open: sp.get('i'), project: sp.get('p') };
 }
-export function go(view, open) { location.hash = `#/${view}` + (open ? `?i=${encodeURIComponent(open).replace(/%2F/g, '/')}` : ''); }
+// the page's address: a view, and optionally an initiative (i) or a project (p) open on top of it
+export function go(view, open, project) {
+  const q = open ? `i=${encodeURIComponent(open).replace(/%2F/g, '/')}` : project ? `p=${encodeURIComponent(project)}` : '';
+  location.hash = `#/${view}` + (q ? '?' + q : '');
+}
 export const openIt = id => go(route().view, id);
+export const openProject = slug => go(route().view, null, slug);   // null closes it
 export function openPerson(n) { S.selP = n; S.err = ''; go('people'); }
 
 // ---- lookups and formatting over the loaded state

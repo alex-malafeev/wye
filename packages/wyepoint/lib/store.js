@@ -1,5 +1,5 @@
 'use strict';
-// Tempo's storage is a Wye vault: a product folder of Markdown (the vault is the database, no other store).
+// WyePoint's storage is a Wye vault: a product folder of Markdown (the vault is the database, no other store).
 //   <vault>/_product.md                      the workspace and the cycle settings (cycle-weeks, cycle-start, cycle-cooldown)
 //   <vault>/_roster.md                       everyone on the team, one name per line (people with no initiative yet)
 //   <vault>/cycles/<n>.md                    what is recorded about one cycle: status, theme, dates, the snapshot taken at close
@@ -91,6 +91,8 @@ function setSection(body, name, text) {
   lines.splice(from, to - from, ...(text.trim() ? [...text.trim().split('\n'), ''] : []), ...items, ...(to < lines.length ? [''] : []));
   return lines.join('\n');
 }
+// the first paragraph of the prose before the first heading, items left out
+function introOf(body) { return proseSections(body.split('\n').filter(l => !L.isItem(l)).join('\n'))._intro.trim().split(/\n\s*\n/)[0]; }
 function proseSections(prose) {
   const out = { _intro: '' }; let cur = '_intro';
   for (const line of prose.split('\n')) {
@@ -119,14 +121,17 @@ class Store {
   get productFile() { return path.join(this.dir, '_product.md'); }
 
   init() {
-    if (fs.existsSync(this.productFile)) return;
-    write(this.productFile, joinFm({ title: 'Tempo', icon: '🧭', description: 'Projects and initiatives planned in cycles.', 'cycle-weeks': 6, 'cycle-start': day(), 'cycle-cooldown': 7 }, ''));
+    if (fs.existsSync(this.productFile)) {
+      if (this.config().title === 'Tempo') this.setConfig({ title: 'WyePoint' });   // the name before the rename
+      return;
+    }
+    write(this.productFile, joinFm({ title: 'WyePoint', icon: '🧭', description: 'Projects and initiatives planned in cycles.', 'cycle-weeks': 6, 'cycle-start': day(), 'cycle-cooldown': 7 }, ''));
   }
 
   // ---- config
   config() {
     const { fm } = splitFm(read(this.productFile));
-    return { title: fm.title || 'Tempo', weeks: Math.max(1, +fm['cycle-weeks'] || 6), start: fm['cycle-start'] || day(), cooldown: Math.max(0, +fm['cycle-cooldown'] || 0) };
+    return { title: fm.title || 'WyePoint', weeks: Math.max(1, +fm['cycle-weeks'] || 6), start: fm['cycle-start'] || day(), cooldown: Math.max(0, +fm['cycle-cooldown'] || 0) };
   }
   setConfig(c) {
     const { fm, body } = splitFm(read(this.productFile));
@@ -179,27 +184,40 @@ class Store {
 
   // ---- projects
   projectsDir() { return path.join(this.dir, 'projects'); }
+  // A project is a page too: `_project.md` — its details in the front matter, then a free body (what it is, links,
+  // anything else), read the way an initiative's is. Its description in the front matter follows the page, which is
+  // where Wye's own views read it.
   projects() {
     let dirs = []; try { dirs = fs.readdirSync(this.projectsDir(), { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name); } catch { /* none yet */ }
-    return dirs.sort().map(slug => {
-      const { fm, body } = splitFm(read(path.join(this.projectsDir(), slug, '_project.md')));
-      return { slug, title: fm.title || slug, description: oneLine(fm.description) || oneLine(body), owner: fm.owner || '' };
-    });
+    return dirs.sort().map(slug => this.readProject(slug));
+  }
+  projectFile(slug) { return path.join(this.projectsDir(), String(slug).replace(/[^\w-]/g, ''), '_project.md'); }
+  readProject(slug) {
+    const { fm, body: raw } = splitFm(read(this.projectFile(slug)));
+    const body = raw.replace(/^\s*# .*\n?/, '').trim() || oneLine(fm.description);
+    const links = [];
+    for (const line of body.split('\n')) { const x = L.parseLine(line); if (x && x.type === 'link') links.push({ label: x.label, url: x.url, source: x.meta }); }
+    return { slug, title: fm.title || slug, owner: fm.owner || '', description: oneLine(introOf(body)) || oneLine(fm.description), body, links };
   }
   createProject({ title, description = '', owner = '' }) {
     title = oneLine(title); if (!title) throw bad('title is required');
     const slug = this.uniqueSlug(slugify(title), s => fs.existsSync(path.join(this.projectsDir(), s)));
-    write(path.join(this.projectsDir(), slug, '_project.md'), joinFm({ title, kind: 'project', owner: oneLine(owner), description: oneLine(description) }, ''));
+    write(path.join(this.projectsDir(), slug, '_project.md'), joinFm({ title, kind: 'project', owner: oneLine(owner), description: oneLine(description) }, `# ${title}\n\n${String(description).trim()}\n`));
     fs.mkdirSync(path.join(this.projectsDir(), slug, 'docs'), { recursive: true });
-    return this.projects().find(p => p.slug === slug);
+    return this.readProject(slug);
   }
   updateProject(slug, patch) {
-    const file = path.join(this.projectsDir(), String(slug).replace(/[^\w-]/g, ''), '_project.md');
+    const file = this.projectFile(slug);
     if (!fs.existsSync(file)) throw notFound('project');
-    const { fm, body } = splitFm(read(file));
-    for (const k of ['title', 'description', 'owner']) if (patch[k] !== undefined) fm[k] = oneLine(patch[k]);
-    write(file, joinFm(fm, body));
-    return this.projects().find(p => p.slug === slug);
+    const { fm } = splitFm(read(file)), cur = this.readProject(slug);
+    if (patch.title !== undefined) { fm.title = oneLine(patch.title); if (!fm.title) throw bad('title is required'); }
+    if (patch.owner !== undefined) fm.owner = oneLine(patch.owner);
+    let body = cur.body;
+    if (patch.body !== undefined) body = mergeBody(String(patch.body), cur.body, patch.base);
+    else if (patch.description !== undefined) body = setSection(body, null, String(patch.description));
+    fm.description = oneLine(introOf(body));
+    write(file, joinFm(fm, `# ${fm.title || slug}\n\n${body.trim()}\n`));
+    return this.readProject(slug);
   }
   uniqueSlug(base, taken) { let s = base, i = 2; while (taken(s)) s = `${base}-${i++}`; return s; }
 
@@ -267,7 +285,7 @@ class Store {
       .replace(/task:new\.(\d+)/g, `task:${project}.${slug}.$1`).replace(/goal:TBD/g, node);
     const it = { id: `${project}/${slug}`, slug, project, node, title, status: '', owner: '', contributors: [], mission: '', effort: '', cycle: null, rank: null, approved: false, bucket: 'proposed', target: '', body };
     this.apply(it, { ...o, body: undefined, description: undefined, ships: undefined, risks: undefined });
-    it.body = appendLine(it.body, L.logLine({ ts: now(), source: 'tempo', text: 'Initiative created' }), x => x.type === 'log', 'Updates');   // no status-change line for the status it starts with
+    it.body = appendLine(it.body, L.logLine({ ts: now(), source: 'wyepoint', text: 'Initiative created' }), x => x.type === 'log', 'Updates');   // no status-change line for the status it starts with
     return this.save(it);
   }
   apply(it, patch) {
@@ -281,7 +299,7 @@ class Store {
     if (patch.status !== undefined) {
       if (patch.status && !STATUSES.includes(patch.status)) throw bad('unknown status');
       // a new page has no status-change line for the status it starts with
-      if (patch.status !== it.status && it.body.includes(' · tempo · Initiative created')) it.body = appendLine(it.body, L.logLine({ ts: now(), source: patch.source || 'tempo', text: `Status ${it.status || 'none'} → ${patch.status || 'none'}` }), x => x.type === 'log', 'Updates');
+      if (patch.status !== it.status && / · (wyepoint|tempo) · Initiative created/.test(it.body)) it.body = appendLine(it.body, L.logLine({ ts: now(), source: patch.source || 'wyepoint', text: `Status ${it.status || 'none'} → ${patch.status || 'none'}` }), x => x.type === 'log', 'Updates');
       it.status = patch.status;
     }
     if (patch.effort !== undefined) { if (patch.effort && !EFFORTS.includes(patch.effort)) throw bad('effort must be S, M, L or XL'); it.effort = patch.effort; }

@@ -8,7 +8,7 @@ const { Store } = require('../lib/store');
 const cycles = require('../lib/cycles');
 const ingest = require('../lib/ingest');
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'tempo-'));
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'wyepoint-'));
 
 test('cycles: six weeks plus cooldown, configurable', () => {
   const cfg = { weeks: 6, start: '2026-09-21', cooldown: 7 };
@@ -72,10 +72,10 @@ test('ingest: generic push and the GitHub adapter', () => {
   let got = s.get(it.id);
   assert.strictEqual(got.tasks.length, 1); assert.strictEqual(got.tasks[0].status, 'done');
   assert.strictEqual(got.links[0].source, 'jira');
-  const r = ingest.github(s, 'pull_request', { action: 'opened', pull_request: { number: 7, title: 'Fix totals tempo:p/billing', html_url: 'https://github.com/o/r/pull/7' } });
+  const r = ingest.github(s, 'pull_request', { action: 'opened', pull_request: { number: 7, title: 'Fix totals wyepoint:p/billing', html_url: 'https://github.com/o/r/pull/7' } });
   assert.strictEqual(r.initiative, 'p/billing');
   got = s.get(it.id);
   assert.strictEqual(got.prs.length, 1); assert.match(got.prs[0].title, /PR #7/);
-  assert.deepStrictEqual(ingest.github(s, 'pull_request', { pull_request: { number: 8, title: 'unrelated' } }).ignored, 'no tempo:<initiative> reference');
+  assert.deepStrictEqual(ingest.github(s, 'pull_request', { pull_request: { number: 8, title: 'unrelated' } }).ignored, 'no wyepoint:<initiative> reference');
   assert.throws(() => ingest.ingest(s, { initiative: 'nope', kind: 'log', text: 'x' }), /no initiative/);
 });

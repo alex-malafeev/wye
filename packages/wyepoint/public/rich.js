@@ -24,7 +24,7 @@ export function rich(key, markdown, onSave, opts = {}) {
   c = { el, api: null, saved: markdown, base: markdown, onSave, opts };
   cache.set(key, c);
   const save = md => { if (md.trim() !== c.saved.trim()) { const base = c.base; c.saved = md; c.base = md; c.onSave(md, base); } };
-  loadBundle().then(m => { el.replaceChildren(); c.api = m.mountEditor(el, { markdown: c.saved, onChange: save, node: opts.node, idPrefix: opts.idPrefix }); })
+  loadBundle().then(m => { el.replaceChildren(); c.api = m.mountEditor(el, { markdown: c.saved, onChange: save, node: opts.node, idPrefix: opts.idPrefix, kinds: opts.kinds }); })
     .catch(() => { el.replaceChildren(h('textarea', { class: 'field', style: `min-height:${opts.minHeight || 90}px`, 'aria-label': 'Page', onChange: e => save(e.target.value) }, c.saved)); });
   return el;
 }

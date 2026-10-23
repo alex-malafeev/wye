@@ -1,4 +1,4 @@
-// The Notion-style editor Tempo uses for an initiative's page — BlockNote, the library Wye's own document editor is
+// The Notion-style editor WyePoint uses for an initiative's page — BlockNote, the library Wye's own document editor is
 // built on. The page is one document: prose as ordinary blocks, and four block types for the items a planner keeps
 // (milestone, link, pull request, update) that can be inserted anywhere with "/". Markdown goes in and comes out, in
 // the line formats of lib/lines.js, so the vault keeps plain Markdown. Built by `npm run build:editor` into
@@ -96,12 +96,12 @@ async function fromBlocks(editor, o) {
 }
 
 const NOT_ON_A_PAGE = new Set(['Image', 'Video', 'Audio', 'File', 'Emoji', 'Toggle List', 'Toggle Heading 1', 'Toggle Heading 2', 'Toggle Heading 3', 'Divider']);
-const itemMenu = editor => [
-  { title: 'Milestone', subtext: 'A deliverable with a status, an owner and a due date', group: 'Tempo', aliases: ['task', 'todo', 'milestone'], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'milestone' }) },
-  { title: 'Link', subtext: 'A spec, a design, a ticket', group: 'Tempo', aliases: ['url', 'ticket', 'doc'], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'ref', props: { kind: 'link', meta: 'manual' } }) },
-  { title: 'Pull request', subtext: 'A PR that delivers this', group: 'Tempo', aliases: ['pr', 'github'], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'ref', props: { kind: 'pr', meta: today() } }) },
-  { title: 'Update', subtext: 'A dated line in the log', group: 'Tempo', aliases: ['log', 'status', 'news'], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'update', props: { ts: stamp(), source: 'manual' } }) },
-];
+const itemMenu = (editor, kinds) => [
+  { kind: 'milestone', title: 'Milestone', subtext: 'A deliverable with a status, an owner and a due date', group: 'WyePoint', aliases: ['task', 'todo', 'milestone'], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'milestone' }) },
+  { kind: 'link', title: 'Link', subtext: 'A spec, a design, a ticket', group: 'WyePoint', aliases: ['url', 'ticket', 'doc'], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'ref', props: { kind: 'link', meta: 'manual' } }) },
+  { kind: 'pr', title: 'Pull request', subtext: 'A PR that delivers this', group: 'WyePoint', aliases: ['pr', 'github'], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'ref', props: { kind: 'pr', meta: today() } }) },
+  { kind: 'update', title: 'Update', subtext: 'A dated line in the log', group: 'WyePoint', aliases: ['log', 'status', 'news'], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'update', props: { ts: stamp(), source: 'manual' } }) },
+].filter(i => !kinds || kinds.includes(i.kind));
 const HEADINGS = { milestone: 'Milestones', link: 'Links', pr: 'Pull requests', update: 'Updates' };
 const INSERT = { milestone: { type: 'milestone' }, link: { type: 'ref', props: { kind: 'link', meta: 'manual' } }, pr: { type: 'ref', props: { kind: 'pr', meta: today() } }, update: { type: 'update', props: { ts: stamp(), source: 'manual' } } };
 
@@ -125,12 +125,12 @@ function Editor({ markdown, opts, onReady, onChange }) {
   };
   useEffect(() => { load(markdown); onReady({ setMarkdown: load, flush, insert }); return () => clearTimeout(timer.current); }, []);   // eslint-disable-line
   return e(BlockNoteView, { editor, theme: 'light', slashMenu: false, onChange: () => { if (loading.current) return; clearTimeout(timer.current); timer.current = setTimeout(flush, SAVE_AFTER); }, onBlur: flush },
-    e(SuggestionMenuController, { triggerCharacter: '/', getItems: async q => filterSuggestionItems([...getDefaultReactSlashMenuItems(editor).filter(i => !NOT_ON_A_PAGE.has(i.title)), ...itemMenu(editor)], q) }));
+    e(SuggestionMenuController, { triggerCharacter: '/', getItems: async q => filterSuggestionItems([...getDefaultReactSlashMenuItems(editor).filter(i => !NOT_ON_A_PAGE.has(i.title)), ...itemMenu(editor, opts.kinds)], q) }));
 }
 
 // mountEditor(element, { markdown, onChange(md), node: 'goal:p.slug', idPrefix: 'task:p.slug.' })
-export function mountEditor(element, { markdown = '', onChange = () => {}, node, idPrefix }) {
+export function mountEditor(element, { markdown = '', onChange = () => {}, node, idPrefix, kinds }) {
   const root = createRoot(element); let api = { setMarkdown() {}, flush() {}, insert() {} };
-  root.render(e(Editor, { markdown, opts: { node, idPrefix }, onChange, onReady: a => { api = a; } }));
+  root.render(e(Editor, { markdown, opts: { node, idPrefix, kinds }, onChange, onReady: a => { api = a; } }));
   return { setMarkdown: md => api.setMarkdown(md), flush: () => api.flush(), insert: k => api.insert(k), destroy: () => { api.flush(); setTimeout(() => root.unmount()); } };
 }

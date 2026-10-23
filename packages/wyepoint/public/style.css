@@ -79,3 +79,68 @@ select.pfield{cursor:pointer}
 .rich{border:0;border-top:1px solid #eef0f3;border-radius:0;padding:10px 0 0;background:transparent;overflow:visible}
 .rich .bn-editor{padding-inline:0}
 .drawer .agent{margin-top:4px}
+/* the drawer is a scrolling column: its children keep their height instead of shrinking over each other */
+.drawer > *{flex:none}
+.drawer-head{position:sticky;top:-20px;z-index:6;margin:-20px -22px 0;padding:18px 22px 10px;background:#fff;border-bottom:1px solid #eef0f3}
+/* the app header stays put while the page scrolls */
+.top{position:sticky;top:0;z-index:30}
+
+/* ---- the look: a cool tinted page, a white panel, Samsara's Signal yellow as the accent (after Perch) ---- */
+:root{--accent:#feae0f;--accent-d:#e89b00;--accent-tint:#fff3d4;--accent-line:#f3c35e;--navy:#10304d;--link:#0b57d0;--pri:var(--accent-d);--bg:#e6ebf4;--line:#e1e7f0;--line2:#cbd3e0}
+body{background:var(--bg)}
+a{color:var(--link)}
+.btn{min-height:40px;border-radius:10px;border-color:var(--line2);font-weight:500}
+.btn:hover{background:#f1f4f9}
+.btn.pri{background:var(--accent);border-color:var(--accent-d);color:var(--ink);font-weight:600}
+.btn.pri:hover{background:var(--accent-d)}
+.btn.on{background:var(--accent-tint);border-color:var(--accent-line);color:var(--ink)}
+.btn.sm{min-height:32px;border-radius:8px}
+.bar>i{background:var(--navy)}
+.bar.hot>i{background:var(--hot)}
+.row:hover,button.row:hover{border-color:var(--accent-line);background:#fffdf7}
+.row.sel{border-color:var(--accent-d);box-shadow:0 0 0 2px var(--accent-tint)}
+.pill:hover{border-color:var(--accent-d)}
+.field:focus,.search:focus{outline:2px solid var(--accent);outline-offset:0}
+
+/* header */
+.top{background:var(--bg);border:0;position:sticky;top:0;z-index:30}
+.top .wrap.topbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;padding:12px 20px 0}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);margin-right:6px}
+.logo-mark{width:30px;height:30px;border-radius:9px;background:var(--accent);position:relative;flex:none}
+.logo-mark::before{content:'';position:absolute;inset:7px;border-radius:50%;border:3px solid var(--ink)}
+.logo-mark::after{content:'';position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:var(--ink)}
+.brand-name{font-size:20px;font-weight:800;letter-spacing:-.01em}
+.tabs{display:flex;flex-wrap:wrap;gap:2px}
+.tab{background:none;border:0;border-bottom:3px solid transparent;border-radius:0;padding:12px 12px 9px;font-size:15px;color:#3b4655;cursor:pointer}
+.tab:hover{color:var(--ink);border-bottom-color:var(--accent-line)}
+.tab.on{color:var(--ink);font-weight:600;border-bottom-color:var(--accent)}
+.top-right{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-left:auto;padding-bottom:6px}
+.cycle-pill{display:flex;flex-direction:column;gap:4px;background:#fff;border:1px solid var(--line2);border-radius:10px;padding:5px 12px;font-size:12.5px;white-space:nowrap;min-width:150px}
+.cycle-bar{display:block;height:4px;border-radius:2px;background:#e3e8f0;overflow:hidden}
+.cycle-bar i{display:block;height:100%;background:var(--accent-d)}
+.search-wrap{position:relative}
+.search{width:230px;height:40px;border:1px solid var(--line2);border-radius:10px;padding:0 34px 0 12px;background:#fff;font:inherit}
+.kbd{position:absolute;right:8px;top:9px;font:12px ui-monospace,Menlo,monospace;color:var(--muted);border:1px solid var(--line2);border-radius:5px;padding:1px 6px;background:#fafbfd}
+
+/* the page: a white panel with a title */
+main.wrap{padding:8px 12px 0}
+.panel{background:#fff;border-radius:22px;padding:26px 30px 18px;min-height:60vh}
+.page-head{margin-bottom:18px}
+.page-head h1{font-size:30px;font-weight:800;letter-spacing:-.015em;line-height:1.15}
+.page-head .muted{margin-top:4px;font-size:14px}
+.card{border-color:var(--line);border-radius:14px}
+.card-title{font-size:18px;font-weight:700;background:none;border:0;padding:0;text-align:left;cursor:pointer;color:var(--ink)}
+.card-title:hover{text-decoration:underline;text-decoration-color:var(--accent);text-decoration-thickness:3px;text-underline-offset:3px}
+.lbl{letter-spacing:.05em}
+.tiles .card{background:#f8fafd;border-color:var(--line)}
+.agent{background:#f8fafd;border-color:var(--line)}
+
+/* drawers and dialogs */
+.drawer-title-input{font:inherit;font-size:24px;font-weight:700;line-height:1.2;width:100%;border:1px solid transparent;border-radius:8px;padding:2px 6px;margin-left:-6px;background:transparent;color:var(--ink)}
+.drawer-title-input:hover{background:#f3f5f8}
+.drawer-title-input:focus{background:#fff;border-color:var(--line2);outline:none}
+.modal .sim-card{width:min(720px,100%)}
+.scrim>.back{background:rgba(16,32,52,.38)}
+@media (max-width:900px){.top-right{margin-left:0;width:100%}.search{width:100%}.search-wrap{flex:1 1 200px}}
+/* one row at normal widths: the brand, the tabs, then the actions and search pushed right */
+@media (min-width:1180px){.top .wrap.topbar{flex-wrap:nowrap;gap:6px 14px}.top-right{flex-wrap:nowrap;gap:6px}.tabs{flex-wrap:nowrap;flex:0 0 auto}.tab{font-size:14.5px;padding-left:9px;padding-right:9px;white-space:nowrap}.search{width:150px}.cycle-pill{min-width:128px}.btn{white-space:nowrap}}

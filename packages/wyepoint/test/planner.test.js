@@ -10,7 +10,7 @@ const path = require('path');
 const { Store } = require('../lib/store');
 const analysis = require('../lib/analysis');
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'tempo-pl-'));
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'wyepoint-pl-'));
 const day = off => new Date(Date.now() + off * 864e5).toISOString().slice(0, 10);
 
 function fixture() {
@@ -69,7 +69,7 @@ test('simulate finds the related initiative and its people', () => {
 function serve(vault, env) {
   const port = 4900 + Math.floor(Math.random() * 90);
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'server.js'), '--vault', vault, '-p', String(port)], { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'inherit'] });
-  const ready = new Promise(res => child.stdout.on('data', d => /Tempo on/.test(d) && res()));
+  const ready = new Promise(res => child.stdout.on('data', d => /WyePoint on/.test(d) && res()));
   const base = `http://127.0.0.1:${port}`;
   const call = async (method, p, body) => { const r = await fetch(base + '/api' + p, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); return { status: r.status, body: await r.json() }; };
   return { child, ready, call };
@@ -78,7 +78,7 @@ function serve(vault, env) {
 test('cycle flow through the server: release rules, start next, snapshot, carry-over, agents', async () => {
   const vault = tmp(), s = fixture(); fs.cpSync(s.dir, vault, { recursive: true });
   // a stub agent: echoes the first 40 characters of the prompt, so no model is called
-  const srv = serve(vault, { TEMPO_AGENT_CMD: 'head -c 40' }); await srv.ready;
+  const srv = serve(vault, { WYEPOINT_AGENT_CMD: 'head -c 40' }); await srv.ready;
   try {
     let st = (await srv.call('GET', '/state')).body;
     assert.strictEqual(st.active, 0); assert.strictEqual(st.nx, 1);

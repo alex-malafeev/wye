@@ -1,13 +1,13 @@
 'use strict';
 // The status agents run through Claude Code, the way Wye runs its own agents: `claude -p`, the prompt on stdin, no
-// tools, no session kept, from an empty folder so it reads nothing of this machine. TEMPO_AGENT_CMD swaps the command
-// (it receives the prompt on stdin and prints the answer); TEMPO_AGENT_MODEL picks the model (default sonnet).
+// tools, no session kept, from an empty folder so it reads nothing of this machine. WYEPOINT_AGENT_CMD swaps the command
+// (it receives the prompt on stdin and prints the answer); WYEPOINT_AGENT_MODEL picks the model (default sonnet).
 const { spawn } = require('child_process');
 const os = require('os');
 
 function run(prompt, { timeout = 120000 } = {}) {
-  const custom = process.env.TEMPO_AGENT_CMD;
-  const [cmd, ...args] = custom ? custom.split(/\s+/).filter(Boolean) : ['claude', '-p', '--tools', '', '--no-session-persistence', '--disable-slash-commands', '--model', process.env.TEMPO_AGENT_MODEL || 'sonnet'];
+  const custom = process.env.WYEPOINT_AGENT_CMD;
+  const [cmd, ...args] = custom ? custom.split(/\s+/).filter(Boolean) : ['claude', '-p', '--tools', '', '--no-session-persistence', '--disable-slash-commands', '--model', process.env.WYEPOINT_AGENT_MODEL || 'sonnet'];
   return new Promise((resolve, reject) => {
     let out = '', err = '', done = false;
     const finish = (f, v) => { if (!done) { done = true; clearTimeout(timer); f(v); } };

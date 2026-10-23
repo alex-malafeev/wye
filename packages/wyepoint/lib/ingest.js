@@ -28,12 +28,12 @@ function ingest(store, msg) {
   }
 }
 
-// A PR or issue names its initiative with `tempo:<project>/<slug>` (or `tempo:<slug>`) in its title, branch or body.
-const REF = /tempo[:/]([\w-]+(?:\/[\w-]+)?)/i;
+// A PR or issue names its initiative with `wyepoint:<project>/<slug>` (or `wyepoint:<slug>`) in its title, branch or body.
+const REF = /(?:wyepoint|tempo)[:/]([\w-]+(?:\/[\w-]+)?)/i;
 function github(store, event, p) {
   const obj = p.pull_request || p.issue; if (!obj) return { ignored: `${event} carries no pull request or issue` };
   const m = REF.exec([obj.title, obj.head && obj.head.ref, obj.body].filter(Boolean).join('\n'));
-  if (!m) return { ignored: 'no tempo:<initiative> reference' };
+  if (!m) return { ignored: 'no wyepoint:<initiative> reference' };
   const it = resolve(store, m[1]), kind = p.pull_request ? 'PR' : 'Issue';
   const state = obj.merged ? 'merged' : (p.action === 'closed' ? 'closed' : (p.action || 'updated'));
   const label = `${kind} #${obj.number} ${obj.title}`;

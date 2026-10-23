@@ -120,7 +120,7 @@ const STOP = new Set('the and for with that this from into will have are new add
 const tokens = text => [...new Set(((text || '').toLowerCase().match(/[a-z][a-z0-9-]{2,}/g) || []).filter(w => !STOP.has(w)))];
 function simulate(a, input) {
   const toks = tokens(`${input.title || ''} ${input.description || ''}`);
-  const scored = a.items.map(it => {
+  const scored = a.items.filter(it => it.id !== input.exclude).map(it => {   // an initiative being simulated is not related to itself
     const hay = `${it.title} ${it.projectTitle} ${it.ships} ${it.risks} ${it.description}`.toLowerCase(); let sc = 0;
     toks.forEach(w => { if (hay.includes(w)) sc += it.title.toLowerCase().includes(w) ? 3 : 1; });
     if (it.tier === 'cycle') sc *= 1.2;
