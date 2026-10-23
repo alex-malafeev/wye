@@ -174,7 +174,7 @@ main.wrap{padding:8px 12px 0}
 .tiles{border-top:0;gap:12px}
 .tiles .card,.tiles .card + .card{background:#f5f7fb;border:0;border-left:2px solid var(--accent);border-radius:4px;padding:14px 16px}
 .row{border:0;border-radius:6px;padding:10px 12px}
-.row:hover,button.row:hover{background:#eaeff7;border:0}
+.row:hover,button.row:hover{background:#eaeff7}
 .row.sel{background:#fff6dc;border:0;box-shadow:inset 3px 0 0 var(--accent)}
 .modal .card{border-left:0;border-radius:18px;background:#fff}
 .props{border:0}
@@ -298,3 +298,63 @@ main.wrap{padding:8px 12px 0}
 .fb-count{margin-left:auto;color:var(--muted);font-size:13px;white-space:nowrap}
 .fb-view .fsel{background:transparent;border-color:transparent}
 .fb-view .fsel:hover{background:#f3f6fb}
+
+/* people: fixed columns, so a row looks the same under the pointer and with any tag */
+.mini.person{grid-template-columns:minmax(0,1fr) 210px 130px}
+.person-load{display:flex;flex-direction:column;gap:4px}
+.person-tag{justify-self:end}
+.fb-add{display:inline-flex;align-items:center;gap:6px}
+.person-detail{position:sticky;top:84px}
+
+/* people: the load meter is labelled and has a scale (6 heavy, 10 overloaded) */
+.meter{display:block;height:6px;border-radius:3px;background:#e9edf2;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--navy)}
+.meter.warm i{background:#e89b00}
+.meter.hot i{background:var(--hot)}
+.pd-fields{display:grid;grid-template-columns:1fr;gap:10px}
+.pd-load{display:flex;flex-direction:column;gap:8px}
+.pfield:disabled{opacity:.6;cursor:default}
+
+/* load as capacity: ten segments (not a progress bar) */
+.pips{display:inline-flex;gap:3px;align-items:center}
+.pips i{display:block;width:14px;height:9px;background:#e3e8f0}
+.pips i.on{background:var(--navy)}
+.pips.warm i.on{background:#e89b00}
+.pips.hot i.on{background:var(--hot)}
+
+.mini.compact{grid-template-columns:minmax(0,1fr) auto}
+.mini.person{grid-template-columns:minmax(0,1fr) 250px 130px}
+.person-load .mini-sub{white-space:nowrap}
+
+.person-load{min-width:0}
+
+/* phones: a row keeps its name on the left and stacks the two things on the right, one above the other */
+@media (max-width:700px){
+  .mini{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"main chips" "main prog";align-items:center;row-gap:6px}
+  .mini.ranked{grid-template-columns:26px minmax(0,1fr) auto;grid-template-areas:"rank main chips" "rank main prog"}
+  .mini > .mini-main{grid-area:main}
+  .mini > .mini-rank{grid-area:rank}
+  .mini > .mini-chips,.mini > .chip{grid-area:chips;justify-self:end;justify-content:flex-end}
+  .mini > .mini-progress{grid-area:prog;justify-self:end;width:112px}
+  .mini.person{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"main load" "main tag"}
+  .mini.person > .person-load{grid-area:load;align-items:flex-end;text-align:right}
+  .mini.person > .person-load .mini-sub{white-space:normal}
+  .mini.person > .person-tag{grid-area:tag;justify-self:end}
+  .mini.compact{grid-template-areas:none;grid-template-columns:minmax(0,1fr) auto}
+}
+
+/* the person lookup */
+.picker{position:relative;width:100%}
+.picker.multi{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid transparent;border-radius:6px;padding:2px 4px}
+.picker.multi:hover{background:#f3f5f8}
+.picker.multi:focus-within{background:#fff;border-color:var(--line2)}
+.picker.multi .picker-input{flex:1 1 110px;min-width:90px;width:auto;border:0;background:transparent}
+.pchip{display:inline-flex;gap:2px;align-items:center;background:#eaeff7;border-radius:999px;padding:2px 4px 2px 10px;font-size:13px}
+.pchip button{border:0;background:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:12px}
+.pchip button:hover{color:var(--ink)}
+.picker-menu{position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:70;background:#fff;border:1px solid var(--line2);box-shadow:0 10px 28px rgba(16,32,52,.2);max-height:300px;overflow:auto;min-width:240px}
+.picker-menu[hidden]{display:none}
+.picker-opt{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;font-size:14px}
+.picker-opt.on{background:#f3f6fb}
+.picker-opt small{display:block;color:var(--muted);font-size:12px}
+.picker-empty{padding:10px 12px;color:var(--muted);font-size:13px}

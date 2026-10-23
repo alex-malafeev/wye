@@ -1,7 +1,9 @@
 'use strict';
 // WyePoint's storage is a Wye vault: a product folder of Markdown (the vault is the database, no other store).
 //   <vault>/_product.md                      the workspace and the cycle settings (cycle-weeks, cycle-start, cycle-cooldown)
-//   <vault>/_roster.md                       everyone on the team, one name per line (people with no initiative yet)
+//   <vault>/people/<name>.md                 a person the planner can name as a champion or contributor: role, team, email,
+//                                            and where they came from (added by hand for now; a sync from a people
+//                                            system of record would write the same pages with a source of its own)
 //   <vault>/cycles/<n>.md                    what is recorded about one cycle: status, theme, dates, the snapshot taken at close
 //   <vault>/projects/<p>/_project.md         a project (what the planner calls a workstream)
 //   <vault>/projects/<p>/docs/<slug>.md      an initiative: a page that is a goal node, its tasks and milestones as task
@@ -123,6 +125,7 @@ class Store {
   init() {
     if (fs.existsSync(this.productFile)) {
       if (this.config().title === 'Tempo') this.setConfig({ title: 'WyePoint' });   // the name before the rename
+      this.migrateRoster();
       return;
     }
     write(this.productFile, joinFm({ title: 'WyePoint', icon: '🧭', description: 'Projects and initiatives planned in cycles.', 'cycle-weeks': 6, 'cycle-start': day(), 'cycle-cooldown': 7 }, ''));
@@ -143,9 +146,43 @@ class Store {
     return this.config();
   }
 
-  // ---- roster
-  roster() { return names(read(path.join(this.dir, '_roster.md')).split('\n')); }
-  setRoster(list) { write(path.join(this.dir, '_roster.md'), names(list).join('\n') + '\n'); return this.roster(); }
+  // ---- people
+  peopleDir() { return path.join(this.dir, 'people'); }
+  people() {
+    let files = []; try { files = fs.readdirSync(this.peopleDir()).filter(f => f.endsWith('.md')); } catch { /* none yet */ }
+    return files.map(f => {
+      const { fm } = splitFm(read(path.join(this.peopleDir(), f)));
+      return { slug: f.slice(0, -3), name: fm.title || f.slice(0, -3), role: fm.role || '', team: fm.team || '', email: fm.email || '', source: fm.source || 'manual', externalId: fm['external-id'] || '' };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  }
+  createPerson({ name, role = '', team = '', email = '', source = 'manual', externalId = '' }) {
+    name = oneLine(name); if (!name) throw bad('a name is required');
+    if (email && !/^\S+@\S+$/.test(oneLine(email))) throw bad('that does not look like an email address');
+    if (this.people().some(p => p.name.toLowerCase() === name.toLowerCase())) throw Object.assign(new Error(`${name} is already in the directory`), { status: 409 });
+    const slug = this.uniqueSlug(slugify(name), s => fs.existsSync(path.join(this.peopleDir(), s + '.md')));
+    write(path.join(this.peopleDir(), slug + '.md'), joinFm({ title: name, kind: 'person', role: oneLine(role), team: oneLine(team), email: oneLine(email), source: oneLine(source) || 'manual', 'external-id': oneLine(externalId) }, `# ${name}\n`));
+    return this.people().find(p => p.slug === slug);
+  }
+  updatePerson(slug, patch) {   // the name is how initiatives refer to them, so it is not changed here
+    const file = path.join(this.peopleDir(), String(slug).replace(/[^\w-]/g, '') + '.md');
+    if (!fs.existsSync(file)) throw notFound('person');
+    const { fm, body } = splitFm(read(file));
+    for (const k of ['role', 'team']) if (patch[k] !== undefined) fm[k] = oneLine(patch[k]);
+    if (patch.email !== undefined) { const e = oneLine(patch.email); if (e && !/^\S+@\S+$/.test(e)) throw bad('that does not look like an email address'); fm.email = e; }
+    write(file, joinFm(fm, body));
+    return this.people().find(p => p.slug === slug);
+  }
+  removePerson(slug) {
+    const file = path.join(this.peopleDir(), String(slug).replace(/[^\w-]/g, '') + '.md');
+    if (!fs.existsSync(file)) throw notFound('person');
+    fs.unlinkSync(file);
+  }
+  // before the directory there was a roster: one name per line. Each name becomes a person, once.
+  migrateRoster() {
+    const file = path.join(this.dir, '_roster.md'); if (!fs.existsSync(file)) return;
+    for (const n of names(read(file).split('\n'))) { try { this.createPerson({ name: n }); } catch { /* already there */ } }
+    fs.unlinkSync(file);
+  }
 
   // ---- cycles. Dates come from the settings; a record under cycles/ overrides them and holds the status, the
   // theme and the snapshot. Without a record a cycle is closed before the active one and planned after it.

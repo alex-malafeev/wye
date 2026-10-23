@@ -1,5 +1,5 @@
 // Overview, Projects, Backlog, People and the status-agent card. (Plan, History and Settings are in plan.js.)
-import { S, h, chip, bar, muted, label, opts, api, act, render, go, openIt, openPerson, openProject, safeUrl, items, cyc, D, fmtDate, range } from './core.js';
+import { S, h, chip, bar, muted, label, opts, api, act, render, go, route, openIt, openPerson, openProject, safeUrl, items, cyc, D, fmtDate, range } from './core.js';
 
 const TIER_ORDER = { cycle: 0, plan: 1, next: 2, later: 3, icebox: 4, proposed: 5, carry: 6, done: 7 };
 const STATUS_ORDER = { 'off-track': 0, 'at-risk': 1, 'on-track': 2, 'not-started': 3, paused: 4, complete: 5 };
@@ -26,7 +26,7 @@ export const smallRow = (i, why, onClick) => h('button', { class: 'row', onClick
   h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, i.title), h('div', { class: 'muted small' }, `${i.projectTitle} · ${i.owner || 'No champion'}${why ? ' · ' + why : ''}`)), chip(i.statusClass, i.statusLabel));
 // rows that are items of one list: a bordered box, lines between the rows (nothing when there are none)
 export const list = rows => { const r = [rows].flat(Infinity).filter(Boolean); return r.length ? h('div', { class: 'list' }, ...r) : null; };
-const personRow = p => h('button', { class: 'row', onClick: () => openPerson(p.n) }, h('div', { style: 'flex:1 1 auto;font-weight:600' }, p.n), h('div', { class: 'muted', style: 'font-size:12px' }, `${p.load.c} champion, ${p.load.k} contributor`), chip(p.tagClass, p.tag));
+const personRow = p => h('button', { class: 'row', onClick: () => openPerson(p.n) }, h('div', { style: 'flex:1 1 auto;font-weight:600' }, p.n), h('div', { class: 'muted', style: 'font-size:12px' }, `Load ${p.load.score} · ${p.load.c} champion, ${p.load.k} contributor`), chip(p.tagClass, p.tag));
 
 // ---- the status agent's portfolio briefing, on any tab
 export function portfolioCard() {
@@ -190,30 +190,36 @@ export function backlog() {
 const route0 = () => new URLSearchParams((location.hash.split('?')[1] || '')).get('i');
 
 // ---- people
+// The directory of people the planner can name as a champion or contributor. They are added by hand for now; each is a
+// page in the vault with a `source`, so a sync from the company's people system can fill the same pages later.
+const pillSel = (key, name, list, value, set) => h('label', { class: 'fsel' + (value ? ' active' : ''), title: name },
+  h('select', { 'data-k': key, 'aria-label': name, onChange: e => { set(e.target.value); render(); } }, opts([['', name], ...list], value)));
+export const LOAD_RULE = 'Load: a champion counts 2 and a contributor 1, on unshipped items in the active cycle. 6 is heavy, 10 is overloaded.';
+// capacity, not progress: ten segments, filled up to the person's load
+export const meter = p => h('span', { class: 'pips' + (p.load.score >= 10 ? ' hot' : p.load.score >= 6 ? ' warm' : ''), title: LOAD_RULE, role: 'img', 'aria-label': `Load ${p.load.score} of 10` }, ...Array.from({ length: 10 }, (_, k) => h('i', { class: k < p.load.score ? 'on' : '' })));
+
 export function people() {
-  const d = D(), pq = S.pq.trim().toLowerCase(), byId = Object.fromEntries(items().map(i => [i.id, i]));
-  const wsText = p => [...new Set(p.ch.concat(p.co).map(id => byId[id] && byId[id].projectTitle).filter(Boolean))].join(', ') || 'Not on any item';
+  const d = D(), pq = S.pq.trim().toLowerCase(), byId = Object.fromEntries(items().map(i => [i.id, i])), open = route().person;
+  const projectsOf = p => [...new Set(p.ch.concat(p.co).map(id => byId[id] && byId[id].projectTitle).filter(Boolean))].join(', ');
+  const teams = uniq(d.people.map(p => p.team).filter(Boolean));
   const rows = d.people.filter(p => {
-    if (pq && `${p.n} ${wsText(p)}`.toLowerCase().indexOf(pq) < 0) return false;
+    if (pq && `${p.n} ${p.role} ${p.team} ${projectsOf(p)}`.toLowerCase().indexOf(pq) < 0) return false;
+    if (S.pt && p.team !== S.pt) return false;
     return { over: p.tag === 'Overloaded' || p.tag === 'Heavy', champ: p.ch.length > 0, contrib: !p.ch.length && p.co.length > 0, none: !p.ch.length && !p.co.length }[S.pf] ?? true;
   });
-  const sp = d.people.find(p => p.n === S.selP);
-  return h('div', { class: 'cols' },
-    h('div', { class: 'grow stack', style: 'gap:12px;flex-basis:560px' },
-      h('div', { class: 'card', style: 'flex-direction:row;flex-wrap:wrap;align-items:flex-end' },
-        label('Search people', h('input', { class: 'field', type: 'search', 'data-k': 'pq', value: S.pq, placeholder: 'Name or project', onInput: e => { S.pq = e.target.value; render(); } }), 'flex:1 1 200px'),
-        select('pf', 'Show', [['all', 'Everyone'], ['over', 'Heavy or overloaded'], ['champ', 'Champions'], ['contrib', 'Contributors only'], ['none', 'Not assigned (roster only)']], S.pf, v => { S.pf = v; }),
-        h('div', { class: 'muted', style: 'align-self:center' }, `${rows.length} people · ${d.people.filter(p => p.tag === 'Overloaded').length} overloaded · ${d.people.filter(p => p.roster).length} on roster only`)),
-      list(rows.map(p => h('button', { class: 'row' + (p.n === S.selP ? ' sel' : ''), onClick: () => { S.selP = p.n; render(); } },
-        h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, p.n), h('div', { class: 'muted small' }, wsText(p))),
-        h('div', { style: 'width:190px;flex:none' }, h('div', { class: 'muted', style: 'font-size:12px;white-space:nowrap' }, `Champion ${p.load.c} · contributor ${p.load.k}`), bar(Math.min(100, p.load.score * 8), p.load.score >= 10)), chip(p.tagClass, p.tag)))),
-      rows.length ? null : muted('Nobody matches.')),
-    h('aside', { class: 'card', style: 'flex:1 1 340px;max-width:440px' }, h('div', { class: 'lbl' }, 'Team roster'),
-      muted('One name per line. Everyone named as a champion or contributor is already counted; the roster adds the people who are not on any item, so you can see who has room.', 'small'),
-      h('textarea', { class: 'field', style: 'min-height:110px', placeholder: 'Name per line', onChange: e => act(() => api('PUT', '/roster', { text: e.target.value })) }, d.roster),
-      sp ? h('div', { class: 'stack', style: 'border-top:1px solid #eef0f3;padding-top:12px' }, h('div', { style: 'font-size:16px;font-weight:700' }, sp.n),
-        muted(`${sp.tag} · ${sp.load.c} champion and ${sp.load.k} contributor slots on unshipped items in the active cycle`, 'small'),
-        ...sp.ch.map(id => byId[id]).filter(Boolean).map(i => personItem(i, 'Champion')), ...sp.co.map(id => byId[id]).filter(Boolean).map(i => personItem(i, 'Contributor')),
-        sp.ch.length || sp.co.length ? null : muted('Not on any item.')) : null));
+  const over = d.people.filter(p => p.tag === 'Overloaded' || p.tag === 'Heavy').length;
+  const filtered = S.pq.trim() || S.pf !== 'all' || S.pt;
+  const row = p => h('button', { class: 'mini person' + (p.n === open ? ' sel' : ''), onClick: () => openPerson(p.n) },
+    h('span', { class: 'mini-main' }, h('span', { class: 'mini-title' }, p.n), h('span', { class: 'mini-sub' }, [p.role, p.team].filter(Boolean).join(' · ') || (projectsOf(p) || 'Not on any initiative') + (p.inDirectory ? '' : ' · not in the directory'))),
+    h('span', { class: 'person-load' }, h('span', { class: 'mini-sub' }, h('b', {}, `Load ${p.load.score} of 10`), ` · ${p.load.c} champion, ${p.load.k} contributor`), meter(p)),
+    h('span', { class: 'person-tag' }, chip(p.tagClass, p.tag)));
+  return h('div', { class: 'stack', style: 'gap:14px' },
+    h('div', { class: 'filterbar', style: 'border-bottom:0;padding-bottom:0' }, h('div', { class: 'fb-row' },
+      h('input', { class: 'fb-search', type: 'search', 'data-k': 'pq', value: S.pq, placeholder: 'Search by name, role, team or project', 'aria-label': 'Search people', onInput: e => { S.pq = e.target.value; render(); } }),
+      pillSel('pf', 'Show', [['over', 'Heavy or overloaded'], ['champ', 'Champions'], ['contrib', 'Contributors only'], ['none', 'Has room']], S.pf === 'all' ? '' : S.pf, v => { S.pf = v || 'all'; }),
+      teams.length ? pillSel('pt', 'Team', teams.map(t => [t, t]), S.pt || '', v => { S.pt = v; }) : null,
+      filtered ? h('button', { class: 'fb-clear', onClick: () => { S.pq = ''; S.pf = 'all'; S.pt = ''; render(); } }, 'Clear filters') : null,
+      h('span', { class: 'fb-count' }, `${rows.length} of ${d.people.length} people${over ? ` · ${over} heavy` : ''}`),
+      h('button', { class: 'btn sm pri', onClick: () => { S.modal = { kind: 'person' }; S.err = ''; render(); } }, '+ New person'))),
+    list(rows.map(row)), rows.length ? null : muted(d.people.length ? 'Nobody matches.' : 'No people yet. Add one with + New person.', 'small'));
 }
-const personItem = (i, role) => h('button', { class: 'pill', onClick: () => openIt(i.id) }, h('span', { class: 'chip ' + i.statusClass, style: 'margin-right:6px' }, i.statusLabel), `${role} · ${i.title}`);

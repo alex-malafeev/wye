@@ -7,7 +7,9 @@ const ahead = d => ago(-d);
 
 module.exports = function seed(store) {
   store.setConfig({ start: ago(14) });
-  store.setRoster(['Dana', 'Lee', 'Sam', 'Priya', 'Jo', 'Mika']);
+  [['Dana', 'Engineering manager', 'Customer platform'], ['Lee', 'Staff engineer', 'Customer platform'], ['Jo', 'Product designer', 'Customer platform'],
+    ['Sam', 'Data lead', 'Data foundations'], ['Priya', 'Data engineer', 'Data foundations'], ['Mika', 'Data engineer', 'Data foundations']]
+    .forEach(([name, role, team]) => store.createPerson({ name, role, team, email: `${name.toLowerCase()}@example.com` }));
   const web = store.createProject({ title: 'Customer platform', description: 'The product customers log into every day.', owner: 'Dana' });
   const data = store.createProject({ title: 'Data foundations', description: 'Pipelines and the warehouse the rest of the company reads.', owner: 'Sam' });
   store.updateProject(web.slug, { body: 'The product customers log into every day.\n\n## Links\n\n- [Product roadmap](https://example.com/roadmap) · link · notion\n- [Design system](https://example.com/design) · link · figma' });

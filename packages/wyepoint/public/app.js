@@ -5,6 +5,7 @@ import { plan, history, settings } from './plan.js';
 import { drawer, modal } from './drawer.js';
 import { projectDrawer } from './project.js';
 import { fullView } from './full.js';
+import { personDrawer } from './person.js';
 import { simulateModal } from './simulate.js';
 import { inEditor, prune } from './rich.js';
 
@@ -58,8 +59,8 @@ function draw() {
   }
   pending = false; clearInterval(poll); poll = 0;
   if (!S.data) { app.replaceChildren(h('div', { class: 'wrap muted' }, S.err || 'Loading…')); return; }
-  const { view, open, project, full } = route(), d = S.data, A = cyc(d.active), isFull = view === 'full';
-  if (!open && !project && !isFull) prune(k => k.startsWith('modal:'));
+  const { view, open, project, person, full } = route(), d = S.data, A = cyc(d.active), isFull = view === 'full';
+  if (!open && !project && !person && !isFull) prune(k => k.startsWith('modal:'));
   // a re-render replaces the DOM: keep the drawer's scroll and the field the person is typing in
   const old = app.querySelector('.drawer'), scroll = old ? old.scrollTop : 0, a = document.activeElement, key = a && a.dataset && a.dataset.k, pos = a && a.selectionStart;
   document.title = `${d.config.title} · ${isFull ? 'Full view' : TABS.find(t => t[0] === view)[1]}`;
@@ -67,9 +68,9 @@ function draw() {
     header(view, d, A),
     isFull ? fullView(full) : h('main', { class: 'wrap' }, h('div', { class: 'panel' },
       h('div', { class: 'page-head' }, h('h1', {}, TABS.find(t => t[0] === view)[1]), h('div', { class: 'muted' }, subtitle(view, d, A))),
-      h('div', { class: 'main' }, portfolioCard(), S.err && !open && !project && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](),
+      h('div', { class: 'main' }, portfolioCard(), S.err && !open && !project && !person && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](),
         muted(`Stored in a Wye vault: every initiative and project is a Markdown page. Cycles are ${d.config.weeks} weeks${d.config.cooldown ? ` plus ${d.config.cooldown} days cooldown` : ''}.`, 'small')))),
-    !isFull && open ? drawer(open) : !isFull && project ? projectDrawer(project) : null, modal(), simulateModal(),
+    !isFull && open ? drawer(open) : !isFull && project ? projectDrawer(project) : !isFull && person ? personDrawer(person) : null, modal(), simulateModal(),
   ].filter(Boolean));
   const dr = app.querySelector('.drawer'); if (dr) dr.scrollTop = scroll;
   if (key) { const el = app.querySelector(`[data-k="${key}"]`); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch { /* selects have no range */ } } }

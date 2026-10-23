@@ -5,6 +5,7 @@ import { rich, prune, insertInto } from './rich.js';
 import { sel, txt, BUCKETS, POOL } from './drawer.js';
 import { runItemAgent } from './views.js';
 import { openSimulation, canSimulate } from './simulate.js';
+import { personPicker } from './picker.js';
 
 const TASK_LABEL = { todo: 'Not started', 'in-progress': 'In progress', blocked: 'Blocked', review: 'In review', done: 'Done' };
 const fprop = (name, el) => h('div', { class: 'fprop' }, h('div', { class: 'prop-name' }, name), el);
@@ -34,8 +35,8 @@ function fullInitiative(id) {
     h('div', { class: 'hrow' }, chip(i.statusClass, i.statusLabel), chip('s-none', i.tierLabel), chip('s-none', i.projectTitle), i.flags.length ? chip('s-off', `${i.flags.length} check${i.flags.length > 1 ? 's' : ''}`) : null),
     h('div', { class: 'fprops' },
       fprop('Status', sel([['', 'No status'], ...d.enums.statuses.map(s => [s, d.enums.labels[s]])], i.status, v => upd({ status: v }), 'Status')),
-      fprop('Champion', txt(i.owner, v => upd({ owner: v }), 'Champion', 'No champion')),
-      fprop('Contributors', txt(i.contributors.join(', '), v => upd({ contributors: v }), 'Contributors', 'Comma separated')),
+      fprop('Champion', personPicker({ value: i.owner, onChange: v => upd({ owner: v }), placeholder: 'No champion', label: 'Champion' })),
+      fprop('Contributors', personPicker({ value: i.contributors, multi: true, onChange: v => upd({ contributors: v }), placeholder: 'No contributors', label: 'Contributors' })),
       fprop('Effort', sel([['', 'Unsized'], ...d.enums.efforts.map(s => [s, s])], i.effort, v => upd({ effort: v }), 'Effort')),
       fprop('Cycle', sel(cycleOpts, i.cycle == null ? '' : i.cycle, v => upd(v === '' ? { cycle: null, rank: null } : { cycle: +v, approved: true }), 'Cycle')),
       i.cycle == null ? fprop('Bucket', sel(BUCKETS, i.bucket, v => upd({ bucket: v }), 'Backlog bucket')) : null,

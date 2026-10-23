@@ -25,7 +25,7 @@ const fmt = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short',
 function context(store, today = new Date()) {
   const recs = store.cycleRecords(), active = store.activeN(recs), cfg = store.config();
   const cyc = n => store.cycle(n, recs, active);
-  return { cfg, recs, active, cyc, A: cyc(active), nx: cyc(active + 1), today: utc(today), todayIso: iso(utc(today)), roster: store.roster(), projects: store.projects() };
+  return { cfg, recs, active, cyc, A: cyc(active), nx: cyc(active + 1), today: utc(today), todayIso: iso(utc(today)), directory: store.people(), projects: store.projects() };
 }
 const stLabel = (it, tier) => LABEL[it.status] || (tier === 'cycle' ? 'No status' : tier === 'plan' ? 'Planned' : tier === 'proposed' ? 'Proposed' : 'Backlog');
 
@@ -68,18 +68,18 @@ function decorate(it, ctx) {
   return { ...it, projectTitle: project, tier, tierLabel: TIER_LABEL(tier, ctx.active), statusLabel: stLabel(it, tier), statusClass: CLASS[it.status] || 's-none', flags: flagsFor(it, tier, ctx), progress: pr.p, progressBasis: pr.basis, hot: it.status === 'off-track' || it.status === 'at-risk' };
 }
 
-// ---- people: a champion is worth 2, a contributor 1, on unshipped items of the active cycle
-function peopleOf(items, roster) {
-  const P = {};
-  const get = n => (P[n] = P[n] || { n, ch: [], co: [], roster: false });
-  items.forEach(it => { if (it.owner) get(it.owner).ch.push(it.id); it.contributors.forEach(n => { if (n !== it.owner) get(n).co.push(it.id); }); });
-  const have = new Set(Object.keys(P).map(k => k.toLowerCase()));
-  roster.forEach(n => { if (!have.has(n.toLowerCase())) { have.add(n.toLowerCase()); P[n] = { n, ch: [], co: [], roster: true }; } });
+// ---- people: a champion is worth 2, a contributor 1, on unshipped items of the active cycle. Everyone in the directory
+// is here, and so is anyone an initiative names who is not in it yet (they can be added from their panel).
+function peopleOf(items, directory) {
+  const P = {}, key = n => n.toLowerCase();
+  const get = n => (P[key(n)] = P[key(n)] || { n, ch: [], co: [], inDirectory: false, slug: '', role: '', team: '', email: '', source: '' });
+  directory.forEach(d => Object.assign(get(d.name), { n: d.name, inDirectory: true, slug: d.slug, role: d.role, team: d.team, email: d.email, source: d.source }));
+  items.forEach(it => { if (it.owner) get(it.owner).ch.push(it.id); it.contributors.forEach(n => { if (key(n) !== key(it.owner || '')) get(n).co.push(it.id); }); });
   const byId = Object.fromEntries(items.map(i => [i.id, i]));
   const live = id => { const i = byId[id]; return i && i.tier === 'cycle' && i.status !== 'complete'; };
   return Object.values(P).map(p => {
     const c = p.ch.filter(live).length, k = p.co.filter(live).length, score = c * 2 + k;
-    const tag = !p.ch.length && !p.co.length ? ['Roster only', 's-none'] : score >= 10 ? ['Overloaded', 's-off'] : score >= 6 ? ['Heavy', 's-risk'] : !p.ch.length ? ['Contributor only', 's-ns'] : ['Balanced', 's-on'];
+    const tag = !p.ch.length && !p.co.length ? ['Has room', 's-ship'] : score >= 10 ? ['Overloaded', 's-off'] : score >= 6 ? ['Heavy', 's-risk'] : !p.ch.length ? ['Contributor only', 's-ns'] : ['Balanced', 's-on'];
     return { ...p, load: { active: c + k, score, c, k }, tag: tag[0], tagClass: tag[1] };
   }).sort((a, b) => b.load.score - a.load.score || a.n.localeCompare(b.n));
 }
@@ -104,7 +104,7 @@ function planChecks(planned, people, nxN) {
 function analyze(store, today) {
   const ctx = context(store, today), items = store.initiatives().map(i => decorate(i, ctx));
   const planned = items.filter(i => i.tier === 'plan').sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9));
-  const people = peopleOf(items, ctx.roster), nx = ctx.nx;
+  const people = peopleOf(items, ctx.directory), nx = ctx.nx;
   const cycles = [];
   for (let n = 0; n <= Math.max(ctx.active + 2, 3); n++) cycles.push(ctx.cyc(n));
   const inPlan = planned.filter(i => i.cycle === nx.n);

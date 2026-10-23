@@ -28,7 +28,7 @@ to its own code. It is off when the server is public (`--public`); `WYEPOINT_DEV
 | Overview | Tiles for the active cycle, its timeline, what needs attention, the most loaded people |
 | Projects | One card per project with its links, progress, status mix, champions and open items. **Edit** (or the title) opens the project's own page: owner, a free Notion-style page with links and updates as blocks, and its initiatives |
 | Backlog | Search and filters (project, status, mission, tier, effort, champion), group rows and columns (a matrix), sort |
-| People | Load per person (champion ×2 + contributor ×1 on unshipped items of the active cycle), the team roster, who has room |
+| People | The directory of people who can be champions and contributors, with role, team and email (**+ New person**, by hand for now). Each row shows their load (a champion counts 2, a contributor 1, on unshipped items of the active cycle; 6 is heavy, 10 overloaded) as a ten-segment gauge, and who has room. A person opens in a drawer. Champion and Contributors fields are a lookup over this directory (with their load beside each name); a name not in it can still be used and is offered for adding |
 | Simulate | A button on every initiative that is being planned (the Plan page's pool and ranked plan, and the initiative's page): who it would pull in, what it overlaps with, who gets stretched, plus an agent briefing. Not in the header: it only makes sense for something you are about to start |
 | Plan | The next cycle: backlog pool, approve, ranked plan, plan checks, release (locks), reopen, close the active cycle and start it |
 | History | Every cycle; a closed one shows the snapshot taken when it closed |
@@ -51,7 +51,7 @@ stdout). The prompts are built on the server from the vault; the page cannot sen
 | In WyePoint | In the vault |
 |---|---|
 | Workspace + cycle settings (length, cooldown, cycle 0 start) | `_product.md` |
-| Roster | `_roster.md` |
+| A person | `people/<name>.md`: `title`, `role`, `team`, `email`, and `source` (`manual`, or the system a sync wrote it from, with an `external-id`). An old `_roster.md` is turned into people the first time the vault is opened |
 | A cycle's status, theme, own dates, close snapshot | `cycles/<n>.md` |
 | Project | `projects/<p>/_project.md`: details in the front matter (title, owner, and a description that follows the page), then a free body — links are `- [label](url) · link · source` lines, as in an initiative |
 | Initiative | `projects/<p>/docs/<slug>.md`, a page that is a `goal:<p>.<slug>` node |

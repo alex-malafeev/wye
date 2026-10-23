@@ -79,7 +79,7 @@ function state() {
   const cycles = a.cycles.map(c => { const rows = cycleRows(a, c); return { ...c, snap: undefined, snapshot: c.status === 'closed' && c.snap.length > 0, rows, shipped: rows.filter(r => r.status === 'complete').length, avg: rows.length ? Math.round(rows.reduce((s, r) => s + (r.pct || 0), 0) / rows.length) : 0 }; });
   return {
     brand: 'WyePoint', config: ctx.cfg, today: ctx.todayIso, active: ctx.active, nx: ctx.nx.n, cycles, projects: ctx.projects, initiatives: a.items, people: a.people,
-    checks: a.checks, canRelease: a.canRelease, roster: ctx.roster.join('\n'),
+    checks: a.checks, canRelease: a.canRelease,
     enums: { statuses: STATUSES, taskStatuses: TASK_STATUSES, efforts: EFFORTS, buckets: BUCKETS, labels: analysis.LABEL },
   };
 }
@@ -124,7 +124,11 @@ async function api(req, res, url) {
   const body = method === 'GET' || method === 'DELETE' ? {} : parseJson(await readBody(req));
 
   if (a === 'config' && method === 'PATCH') return json(res, 200, store.setConfig(body));
-  if (a === 'roster' && method === 'PUT') { store.setRoster(String(body.text || '').split('\n')); return json(res, 200, { roster: store.roster().join('\n') }); }
+  if (a === 'people') {
+    if (method === 'POST' && !b) return json(res, 201, store.createPerson(body));
+    if (method === 'PATCH' && b) return json(res, 200, store.updatePerson(b, body));
+    if (method === 'DELETE' && b) { store.removePerson(b); return json(res, 200, { ok: true }); }
+  }
   if (a === 'ingest' && method === 'POST') return json(res, 200, ingest.ingest(store, body));
   if (a === 'cycles') {
     if (method === 'POST' && b === 'release') { release(); return json(res, 200, { ok: true }); }

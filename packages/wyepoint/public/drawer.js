@@ -3,6 +3,7 @@ import { S, h, chip, bar, muted, opts, api, act, render, go, route, openIt, open
 import { runItemAgent } from './views.js';
 import { rich, prune, insertInto } from './rich.js';
 import { openSimulation, canSimulate } from './simulate.js';
+import { personPicker } from './picker.js';
 
 export const BUCKETS = [['proposed', 'Proposed'], ['next', 'Next cycle'], ['later', 'Later'], ['icebox', 'Icebox']];
 export const POOL = ['carry', 'next', 'later', 'icebox', 'proposed'];
@@ -32,8 +33,8 @@ export function drawer(id) {
 
     h('div', { class: 'props' },
       prop('Status', sel([['', 'No status'], ...d.enums.statuses.map(s => [s, d.enums.labels[s]])], i.status, v => upd({ status: v }), 'Status')),
-      prop('Champion', txt(i.owner, v => upd({ owner: v }), 'Champion', 'No champion')),
-      prop('Contributors', txt(i.contributors.join(', '), v => upd({ contributors: v }), 'Contributors', 'Comma separated')),
+      prop('Champion', personPicker({ value: i.owner, onChange: v => upd({ owner: v }), placeholder: 'No champion', label: 'Champion' })),
+      prop('Contributors', personPicker({ value: i.contributors, multi: true, onChange: v => upd({ contributors: v }), placeholder: 'No contributors', label: 'Contributors' })),
       prop('Effort', sel([['', 'Unsized'], ...d.enums.efforts.map(s => [s, s])], i.effort, v => upd({ effort: v }), 'Effort')),
       prop('Cycle', sel(cycleOpts, i.cycle == null ? '' : i.cycle, v => upd(v === '' ? { cycle: null, rank: null } : { cycle: +v, approved: true }), 'Cycle')),
       i.cycle == null ? prop('Bucket', sel(BUCKETS, i.bucket, v => upd({ bucket: v }), 'Backlog bucket')) : null,
@@ -60,6 +61,7 @@ export function drawer(id) {
 
 export function modal() {
   const m = S.modal; if (!m) { prune(k => !k.startsWith('modal:')); return null; }
+  if (m.kind === 'person') return personModal(m);
   const d = D(), v = m.v || (m.v = { title: '', description: '', owner: '', effort: '', mission: '', body: TEMPLATE, project: m.project || (d.projects[0] && d.projects[0].slug) || '', newProject: '' });   // kept on the dialog: it is rebuilt after every change
   const close = () => { S.modal = null; S.err = ''; render(); };
   const submit = () => act(async () => {
@@ -83,7 +85,24 @@ export function modal() {
     m.kind === 'initiative'
       ? [field('Page', rich('modal:body', v.body, md => { v.body = md; }, { minHeight: 200 })), h('div', { class: 'hrow' },
         field('Effort', h('select', { class: 'field', onChange: e => { v.effort = e.target.value; } }, opts([['', 'Unsized'], ...d.enums.efforts.map(s => [s, s])], v.effort))),
-        field('Mission', input('mission'), '1 1 140px'), field('Champion', input('owner', { placeholder: 'One name' }), '1 1 160px'))]
+        field('Mission', input('mission'), '1 1 140px'), h('label', { class: 'f', style: 'flex:1 1 200px' }, h('span', { class: 'lbl' }, 'Champion'), personPicker({ value: v.owner, onChange: n => { v.owner = n; render(); }, placeholder: 'Start typing a name', label: 'Champion' })))]
       : [field('Description', h('textarea', { class: 'field', style: 'min-height:70px', onInput: e => { v.description = e.target.value; } }, v.description)), field('Owner', input('owner'))],
     h('button', { class: 'btn pri', onClick: submit }, 'Create')));
+}
+
+// A person is added by hand for now; they get a page in the vault, with a source, so a sync can fill the same pages later.
+function personModal(m) {
+  const v = m.v || (m.v = { name: '', role: '', team: '', email: '' }), teams = [...new Set(D().people.map(p => p.team).filter(Boolean))];
+  const close = () => { S.modal = null; S.err = ''; render(); };
+  const submit = () => act(async () => { const p = await api('POST', '/people', v); S.selP = p.name; S.modal = null; go('people'); });
+  const field = (name, key, ph, extra = {}) => h('label', { class: 'f' }, h('span', { class: 'lbl' }, name), h('input', { class: 'field', value: v[key], placeholder: ph, onInput: e => { v[key] = e.target.value; }, ...extra }));
+  return h('div', { class: 'modal' }, h('form', { class: 'card', onSubmit: e => { e.preventDefault(); submit(); } },
+    h('div', { class: 'hrow between' }, h('h3', {}, 'New person'), h('button', { class: 'btn sm', type: 'button', onClick: close }, 'Cancel')),
+    muted('Added by hand for now. When people come from the company directory they will appear here on their own, with the same fields.', 'small'),
+    S.err ? h('div', { class: 'err' }, S.err) : null,
+    field('Name', 'name', 'As it is written on initiatives', { autofocus: true }),
+    h('div', { class: 'hrow' }, h('div', { style: 'flex:1 1 200px' }, field('Role', 'role', 'e.g. Staff engineer')), h('div', { style: 'flex:1 1 200px' }, field('Team', 'team', 'e.g. Data foundations', { list: 'person-teams' }))),
+    h('datalist', { id: 'person-teams' }, ...teams.map(t => h('option', { value: t }))),
+    field('Email', 'email', 'name@company.com', { type: 'email' }),
+    h('button', { class: 'btn pri', type: 'submit' }, 'Add person')));
 }

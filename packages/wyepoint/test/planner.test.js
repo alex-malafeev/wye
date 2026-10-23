@@ -39,12 +39,14 @@ test('tiers, planner checks and progress', () => {
 });
 
 test('people: load counts champion x2 and contributor x1 on unshipped cycle items', () => {
-  const s = fixture(); s.setRoster(['Zed', 'dana']);
+  const s = fixture(); s.createPerson({ name: 'Zed', role: 'Intern' }); s.createPerson({ name: 'dana', role: 'Manager', team: 'Web' });
   const a = analysis.analyze(s), p = n => a.people.find(x => x.n === n);
-  assert.strictEqual(p('Dana').load.score, 2);                // Late one; Waiting is not in the cycle
+  assert.strictEqual(p('dana').load.score, 2);                // Late one; Waiting is not in the cycle
   assert.strictEqual(p('Lee').load.score, 1);                 // contributor on Late one; Shipped is shipped
-  assert.strictEqual(p('Zed').tag, 'Roster only');
-  assert.strictEqual(a.people.filter(x => x.n.toLowerCase() === 'dana').length, 1);   // the roster does not duplicate a name
+  assert.deepStrictEqual([p('Zed').tag, p('Zed').inDirectory, p('Zed').role], ['Has room', true, 'Intern']);
+  assert.strictEqual(a.people.filter(x => x.n.toLowerCase() === 'dana').length, 1);   // a name on initiatives and in the directory is one person
+  assert.deepStrictEqual([p('dana').role, p('dana').team, p('dana').inDirectory], ['Manager', 'Web', true]);
+  assert.strictEqual(p('Lee').inDirectory, false);                                        // named on an initiative, not added yet
 });
 
 test('plan checks: one XL with company, no champion, unapproved', () => {
@@ -104,6 +106,13 @@ test('cycle flow through the server: release rules, start next, snapshot, carry-
     assert.strictEqual((await srv.call('POST', '/simulate', { title: 'late one' })).status, 200);
     const ag = await srv.call('POST', '/agent/portfolio', {}); assert.strictEqual(ag.status, 200); assert.match(ag.body.text, /portfolio status agent/);
     assert.strictEqual((await srv.call('POST', '/agent/item', { id: 'web/nope' })).status, 404);
-    assert.strictEqual((await srv.call('PUT', '/roster', { text: 'Ann\nBo' })).body.roster, 'Ann\nBo');
+    const ann = await srv.call('POST', '/people', { name: 'Ann', role: 'Designer', team: 'Web', email: 'ann@example.com' });
+    assert.strictEqual(ann.status, 201); assert.strictEqual(ann.body.source, 'manual');
+    assert.strictEqual((await srv.call('POST', '/people', { name: 'ann' })).status, 409);          // already there, whatever the case
+    assert.strictEqual((await srv.call('POST', '/people', { name: 'Bo', email: 'nope' })).status, 400);
+    assert.strictEqual((await srv.call('PATCH', '/people/ann', { role: 'Lead designer' })).body.role, 'Lead designer');
+    st = (await srv.call('GET', '/state')).body; assert.ok(st.people.find(p => p.n === 'Ann' && p.role === 'Lead designer' && p.tag === 'Has room'));
+    assert.strictEqual((await srv.call('DELETE', '/people/ann')).status, 200);
+    assert.ok(!(await srv.call('GET', '/state')).body.people.some(p => p.n === 'Ann'));
   } finally { srv.child.kill(); }
 });
