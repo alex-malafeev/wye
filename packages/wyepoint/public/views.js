@@ -24,6 +24,8 @@ export function itemRow(i, sub, selected) {
 }
 export const smallRow = (i, why, onClick) => h('button', { class: 'row', onClick: onClick || (() => openIt(i.id)) },
   h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, i.title), h('div', { class: 'muted small' }, `${i.projectTitle} · ${i.owner || 'No champion'}${why ? ' · ' + why : ''}`)), chip(i.statusClass, i.statusLabel));
+// rows that are items of one list: a bordered box, lines between the rows (nothing when there are none)
+export const list = rows => { const r = [rows].flat(Infinity).filter(Boolean); return r.length ? h('div', { class: 'list' }, ...r) : null; };
 const personRow = p => h('button', { class: 'row', onClick: () => openPerson(p.n) }, h('div', { style: 'flex:1 1 auto;font-weight:600' }, p.n), h('div', { class: 'muted', style: 'font-size:12px' }, `${p.load.c} champion, ${p.load.k} contributor`), chip(p.tagClass, p.tag));
 
 // ---- the status agent's portfolio briefing, on any tab
@@ -88,7 +90,7 @@ export function overview() {
         bar(el, false, true),
         h('div', { class: 'hrow between muted', style: 'font-size:12px;flex-wrap:nowrap' }, h('span', {}, fmtDate(A.start)), h('span', {}, 'Today, ' + fmtDate(d.today)), h('span', {}, fmtDate(A.end)), h('span', {}, d.config.cooldown ? `Cooldown ${d.config.cooldown} days after` : ''))),
       h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('div', { class: 'card-h' }, 'Most loaded people'), h('div', { class: 'card-sub' }, 'Champion counts twice, contributor once')), h('button', { class: 'btn sm', onClick: () => go('people') }, 'All people')),
-        ...d.people.slice(0, 6).map(personRow), d.people.length ? null : muted('No people yet. Name a champion on an initiative or add a roster in People.', 'small'))),
+        list(d.people.slice(0, 6).map(personRow)), d.people.length ? null : muted('No people yet. Name a champion on an initiative or add a roster in People.', 'small'))),
     h('aside', { class: 'sidepanel' }, h('div', { class: 'card-h' }, 'Needs attention'),
       ...attention.map(i => h('div', { class: 'card step' },
         h('div', { class: 'step-title' }, h('span', { class: 'dot ' + (i.status === 'off-track' ? 'dot-off' : i.status === 'at-risk' ? 'dot-risk' : 'dot-flag'), 'aria-hidden': 'true' }), i.title),
@@ -174,7 +176,7 @@ export function backlog() {
   } else {
     body = h('div', { class: 'stack', style: 'gap:14px' }, yKeys.map(k => {
       const its = gy.m[k], c = {}; its.forEach(i => { c[i.statusLabel] = (c[i.statusLabel] || 0) + 1; });
-      return h('div', { class: 'stack', style: 'gap:6px' }, h('div', { class: 'hrow', style: 'align-items:baseline;flex-wrap:nowrap' }, h('div', { style: 'font-size:15px;font-weight:700' }, k), h('div', { class: 'muted small' }, `${its.length} items · ${Object.entries(c).map(([l, n]) => `${n} ${l.toLowerCase()}`).join(', ')}`)), its.map(i => itemRow(i, null, i.id === route0())));
+      return h('div', { class: 'stack', style: 'gap:6px' }, h('div', { class: 'hrow', style: 'align-items:baseline;flex-wrap:nowrap' }, h('div', { style: 'font-size:15px;font-weight:700' }, k), h('div', { class: 'muted small' }, `${its.length} items · ${Object.entries(c).map(([l, n]) => `${n} ${l.toLowerCase()}`).join(', ')}`)), list(its.map(i => itemRow(i, null, i.id === route0()))));
     }));
   }
   return [filters, body, shown.length ? null : muted('Nothing matches.')];
@@ -196,9 +198,9 @@ export function people() {
         label('Search people', h('input', { class: 'field', type: 'search', 'data-k': 'pq', value: S.pq, placeholder: 'Name or project', onInput: e => { S.pq = e.target.value; render(); } }), 'flex:1 1 200px'),
         select('pf', 'Show', [['all', 'Everyone'], ['over', 'Heavy or overloaded'], ['champ', 'Champions'], ['contrib', 'Contributors only'], ['none', 'Not assigned (roster only)']], S.pf, v => { S.pf = v; }),
         h('div', { class: 'muted', style: 'align-self:center' }, `${rows.length} people · ${d.people.filter(p => p.tag === 'Overloaded').length} overloaded · ${d.people.filter(p => p.roster).length} on roster only`)),
-      ...rows.map(p => h('button', { class: 'row' + (p.n === S.selP ? ' sel' : ''), onClick: () => { S.selP = p.n; render(); } },
+      list(rows.map(p => h('button', { class: 'row' + (p.n === S.selP ? ' sel' : ''), onClick: () => { S.selP = p.n; render(); } },
         h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, p.n), h('div', { class: 'muted small' }, wsText(p))),
-        h('div', { style: 'width:190px;flex:none' }, h('div', { class: 'muted', style: 'font-size:12px;white-space:nowrap' }, `Champion ${p.load.c} · contributor ${p.load.k}`), bar(Math.min(100, p.load.score * 8), p.load.score >= 10)), chip(p.tagClass, p.tag))),
+        h('div', { style: 'width:190px;flex:none' }, h('div', { class: 'muted', style: 'font-size:12px;white-space:nowrap' }, `Champion ${p.load.c} · contributor ${p.load.k}`), bar(Math.min(100, p.load.score * 8), p.load.score >= 10)), chip(p.tagClass, p.tag)))),
       rows.length ? null : muted('Nobody matches.')),
     h('aside', { class: 'card', style: 'flex:1 1 340px;max-width:440px' }, h('div', { class: 'lbl' }, 'Team roster'),
       muted('One name per line. Everyone named as a champion or contributor is already counted; the roster adds the people who are not on any item, so you can see who has room.', 'small'),

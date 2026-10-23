@@ -32,6 +32,7 @@ to its own code. It is off when the server is public (`--public`); `WYEPOINT_DEV
 | Simulate | A button on every initiative that is being planned (the Plan page's pool and ranked plan, and the initiative's page): who it would pull in, what it overlaps with, who gets stretched, plus an agent briefing. Not in the header: it only makes sense for something you are about to start |
 | Plan | The next cycle: backlog pool, approve, ranked plan, plan checks, release (locks), reopen, close the active cycle and start it |
 | History | Every cycle; a closed one shows the snapshot taken when it closed |
+| Full view | **Open full view ↗** on an initiative or a project (`#/i/<project>/<slug>`, `#/p/<project>`): the properties across the top, the whole page as a wide editor on the left, and cards that stay in view on the right (progress, checks, planning, milestones, links, updates, initiatives) |
 | Initiative page | A property sheet (status, champion, contributors, effort, cycle, mission, target, progress) over one page: a Notion-style document with the description, "What ships", "Risks" and the planner's blocks — milestones, links, pull requests, updates — inserted anywhere with `/`. Planner checks, approval, "Ask status agent" below it |
 
 An initiative is one page, edited in a Notion-style block editor: BlockNote, the library Wye's own document editor

@@ -1,16 +1,16 @@
 // The initiative drawer — a property sheet over one page, like a Notion or Wye page — and the two "new" dialogs.
-import { S, h, chip, bar, muted, opts, api, act, render, go, route, openIt, openPerson, items, cyc, D } from './core.js';
+import { S, h, chip, bar, muted, opts, api, act, render, go, route, openIt, openFull, openPerson, items, cyc, D } from './core.js';
 import { runItemAgent } from './views.js';
 import { rich, prune, insertInto } from './rich.js';
 import { openSimulation, canSimulate } from './simulate.js';
 
-const BUCKETS = [['proposed', 'Proposed'], ['next', 'Next cycle'], ['later', 'Later'], ['icebox', 'Icebox']];
-const POOL = ['carry', 'next', 'later', 'icebox', 'proposed'];
+export const BUCKETS = [['proposed', 'Proposed'], ['next', 'Next cycle'], ['later', 'Later'], ['icebox', 'Icebox']];
+export const POOL = ['carry', 'next', 'later', 'icebox', 'proposed'];
 const TEMPLATE = '## What ships\n\n## Risks\n\n## Milestones\n\n## Updates\n';   // what a new page starts with: the headings the planner reads, and a place for milestones
-const section = (name, ...kids) => h('div', { class: 'stack' }, h('div', { class: 'lbl' }, name), ...kids);
-const prop = (name, el) => h('div', { class: 'prop' }, h('div', { class: 'prop-name' }, name), h('div', { class: 'prop-val' }, el));
-const sel = (list, value, onChange, label) => h('select', { class: 'pfield', 'aria-label': label, onChange: e => onChange(e.target.value) }, opts(list, value));
-const txt = (value, onChange, label, ph = 'Empty') => h('input', { class: 'pfield', value, 'aria-label': label, placeholder: ph, onChange: e => onChange(e.target.value) });
+export const section = (name, ...kids) => h('div', { class: 'stack' }, h('div', { class: 'lbl' }, name), ...kids);
+export const prop = (name, el) => h('div', { class: 'prop' }, h('div', { class: 'prop-name' }, name), h('div', { class: 'prop-val' }, el));
+export const sel = (list, value, onChange, label) => h('select', { class: 'pfield', 'aria-label': label, onChange: e => onChange(e.target.value) }, opts(list, value));
+export const txt = (value, onChange, label, ph = 'Empty') => h('input', { class: 'pfield', value, 'aria-label': label, placeholder: ph, onChange: e => onChange(e.target.value) });
 
 export function drawer(id) {
   const i = items().find(x => x.id === id), d = D();
@@ -25,7 +25,8 @@ export function drawer(id) {
   const agent = S.agents[i.id];
   const page = rich(key, i.body, (md, base) => upd({ body: md, base }), { minHeight: 280, node: i.node, idPrefix: `task:${i.project}.${i.slug}.` });
   return shell(
-    h('div', { class: 'hrow between drawer-head', style: 'align-items:flex-start;flex-wrap:nowrap' }, h('h2', { class: 'drawer-title' }, i.title), h('button', { class: 'btn sm', onClick: () => openIt(null) }, 'Close')),
+    h('div', { class: 'hrow between drawer-head', style: 'align-items:flex-start;flex-wrap:nowrap' }, h('h2', { class: 'drawer-title' }, i.title),
+      h('div', { class: 'hrow', style: 'gap:6px;flex-wrap:nowrap' }, h('button', { class: 'btn sm', onClick: () => openFull('initiative', i.id) }, 'Open full view ↗'), h('button', { class: 'btn sm', 'aria-label': 'Close', onClick: () => openIt(null) }, '✕ Close'))),
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip(i.statusClass, i.statusLabel), chip('s-none', i.tierLabel), chip('s-none', i.projectTitle), i.flags.length ? chip('s-off', `${i.flags.length} check${i.flags.length > 1 ? 's' : ''}`) : null),
 

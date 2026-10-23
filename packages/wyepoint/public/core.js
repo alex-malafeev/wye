@@ -55,6 +55,8 @@ export async function load() { S.data = await api('GET', '/state'); render(); }
 // ---- routing: #/<view>?i=<project>/<slug>
 export function route() {
   const [p, q] = location.hash.replace(/^#\/?/, '').split('?');
+  const full = /^(i|p)\/(.+)$/.exec(p);                 // a full view: #/i/<project>/<slug> or #/p/<project>
+  if (full) return { view: 'full', full: { kind: full[1] === 'i' ? 'initiative' : 'project', id: decodeURIComponent(full[2]) }, open: null, project: null };
   const sp = new URLSearchParams(q || '');
   return { view: TABS.some(t => t[0] === p) ? p : 'overview', open: sp.get('i'), project: sp.get('p') };
 }
@@ -63,8 +65,12 @@ export function go(view, open, project) {
   const q = open ? `i=${encodeURIComponent(open).replace(/%2F/g, '/')}` : project ? `p=${encodeURIComponent(project)}` : '';
   location.hash = `#/${view}` + (q ? '?' + q : '');
 }
-export const openIt = id => go(route().view, id);
-export const openProject = slug => go(route().view, null, slug);   // null closes it
+// opening an initiative or a project from a full view goes to its full view; from anywhere else, to a drawer over the page
+export const openFull = (kind, id) => { location.hash = `#/${kind === 'initiative' ? 'i' : 'p'}/${id}`; };
+export const openIt = id => { const r = route(); if (r.view === 'full') { if (id) openFull('initiative', id); else history.back(); } else go(r.view, id); };
+export const openProject = slug => { const r = route(); if (r.view === 'full') { if (slug) openFull('project', slug); else history.back(); } else go(r.view, null, slug); };   // null closes it
+// leaving a full view: back to where it was opened from, or to the backlog if it was opened directly
+export const closeFull = () => { if (history.length > 1 && document.referrer.startsWith(location.origin)) history.back(); else go('backlog'); };
 export function openPerson(n) { S.selP = n; S.err = ''; go('people'); }
 
 // ---- lookups and formatting over the loaded state

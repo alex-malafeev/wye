@@ -1,6 +1,6 @@
 // Plan (the next cycle: pool, ranking, checks, release, start), History (every cycle, snapshots once closed) and Settings.
 import { S, TOKEN_KEY, h, chip, bar, muted, label, api, act, render, openIt, items, cyc, D, range, cycleChip, stClass, cap } from './core.js';
-import { pill } from './views.js';
+import { pill, list } from './views.js';
 import { openSimulation } from './simulate.js';
 
 const POOL_RANK = { carry: 0, proposed: 1, next: 2, later: 3, icebox: 4 };
@@ -30,20 +30,20 @@ export function plan() {
       h('div', { class: 'card grow', style: 'flex-basis:640px' },
         h('div', { class: 'hrow between', style: 'align-items:flex-end' }, h('div', {}, h('div', { class: 'lbl' }, 'Backlog pool'), muted(`${pool.length} candidates · carry-overs first, no free pass`, 'small')),
           h('input', { class: 'field', type: 'search', 'data-k': 'planQ', 'aria-label': 'Search the pool', style: 'flex:1 1 180px;max-width:260px', value: S.planQ, placeholder: 'Search the pool', onInput: e => { S.planQ = e.target.value; render(); } })),
-        ...pool.slice(0, 60).map(i => h('div', { class: 'row', style: 'flex-wrap:wrap;cursor:default' },
+        list(pool.slice(0, 60).map(i => h('div', { class: 'row', style: 'flex-wrap:wrap;cursor:default' },
           h('div', { style: 'flex:1 1 220px;min-width:0' }, h('button', { class: 'pill', style: 'border:0;padding:0;background:transparent;font-weight:600', onClick: () => openIt(i.id) }, i.title), h('div', { class: 'muted small' }, `${i.projectTitle} · ${i.owner || 'No champion'}`)),
           chip('s-none', i.tierLabel), chip('s-none', i.effort || 'Unsized'),
           pickBtn('Simulate', () => openSimulation(i)),
           pickBtn(i.approved ? 'Approved' : 'Approve', () => act(() => api('PATCH', `/initiatives/${i.id}`, { approved: !i.approved })), i.approved ? 'on' : ''),
-          h('button', { class: 'btn sm pri', disabled: !(i.approved && !locked), onClick: () => act(() => api('PATCH', `/initiatives/${i.id}`, { cycle: nx.n, rank: planned.length + 1, approved: true })) }, i.approved ? `Add to ${nx.name}` : 'Approve first'))),
+          h('button', { class: 'btn sm pri', disabled: !(i.approved && !locked), onClick: () => act(() => api('PATCH', `/initiatives/${i.id}`, { cycle: nx.n, rank: planned.length + 1, approved: true })) }, i.approved ? `Add to ${nx.name}` : 'Approve first')))),
         pool.length ? null : muted('Nothing to pick from.')),
       h('div', { class: 'grow stack', style: 'gap:12px;flex-basis:420px' },
         h('div', { class: 'card' }, h('div', { class: 'lbl' }, `${nx.name} ranked plan (${planned.length})`),
-          ...planned.map((i, k) => h('div', { class: 'row', style: 'cursor:default' }, h('div', { style: 'width:28px;font-weight:700;flex:none' }, k + 1),
+          list(planned.map((i, k) => h('div', { class: 'row', style: 'cursor:default' }, h('div', { style: 'width:28px;font-weight:700;flex:none' }, k + 1),
             h('div', { style: 'flex:1 1 auto;min-width:0' }, h('button', { class: 'pill', style: 'border:0;padding:0;background:transparent;font-weight:600', onClick: () => openIt(i.id) }, i.title), h('div', { class: 'muted small' }, `${i.projectTitle} · ${i.owner || 'No champion'} · ${i.effort || 'Unsized'}`)),
             h('button', { class: 'btn sm', onClick: () => openSimulation(i) }, 'Simulate'),
             locked ? null : [h('button', { class: 'btn sm', 'aria-label': 'Move up', onClick: () => move(i, -1) }, 'Up'), h('button', { class: 'btn sm', 'aria-label': 'Move down', onClick: () => move(i, 1) }, 'Down'),
-              h('button', { class: 'btn sm', 'aria-label': 'Remove from plan', onClick: () => act(() => api('PATCH', `/initiatives/${i.id}`, { cycle: null, rank: null })) }, 'Remove')])),
+              h('button', { class: 'btn sm', 'aria-label': 'Remove from plan', onClick: () => act(() => api('PATCH', `/initiatives/${i.id}`, { cycle: null, rank: null })) }, 'Remove')]))),
           planned.length ? null : muted('Nothing planned yet. Approve initiatives in the pool, then add them.')),
         h('div', { class: 'card' }, h('div', { class: 'lbl' }, 'Plan checks'), ...d.checks.map(c => h('div', { style: 'color:#8a1c12' }, '• ' + c)), d.checks.length ? null : muted('No issues found.')),
         h('div', { class: 'card' }, h('div', { class: 'lbl' }, 'Release'),
@@ -64,14 +64,14 @@ export function history() {
   const note = c.status === 'closed' && c.snapshot ? `Snapshot saved when the cycle closed on ${c.closedAt}. ${c.rows.length - c.shipped} item(s) were not shipped and became carry-overs.`
     : c.status === 'closed' ? 'Closed without a snapshot, so this shows the initiatives now recorded against the cycle.' : c.status === 'active' ? 'Live view of the active cycle.' : 'Planned items, ranked.';
   return h('div', { class: 'cols' },
-    h('div', { class: 'stack', style: 'flex:1 1 300px;max-width:420px' }, d.cycles.map(x => h('button', { class: 'row' + (x.n === sel ? ' sel' : ''), style: 'flex-direction:column;align-items:stretch;gap:6px', onClick: () => { S.histSel = x.n; render(); } },
+    h('div', { class: 'stack', style: 'flex:1 1 300px;max-width:420px' }, list(d.cycles.map(x => h('button', { class: 'row' + (x.n === sel ? ' sel' : ''), style: 'flex-direction:column;align-items:stretch;gap:6px', onClick: () => { S.histSel = x.n; render(); } },
       h('div', { class: 'hrow between', style: 'flex-wrap:nowrap' }, h('b', {}, x.name), cycleChip(x)), h('div', { class: 'muted small' }, range(x) + (x.theme ? ' · ' + x.theme : '')),
-      h('div', { class: 'hrow between small', style: 'flex-wrap:nowrap' }, h('span', {}, `${x.rows.length} items · ${x.shipped} shipped`), h('span', {}, `${x.avg}% avg progress`))))),
+      h('div', { class: 'hrow between small', style: 'flex-wrap:nowrap' }, h('span', {}, `${x.rows.length} items · ${x.shipped} shipped`), h('span', {}, `${x.avg}% avg progress`)))))),
     h('div', { class: 'card', style: 'flex:2 1 520px;min-width:0' }, h('h3', {}, c.name + (c.theme ? ' · ' + c.theme : '')), muted(note, 'small'),
-      ...rows.map(r => h('button', { class: 'row', onClick: () => openIt(r.id) }, h('div', { style: 'width:30px;font-weight:700;color:var(--muted);flex:none' }, r.rank || ''),
+      list(rows.map(r => h('button', { class: 'row', onClick: () => openIt(r.id) }, h('div', { style: 'width:30px;font-weight:700;color:var(--muted);flex:none' }, r.rank || ''),
         h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, r.title), h('div', { class: 'muted small' }, `${r.project} · ${r.champion || 'No champion'}`)),
         h('div', { style: 'width:44px;text-align:right;font-size:12px;font-weight:600' }, (r.pct || 0) + '%'),
-        chip(stClass(statusLabel(r.status)), r.status ? statusLabel(r.status) : (c.status === 'planned' || c.status === 'released' ? 'Planned' : 'No status')))),
+        chip(stClass(statusLabel(r.status)), r.status ? statusLabel(r.status) : (c.status === 'planned' || c.status === 'released' ? 'Planned' : 'No status'))))),
       rows.length ? null : muted('No initiatives recorded for this cycle.')));
 }
 const statusLabel = s => (D().enums.labels[s]) || '';
