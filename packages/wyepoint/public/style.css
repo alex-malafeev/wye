@@ -556,8 +556,8 @@ main.wrap{padding:8px 12px 0}
 .fside .fprop .dd{display:flex}
 
 /* the library: folders on the left, documents on the right */
-.lib{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px;align-items:start}
-.lib-tree{position:sticky;top:76px;display:flex;flex-direction:column;gap:1px;padding-right:6px;border-right:1px solid var(--line);min-height:240px}
+.lib{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px;align-items:stretch;min-height:calc(60vh - 140px)}
+.lib-tree{display:flex;flex-direction:column;justify-content:flex-start;gap:1px;padding-right:6px;border-right:1px solid var(--line)}
 .tree-row{position:relative;display:flex;align-items:center;gap:6px;min-height:32px;border-radius:7px;padding-right:4px}
 .tree-row:hover{background:#f3f5f8}
 .tree-row.on{background:#e8eefb}
