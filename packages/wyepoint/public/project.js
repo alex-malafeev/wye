@@ -19,7 +19,7 @@ export function projectDrawer(slug) {
   const people = [...new Set(mine.flatMap(i => [i.owner, ...i.contributors]).filter(Boolean))];
   const key = `project:${p.slug}:body`;
   prune(k => k.startsWith(`project:${p.slug}:`) || k.startsWith('modal:'));
-  const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 200, kinds: ['link', 'update'], scope: `${p.slug}`, project: p.slug });
+  const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 80, kinds: ['link', 'update'], scope: `${p.slug}`, project: p.slug });
   return shell(
     h('div', { class: 'hrow between drawer-head', style: 'align-items:flex-start;flex-wrap:nowrap' },
       h('input', { class: 'drawer-title-input', value: p.title, 'aria-label': 'Area name', onChange: e => upd({ title: e.target.value }) }),

@@ -68,7 +68,7 @@ function fullProject(slug) {
   const people = [...new Set(mine.flatMap(i => [i.owner, ...i.contributors]).filter(Boolean))];
   const key = `project:${p.slug}:body`;
   prune(k => k.startsWith(`project:${p.slug}:`) || k.startsWith('modal:'));
-  const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 140, kinds: ['link', 'update'], scope: `${p.slug}`, project: p.slug });
+  const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 56, kinds: ['link', 'update'], scope: `${p.slug}`, project: p.slug });
   return h('main', { class: 'wrap' }, h('div', { class: 'fwrap' }, h('div', { class: 'panel full' },
     crumbs([h('button', { class: 'link-btn', onClick: () => go('projects') }, 'Projects'), h('span', {}, p.title)],
       [h('button', { class: 'btn', onClick: () => newInitiativePage(p.slug) }, '+ New project')]),
@@ -92,7 +92,7 @@ function fullGoal(slug) {
   const upd = patch => act(() => api('PATCH', `/goals/${g.slug}`, patch));
   const mine = items().filter(i => i.goal === g.slug), flt = listFilters(`goal:${g.slug}`, items().filter(i => i.goal === g.slug)), [, label, cls] = goalStatus(g.status), key = `goal:${g.slug}:body`;
   prune(k => k.startsWith(`goal:${g.slug}:`) || k.startsWith('modal:'));
-  const page = rich(key, g.body, md => upd({ body: md }), { minHeight: 160, kinds: ['link', 'update'], scope: `goal-${g.slug}`, project: '' });
+  const page = rich(key, g.body, md => upd({ body: md }), { minHeight: 56, kinds: ['link', 'update'], scope: `goal-${g.slug}`, project: '' });
   const remove = () => { if (window.confirm(`Delete the goal "${g.title}"? Its page is removed; projects must be moved first.`)) act(async () => { await api('DELETE', `/goals/${g.slug}`); go('goals'); }); };
   return h('main', { class: 'wrap' }, h('div', { class: 'fwrap' }, h('div', { class: 'panel full' },
     crumbs([h('button', { class: 'link-btn', onClick: () => go('goals') }, 'Goals'), h('span', {}, g.title)], [h('button', { class: 'btn', onClick: remove }, 'Delete goal')]),
