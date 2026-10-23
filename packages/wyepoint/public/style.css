@@ -185,3 +185,5 @@ main.wrap{padding:8px 12px 0}
 /* square corners on cards, tiles, rows and tinted boxes */
 .card,.tiles .card,.tiles .card + .card,.main > .card,.cols > .card,.grid > .card,.row,.row.sel,.agent,.tb,.rich,.code,.logline{border-radius:0}
 .modal .card{border-radius:0}
+/* a project is a block of its own: a full border */
+.grid > .card{background:#fff;border:1px solid var(--line2);padding:18px 20px}
