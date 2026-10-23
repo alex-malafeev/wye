@@ -49,3 +49,20 @@ test('a vault whose pages carry a mission is migrated to goals once', () => {
   assert.ok(!/mission:/.test(fs.readFileSync(file, 'utf8')));
   assert.match(fs.readFileSync(file, 'utf8'), /\ngoal: goal:platform-health\n/);
 });
+
+test('cycles ahead are defined in the settings: how many, and each one its theme and dates; a project is put in one', () => {
+  const analysis = require('../lib/analysis');
+  const s = new Store(tmp()); s.createProject({ title: 'P' });
+  assert.strictEqual(s.config().horizon, 2);
+  const before = analysis.analyze(s).cycles.length;
+  assert.strictEqual(s.setConfig({ horizon: 6 }).horizon, 6);
+  assert.strictEqual(analysis.analyze(s).cycles.length, 7);   // cycle 0, and six ahead
+  assert.ok(analysis.analyze(s).cycles.length > before);
+  assert.throws(() => s.setConfig({ horizon: 1 }), /2–12/);
+  s.saveCycle(3, { theme: 'Quality', start: '2027-02-01', end: '2027-03-12' }); const c = s.cycle(3);
+  assert.deepStrictEqual([c.theme, c.start, c.end], ['Quality', '2027-02-01', '2027-03-12']);
+  const it = s.createInitiative({ project: 'p', title: 'A' });
+  const moved = s.update(it.id, { cycle: 3, approved: true });
+  assert.strictEqual(moved.cycle, 3);
+  assert.strictEqual(s.update(it.id, { cycle: null, rank: null }).cycle, null);
+});

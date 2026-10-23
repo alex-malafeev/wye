@@ -106,7 +106,7 @@ function analyze(store, today) {
   const planned = items.filter(i => i.tier === 'plan').sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9));
   const people = peopleOf(items, ctx.directory), nx = ctx.nx;
   const cycles = [];
-  for (let n = 0; n <= Math.max(ctx.active + 2, 3); n++) cycles.push(ctx.cyc(n));
+  for (let n = 0; n <= Math.max(ctx.active + ctx.cfg.horizon, 3); n++) cycles.push(ctx.cyc(n));
   const inPlan = planned.filter(i => i.cycle === nx.n);
   const checks = planChecks(inPlan, people, nx.n);
   return {

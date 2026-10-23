@@ -15,6 +15,12 @@ const uniq = a => [...new Set(a)].sort();
 // ---- pieces several views use
 export const pill = i => h('button', { class: 'pill', onClick: () => openIt(i.id) }, h('span', { class: 'chip ' + i.statusClass, style: 'margin-right:6px' }, i.statusLabel), i.title);
 const personPill = n => h('button', { class: 'pill', onClick: () => openPerson(n) }, n);
+// the cycle a project is in, to change where it is listed
+export const cycleSel = i => {
+  const d = D(), list = [['', 'No cycle'], ...d.cycles.filter(c => c.status !== 'closed' || c.n === i.cycle).map(c => [String(c.n), c.status === 'active' ? `${c.name} · now` : c.n === d.nx ? `${c.name} · next` : c.name])];
+  return h('select', { class: 'cycle-sel' + (i.cycle == null ? '' : ' set'), 'aria-label': `Cycle of ${i.title}`, title: 'Cycle',
+    onChange: e => { const v = e.target.value; act(() => api('PATCH', `/initiatives/${i.id}`, v === '' ? { cycle: null, rank: null } : { cycle: +v, approved: true })); } }, opts(list, i.cycle == null ? '' : String(i.cycle)));
+};
 export function itemRow(i, sub, selected) {
   // the layout of a project card's list: name and detail on the left; status, progress and its percentage on the right
   return h('button', { class: 'mini ranked' + (selected ? ' sel' : ''), onClick: () => openIt(i.id) },
@@ -216,7 +222,7 @@ export function backlog() {
   } else {
     body = h('div', { class: 'stack', style: 'gap:14px' }, yKeys.map(k => {
       const its = gy.m[k], c = {}; its.forEach(i => { c[i.statusLabel] = (c[i.statusLabel] || 0) + 1; });
-      return h('div', { class: 'stack', style: 'gap:6px' }, h('div', { class: 'hrow', style: 'align-items:baseline;flex-wrap:nowrap' }, h('div', { style: 'font-size:15px;font-weight:700' }, k), h('div', { class: 'muted small' }, `${its.length} items · ${Object.entries(c).map(([l, n]) => `${n} ${l.toLowerCase()}`).join(', ')}`)), list(its.map(i => itemRow(i, null, i.id === route0()))));
+      return h('div', { class: 'stack', style: 'gap:6px' }, h('div', { class: 'hrow', style: 'align-items:baseline;flex-wrap:nowrap' }, h('div', { style: 'font-size:15px;font-weight:700' }, k), h('div', { class: 'muted small' }, `${its.length} items · ${Object.entries(c).map(([l, n]) => `${n} ${l.toLowerCase()}`).join(', ')}`)), list(its.map(i => h('div', { class: 'brow' }, itemRow(i, null, i.id === route0()), cycleSel(i)))));
     }));
   }
   return [filters, body, shown.length ? null : muted('Nothing matches.')];

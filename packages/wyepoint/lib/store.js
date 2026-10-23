@@ -136,13 +136,14 @@ class Store {
   // ---- config
   config() {
     const { fm } = splitFm(read(this.productFile));
-    return { title: fm.title || 'WyePoint', weeks: Math.max(1, +fm['cycle-weeks'] || 6), start: fm['cycle-start'] || day(), cooldown: Math.max(0, +fm['cycle-cooldown'] || 0) };
+    return { title: fm.title || 'WyePoint', weeks: Math.max(1, +fm['cycle-weeks'] || 6), start: fm['cycle-start'] || day(), cooldown: Math.max(0, +fm['cycle-cooldown'] || 0), horizon: Math.min(12, Math.max(2, Math.round(+fm['cycle-horizon']) || 2)) };
   }
   setConfig(c) {
     const { fm, body } = splitFm(read(this.productFile));
     if (c.title !== undefined) { const t = oneLine(c.title); if (!t) throw bad('title is required'); fm.title = t; }
     if (c.weeks != null) { const w = Math.round(+c.weeks); if (!(w >= 1 && w <= 26)) throw bad('weeks must be 1–26'); fm['cycle-weeks'] = w; }
     if (c.cooldown != null) { const w = Math.round(+c.cooldown); if (!(w >= 0 && w <= 60)) throw bad('cooldown must be 0–60 days'); fm['cycle-cooldown'] = w; }
+    if (c.horizon != null) { const n = Math.round(+c.horizon); if (!(n >= 2 && n <= 12)) throw bad('cycles ahead must be 2–12'); fm['cycle-horizon'] = n; }
     if (c.start != null) { if (!isDate(c.start)) throw bad('start must be YYYY-MM-DD'); fm['cycle-start'] = c.start; }
     write(this.productFile, joinFm(fm, body));
     return this.config();
