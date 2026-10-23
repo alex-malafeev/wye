@@ -3,7 +3,7 @@
 import { S, h, chip, bar, muted, safeUrl, api, act, render, go, openFull, openIt, openProject, openPerson, closeFull, items, cyc, D } from './core.js';
 import { rich, prune } from './rich.js';
 import { sel, txt, BUCKETS, POOL, newInitiativePage } from './drawer.js';
-import { runItemAgent } from './views.js';
+import { runItemAgent, itemRow } from './views.js';
 import { openSimulation, canSimulate } from './simulate.js';
 import { personPicker } from './picker.js';
 
@@ -66,18 +66,19 @@ function fullProject(slug) {
   const people = [...new Set(mine.flatMap(i => [i.owner, ...i.contributors]).filter(Boolean))];
   const key = `project:${p.slug}:body`;
   prune(k => k.startsWith(`project:${p.slug}:`) || k.startsWith('modal:'));
-  const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 520, kinds: ['link', 'update'], scope: `${p.slug}`, project: p.slug });
+  const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 140, kinds: ['link', 'update'], scope: `${p.slug}`, project: p.slug });
   return h('main', { class: 'wrap' }, h('div', { class: 'fwrap' }, h('div', { class: 'panel full' },
     crumbs([h('button', { class: 'link-btn', onClick: () => go('projects') }, 'Initiatives'), h('span', {}, p.title)],
       [h('button', { class: 'btn', onClick: () => newInitiativePage(p.slug) }, '+ New initiative')]),
     h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: p.title, 'aria-label': 'Project name', onChange: e => upd({ title: e.target.value }) })),
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip('s-none', `${mine.length} initiative${mine.length === 1 ? '' : 's'}`), chip('s-none', `${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => chip('s-none', `${n} ${l.toLowerCase()}`))),
-    h('div', { class: 'fmain' }, page)),
+    h('div', { class: 'fmain' }, page,
+      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h' }, `Initiatives (${mine.length})`, h('span', { class: 'muted small' }, ' click one to open it')),
+        h('div', { class: 'mini-list' }, ...mine.map(it => itemRow(it, `${it.owner || 'No champion'} · ${it.cycle == null ? it.tierLabel : 'Cycle ' + it.cycle}${it.effort ? ' · ' + it.effort : ''}`)), mine.length ? null : muted('No initiatives yet. Use + New initiative.', 'small'))))),
       h('aside', { class: 'panel fside' },
         sideCard('Properties', h('div', { class: 'fprops' }, fprop('Owner', personPicker({ value: p.owner, onChange: v => upd({ owner: v }), placeholder: 'No owner', label: 'Owner' })),
           fprop('Progress', h('div', { class: 'fval' }, h('div', { class: 'fval-line' }, h('b', {}, avg + '%'), h('span', { class: 'muted small' }, 'Average of the active cycle')), bar(avg, cy.some(i => i.status === 'off-track')))))),
-        sideCard(`Initiatives (${mine.length})`, ...mine.map(i => h('button', { class: 'side-row', onClick: () => openIt(i.id) }, h('span', { class: 'side-row-main' }, h('b', {}, i.title), h('span', { class: 'muted small' }, `${i.owner || 'No champion'} · ${i.cycle == null ? i.tierLabel : 'Cycle ' + i.cycle}`)), chip(i.statusClass, i.statusLabel))), mine.length ? null : muted('No initiatives yet.', 'small')),
         sideCard('Links', ...p.links.map(l => h('a', { class: 'side-link', href: safeUrl(l.url), target: '_blank', rel: 'noopener noreferrer' }, l.label + ' ↗')), p.links.length ? null : muted('None yet. Add one with + Link.', 'small')),
         people.length ? sideCard('People', h('div', { class: 'hrow' }, ...people.map(n => h('button', { class: 'pill', onClick: () => openPerson(n) }, n)))) : null)));
 }

@@ -475,3 +475,6 @@ main.wrap{padding:8px 12px 0}
 .lk-opt.on,.lk-opt:hover{background:#eef2f8}
 .lk-check{color:#1d7a3f;font-weight:700}
 .lk-empty{padding:8px 9px;color:var(--muted);font-size:13px}
+
+.fsec{margin-top:26px;border-top:1px solid var(--line);padding-top:18px}
+.fsec-h{font-size:18px;font-weight:700;margin-bottom:8px}
