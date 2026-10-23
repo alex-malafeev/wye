@@ -33,6 +33,7 @@ const CORE = `- id: type:person
     closed-at: date?
 - id: type:project
   extends: type:node
+  key: PROJ
   purpose: a piece of work planned in a cycle, with a champion, contributors, milestones, links and updates
   plural: Projects
   open: true
@@ -48,10 +49,12 @@ const CORE = `- id: type:person
     bucket: enum [proposed, next, later, icebox]?
     rank: number?
     target: string?
+    key: string?
+    slack: string?
     updated: string?`;
 
 // the types WyePoint ships beyond its entities: usable on any page, not editable in Settings
-const BUILTIN = [{ slug: 'risk', name: 'Risk', plural: 'Risks', purpose: 'Something that could go wrong, and who is on it', statuses: ['open', 'mitigated', 'accepted', 'closed'], builtin: true,
+const BUILTIN = [{ slug: 'risk', key: 'RISK', name: 'Risk', plural: 'Risks', purpose: 'Something that could go wrong, and who is on it', statuses: ['open', 'mitigated', 'accepted', 'closed'], builtin: true,
   fields: [{ name: 'severity', kind: 'choice', options: ['low', 'medium', 'high'] }, { name: 'responsible', kind: 'person' }, { name: 'next-step', kind: 'text' }] }];
 
 function coreDocument() {
@@ -84,7 +87,18 @@ const clean = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
 const slugOf = s => clean(s).toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 40);
 
 // validates a type as a person wrote it and returns the normalised type
-function normalise(input, { taken = new Set() } = {}) {
+// The key of a type: the prefix of the ids its instances are given everywhere (PROJ-12, RISK-3). Wye's own goal and task, which
+// WyePoint cannot redeclare, are given theirs here.
+const BASE_KEYS = { goal: 'GOAL', task: 'TASK' };
+const KEY_FORMAT = /^[A-Z][A-Z0-9]{1,5}$/;
+const deriveKey = (name, taken = new Set()) => {
+  const letters = String(name || '').toUpperCase().replace(/[^A-Z]/g, '') || 'ITEM';
+  let k = (letters.length < 2 ? letters + 'X' : letters).slice(0, 4);
+  for (let n = 2; taken.has(k); n++) k = letters.slice(0, 4) + n;
+  return k;
+};
+
+function normalise(input, { taken = new Set(), takenKeys = new Set() } = {}) {
   const bad = m => Object.assign(new Error(m), { status: 400 });
   const name = clean(input.name); if (!name) throw bad('a type needs a name');
   const slug = input.slug || slugOf(name); if (!/^[a-z][a-z0-9-]*$/.test(slug)) throw bad('the name must start with a letter');
@@ -102,12 +116,15 @@ function normalise(input, { taken = new Set() } = {}) {
     if (f.kind === 'choice' && !options.length) throw bad(`the choice "${fname}" needs at least one option`);
     fields.push({ name: fname, kind: f.kind, ...(options ? { options } : {}) });
   }
-  return { slug, name, plural: clean(input.plural) || `${name}s`, purpose: clean(input.purpose) || name, statuses: statuses.length ? statuses : ['open', 'done'], fields };
+  const key = String(input.key || '').trim().toUpperCase() || deriveKey(name, takenKeys);
+  if (!KEY_FORMAT.test(key)) throw bad(`the key "${key}" must be 2 to 6 capital letters or digits, starting with a letter`);
+  if (takenKeys.has(key) && !input.slug) throw Object.assign(new Error(`the key ${key} is already used by another type`), { status: 409 });
+  return { slug, key, name, plural: clean(input.plural) || `${name}s`, purpose: clean(input.purpose) || name, statuses: statuses.length ? statuses : ['open', 'done'], fields };
 }
 
 // ---- custom.md: the cards, written and read in one fixed shape
-const card = t => [`- id: type:${t.slug}`, `  extends: type:node`, `  purpose: ${t.purpose}`, `  plural: ${t.plural}`, `  title: ${t.name}`, `  statuses: [${t.statuses.join(', ')}]`,
-    ...(t.fields.length ? ['  props:', ...t.fields.map(f => `    ${f.name}: ${toWye(f)}?`)] : [])].join('\n');
+const card = t => [`- id: type:${t.slug}`, `  extends: type:node`, `  key: ${t.key}`, `  purpose: ${t.purpose}`, `  plural: ${t.plural}`, `  title: ${t.name}`, `  statuses: [${t.statuses.join(', ')}]`,
+    '  props:', '    key: string?', ...t.fields.map(f => `    ${f.name}: ${toWye(f)}?`)].join('\n');
 function renderCustom(types) {
   const cards = types.map(card);
   return `---\ntitle: Custom types\n---\n# Custom types\n\nTypes defined in WyePoint's Settings. An instance is a list line in any page: \`- ${types[0] ? types[0].slug : 'risk'}:project.page.1 What it is #status (field: value)\`.\n\n\`\`\`yaml\n${cards.join('\n')}\n\`\`\`\n`;
@@ -117,9 +134,9 @@ function parseCustom(md) {
   return fence[1].split(/^- id: type:/m).slice(1).map(card => {
     const lines = card.split('\n'), slug = lines[0].trim(), get = k => { const l = lines.find(x => x.startsWith(`  ${k}: `)); return l ? l.slice(k.length + 4).trim() : ''; };
     const pi = lines.findIndex(l => l.trim() === 'props:'), fields = [];
-    if (pi >= 0) for (let i = pi + 1; i < lines.length && /^ {4}\S/.test(lines[i]); i++) { const m = /^ {4}([\w-]+): (.*)$/.exec(lines[i]); if (m) fields.push({ name: m[1], ...fromWye(m[2]) }); }
-    return { slug, name: get('title') || slug, plural: get('plural') || `${slug}s`, purpose: get('purpose'), statuses: get('statuses').replace(/^\[|\]$/g, '').split(',').map(s => s.trim()).filter(Boolean), fields };
+    if (pi >= 0) for (let i = pi + 1; i < lines.length && /^ {4}\S/.test(lines[i]); i++) { const m = /^ {4}([\w-]+): (.*)$/.exec(lines[i]); if (m && m[1] !== 'key') fields.push({ name: m[1], ...fromWye(m[2]) }); }
+    return { slug, key: get('key'), name: get('title') || slug, plural: get('plural') || `${slug}s`, purpose: get('purpose'), statuses: get('statuses').replace(/^\[|\]$/g, '').split(',').map(s => s.trim()).filter(Boolean), fields };
   });
 }
 
-module.exports = { BUILTIN, VERSION, coreDocument, normalise, renderCustom, parseCustom, baseKinds, FIELD_KINDS, RESERVED_PROPS };
+module.exports = { BASE_KEYS, KEY_FORMAT, deriveKey, BUILTIN, VERSION, coreDocument, normalise, renderCustom, parseCustom, baseKinds, FIELD_KINDS, RESERVED_PROPS };

@@ -129,7 +129,7 @@ class Store {
     if (fs.existsSync(this.productFile)) {
       if (this.config().title === 'Tempo') this.setConfig({ title: 'WyePoint' });   // the name before the rename
     } else write(this.productFile, joinFm({ title: 'WyePoint', icon: '🧭', description: 'Goals and projects planned in cycles.', 'cycle-weeks': 6, 'cycle-start': day(), 'cycle-cooldown': 7 }, ''));
-    this.migrateVocabulary(); this.migrateRoster(); this.ensureTypes(); this.migrateTypes(); this.loadKinds();
+    this.migrateVocabulary(); this.migrateRoster(); this.ensureTypes(); this.migrateTypes(); this.loadKinds(); this.migrateKeys();
   }
 
   // ---- config
@@ -267,14 +267,19 @@ class Store {
     }
   }
   loadKinds() { L.setKinds(this.types().map(t => t.slug)); }
-  customTypes() { return T.parseCustom(read(this.customFile())).filter(t => !T.BUILTIN.some(b => b.slug === t.slug)); }   // a risk once defined in Settings is now built in
+  customTypes() {
+    const list = T.parseCustom(read(this.customFile())).filter(t => !T.BUILTIN.some(b => b.slug === t.slug)), taken = new Set([...Object.values(T.BASE_KEYS), 'PROJ', ...T.BUILTIN.map(b => b.key)]);
+    list.filter(t => t.key).forEach(t => taken.add(t.key));
+    return list.map(t => { if (!t.key) { t.key = T.deriveKey(t.name, taken); taken.add(t.key); } return t; });   // a type from before keys is given one
+  }
+  usedKeys() { return new Set([...Object.values(T.BASE_KEYS), 'PROJ', ...this.types().map(t => t.key)]); }   // a risk once defined in Settings is now built in
   types() { return [...T.BUILTIN, ...this.customTypes()]; }
   saveTypes(list) { write(this.customFile(), T.renderCustom(list)); this.loadKinds(); }
-  createType(input) { const list = this.customTypes(), t = T.normalise(input, { taken: new Set(list.map(x => x.slug)) }); list.push(t); this.saveTypes(list); return t; }
+  createType(input) { const list = this.customTypes(), t = T.normalise({ ...input, slug: undefined }, { taken: new Set(list.map(x => x.slug)), takenKeys: this.usedKeys() }); list.push(t); this.saveTypes(list); return t; }
   updateType(slug, input) {
     if (T.BUILTIN.some(b => b.slug === slug)) throw bad('a built-in type cannot be changed');
     const list = this.customTypes(), i = list.findIndex(x => x.slug === slug); if (i < 0) throw notFound('type');
-    list[i] = T.normalise({ ...input, slug }); this.saveTypes(list); return list[i];
+    list[i] = T.normalise({ ...input, slug, key: list[i].key }); this.saveTypes(list); return list[i];   // the key stays: it is in the ids already given
   }
   deleteType(slug) {
     if (T.BUILTIN.some(b => b.slug === slug)) throw bad('a built-in type cannot be deleted');
@@ -286,6 +291,33 @@ class Store {
   typeUsage(slug) {
     const bodies = [...this.initiatives().map(i => i.body), ...this.projects().map(p => p.body)];
     return bodies.reduce((n, b) => n + b.split('\n').filter(l => { const x = L.parseLine(l); return x && x.type === 'node' && x.kind === slug; }).length, 0);
+  }
+
+  // ---- keys: every goal, project and work item has a global id, PREFIX-n, the prefix being the `key` of its type. The numbers
+  // come from a counter per prefix (_keys.json), so one is never given twice, not even after the item is deleted.
+  keyPrefix(kind) { return kind === 'project' ? 'PROJ' : T.BASE_KEYS[kind] || (this.types().find(t => t.slug === kind) || {}).key || String(kind).toUpperCase().slice(0, 4); }
+  readCounters() { try { return JSON.parse(read(path.join(this.dir, '_keys.json')) || '{}'); } catch { return {}; } }
+  nextKey(kind) {
+    const prefix = this.keyPrefix(kind), c = this.readCounters(); c[prefix] = (c[prefix] || 0) + 1;
+    write(path.join(this.dir, '_keys.json'), JSON.stringify(c, null, 1)); return `${prefix}-${c[prefix]}`;
+  }
+  // the page with a key on each of its items that has none; an item the page already had keeps the key it was given
+  keyItems(it) {
+    const prior = {}; try { for (const l of read(this.docFile(it.id)).split('\n')) { const k = L.keyOfLine(l), x = k && L.parseLine(l); if (k) prior[x.id] = k; } } catch { /* a new page */ }
+    return it.body.split('\n').map(line => {
+      const x = L.parseLine(line); if (!x || (x.type !== 'task' && x.type !== 'node') || L.keyOfLine(line)) return line;
+      return L.withKey(line, prior[x.id] || this.nextKey(x.type === 'task' ? 'task' : x.kind));
+    }).join('\n');
+  }
+  // a vault from before keys: the counters catch up with what is there, and every page gets its keys
+  migrateKeys() {
+    const customs = this.customTypes(); if (customs.some(t => !T.parseCustom(read(this.customFile())).find(x => x.slug === t.slug && x.key))) this.saveTypes(customs);
+    const c = this.readCounters(); let changed = false;
+    const seen = key => { const m = /^([A-Z][A-Z0-9]*)-(\d+)$/.exec(String(key || '')); if (m && +m[2] > (c[m[1]] || 0)) { c[m[1]] = +m[2]; changed = true; } };
+    const all = this.initiatives();
+    for (const it of all) { seen(it.key); it.tasks.forEach(t => seen(t.key)); it.nodes.forEach(n => seen(n.props.key)); }
+    if (changed) write(path.join(this.dir, '_keys.json'), JSON.stringify(c, null, 1));
+    for (const it of all) if (!it.key || it.tasks.some(t => !t.key) || it.nodes.some(n => !n.props.key)) this.save(this.get(it.id));
   }
 
   // ---- cycles. Dates come from the settings; a record under cycles/ overrides them and holds the status, the
@@ -396,7 +428,7 @@ class Store {
       if (noteAt[at]) { nodes[nodes.length - 1].notes = (nodes[nodes.length - 1].notes ? nodes[nodes.length - 1].notes + '\n' : '') + line.slice(2); continue; }
       const x = L.parseLine(line);
       if (!x) prose.push(line);
-      else if (x.type === 'task') tasks.push({ id: x.id, title: x.title, status: x.status, owner: x.owner, due: x.due });
+      else if (x.type === 'task') tasks.push({ id: x.id, title: x.title, status: x.status, owner: x.owner, due: x.due, key: x.key });
       else if (x.type === 'link') links.push({ label: x.label, url: x.url, source: x.meta });
       else if (x.type === 'pr') prs.push({ title: x.label, url: x.url, ts: x.meta });
       else if (x.type === 'node') nodes.push({ id: x.id, kind: x.kind, text: x.text, status: x.status, props: x.props, notes: '' });
@@ -409,7 +441,7 @@ class Store {
     return {
       id: `${project}/${slug}`, project, slug, node, title: fm.title || slug, status: fm.status || '', owner: fm.owner || '',
       contributors: names(fm.contributors), mission: fm.mission || '', effort: fm.effort || '', cycle: num(String(fm.cycle || '').replace(/^cycle:/, '')), rank: num(fm.rank),
-      approved: fm.approved === 'true', bucket: fm.bucket || 'proposed', target: fm.target || '',
+      approved: fm.approved === 'true', bucket: fm.bucket || 'proposed', target: fm.target || '', key: fm.key || '', slack: fm.slack || '',
       body, description: ps._intro.trim(), ships: pick(/^what ships$/), risks: [pick(/^(dependencies\s*\/\s*)?risks?$|^dependencies/), ...nodes.filter(n => n.kind === 'risk' && !/^(closed|mitigated)$/.test(n.status)).map(n => n.text)].filter(Boolean).join('; '),
       tasks, links, prs, log, nodes, drawings, updated: fm.updated || '',
     };
@@ -419,12 +451,14 @@ class Store {
     // the people are edges to person nodes where they are in the directory; the names stay as the text people read
     const dir = this.people(), ref = n => { const p = dir.find(x => x.name.toLowerCase() === String(n || '').toLowerCase()); return p ? `person:${p.slug}` : ''; };
     const involved = [...new Set([it.owner, ...it.contributors].map(ref).filter(Boolean))];
-    const fm = { node: it.node, title: it.title, status: it.status, owner: it.owner, champion: ref(it.owner), involves: involved.join(', '), contributors: it.contributors.join(', '), mission: it.mission, effort: it.effort, cycle: it.cycle == null ? '' : `cycle:${it.cycle}`, rank: it.rank == null ? '' : it.rank, approved: it.approved ? 'true' : '', bucket: it.cycle == null && it.bucket !== 'proposed' ? it.bucket : '', target: it.target, updated: now() };
+    const fm = { node: it.node, key: it.key, title: it.title, status: it.status, owner: it.owner, champion: ref(it.owner), involves: involved.join(', '), contributors: it.contributors.join(', '), mission: it.mission, effort: it.effort, cycle: it.cycle == null ? '' : `cycle:${it.cycle}`, rank: it.rank == null ? '' : it.rank, approved: it.approved ? 'true' : '', bucket: it.cycle == null && it.bucket !== 'proposed' ? it.bucket : '', target: it.target, slack: it.slack, updated: now() };
     return joinFm(fm, `# ${it.title}\n\n${it.body.trim()}\n`);
   }
   save(it) {
     // an initiative points at its cycle: a cycle that has no page yet gets one, so the edge has somewhere to go
     if (it.cycle != null && !fs.existsSync(path.join(this.dir, 'cycles', `${it.cycle}.md`))) this.saveCycle(it.cycle, {});
+    if (!it.key) it.key = this.nextKey('project');
+    it.body = this.keyItems(it);
     write(this.docFile(it.id), this.render(it)); return this.get(it.id);
   }
 
@@ -436,7 +470,7 @@ class Store {
     // a page from the dialog may hold milestones and typed blocks numbered before the page had an id (task:new.1, risk:new.1, part-of project:TBD)
     const body = (o.body !== undefined ? String(o.body) : `${String(o.description || '').trim()}\n\n## What ships\n${String(o.ships || '').trim()}\n${String(o.risks || '').trim() ? `\n## Risks\n${String(o.risks).trim()}\n` : ''}\n## Milestones\n\n## Updates\n`)
       .replace(/\b([a-z][a-z0-9-]*):new\.(\d+)/g, `$1:${project}.${slug}.$2`).replace(/\b(goal|initiative|project):TBD/g, node);
-    const it = { id: `${project}/${slug}`, slug, project, node, title, status: '', owner: '', contributors: [], mission: '', effort: '', cycle: null, rank: null, approved: false, bucket: 'proposed', target: '', body };
+    const it = { id: `${project}/${slug}`, slug, project, node, title, status: '', owner: '', contributors: [], mission: '', effort: '', cycle: null, rank: null, approved: false, bucket: 'proposed', target: '', key: '', slack: '', body };
     this.apply(it, { ...o, body: undefined, description: undefined, ships: undefined, risks: undefined });
     it.body = appendLine(it.body, L.logLine({ ts: now(), source: 'wyepoint', text: 'Project created' }), x => x.type === 'log', 'Updates');   // no status-change line for the status it starts with
     return this.save(it);
@@ -448,6 +482,7 @@ class Store {
     if (patch.owner !== undefined) it.owner = oneLine(patch.owner);
     if (patch.contributors !== undefined) it.contributors = names(patch.contributors);
     if (patch.mission !== undefined) it.mission = oneLine(patch.mission);
+    if (patch.slack !== undefined) { const u = oneLine(patch.slack); if (u && !/^https?:\/\/\S+$/i.test(u)) throw bad('the Slack channel must be a link (https://…)'); it.slack = u; }
     if (patch.target !== undefined) { const t = oneLine(patch.target); if (t && !isDate(t)) throw bad('target must be YYYY-MM-DD'); it.target = t; }
     if (patch.status !== undefined) {
       if (patch.status && !STATUSES.includes(patch.status)) throw bad('unknown status');

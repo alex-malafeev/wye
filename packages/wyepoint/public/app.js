@@ -1,5 +1,5 @@
 // The page shell: the header, the page title, the active view, the detail drawers and the dialogs.
-import { S, TABS, h, muted, load, route, go, render, setRenderer, cyc, items, range, fmtDate } from './core.js';
+import { S, TABS, h, muted, load, route, go, render, setRenderer, cyc, items, range, fmtDate, findKey } from './core.js';
 import { overview, projects, backlog, people, runPortfolio } from './views.js';
 import { plan, history, settings } from './plan.js';
 import { drawer, modal, newInitiativePage } from './drawer.js';
@@ -80,7 +80,9 @@ function draw() {
   }
   pending = false; clearInterval(poll); poll = 0;
   if (!S.data) { app.replaceChildren(h('div', { class: 'wrap muted' }, S.err || 'Loading…')); return; }
-  const { view, open, project, person, full } = route(), d = S.data, A = cyc(d.active), isFull = view === 'full';
+  const r0 = route();
+  if (r0.view === 'key') { const hit = findKey(r0.key); if (hit) { location.replace(`#/i/${hit.id}`); return; } }   // a key goes to its project
+  const { view, open, project, person, full } = r0.view === 'key' ? { view: 'overview' } : r0, d = S.data, A = cyc(d.active), isFull = view === 'full';
   if (!open && !project && !person && !isFull) prune(k => k.startsWith('modal:'));
   // a re-render replaces the DOM: keep the drawer's scroll and the field the person is typing in
   const wasOpen = !!app.querySelector('.scrim, .modal'), old = app.querySelector('.drawer'), scroll = old ? old.scrollTop : 0, a = document.activeElement, key = a && a.dataset && a.dataset.k, pos = a && a.selectionStart;

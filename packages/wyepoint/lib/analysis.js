@@ -147,7 +147,7 @@ function itemPrompt(a, id) {
   const it = a.items.find(i => i.id === id); if (!it) return null;
   const same = a.items.filter(x => x.project === it.project && x.id !== it.id && x.tier === 'cycle').map(x => `${x.title} [${x.statusLabel}]`).slice(0, 12);
   return ctxText(a, 'status agent') + ' Rules: the champion updates status weekly, effort is calendar time, unshipped items roll into the next cycle ranking without a free pass, flag cross-team risks early.\n'
-    + 'Item: ' + J({ title: it.title, project: it.projectTitle, rank: it.rank, status: it.statusLabel, effort: it.effort, target: it.target, champion: it.owner, contributors: it.contributors, ships: it.ships, risks: it.risks, mission: it.mission, milestones: it.tasks.map(t => `${t.title} [${t.status}${t.due ? ', due ' + t.due : ''}]`), recentLog: it.log.slice(0, 5).map(l => `${l.ts.slice(0, 10)} ${l.text}`) })
+    + 'Item: ' + J({ key: it.key, title: it.title, project: it.projectTitle, rank: it.rank, status: it.statusLabel, effort: it.effort, target: it.target, champion: it.owner, contributors: it.contributors, ships: it.ships, risks: it.risks, mission: it.mission, milestones: it.tasks.map(t => `${t.title} [${t.status}${t.due ? ', due ' + t.due : ''}]`), recentLog: it.log.slice(0, 5).map(l => `${l.ts.slice(0, 10)} ${l.text}`) })
     + '\nPlanner checks: ' + J(it.flags) + '\nOther cycle items in the same area: ' + J(same)
     + '\nWrite a status read in under 140 words: (1) health verdict in one line, (2) what looks wrong or stale, (3) the one question to ask the champion this week, (4) likely outcome by the end of the cycle (ship, interim milestone, roll over). Only use facts given; say when something is unknown.';
 }

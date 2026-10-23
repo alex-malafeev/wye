@@ -6,7 +6,7 @@ const crypto = require('crypto');
 function resolve(store, ref) {
   ref = String(ref || '').trim();
   const all = store.initiatives();
-  const hit = all.find(i => i.id === ref) || all.filter(i => i.slug === ref);
+  const hit = all.find(i => i.id === ref || i.key === ref.toUpperCase()) || all.filter(i => i.slug === ref);
   if (Array.isArray(hit)) { if (hit.length === 1) return hit[0]; throw Object.assign(new Error(hit.length ? `"${ref}" is ambiguous, use area/slug` : `no project "${ref}"`), { status: hit.length ? 409 : 404 }); }
   return hit;
 }

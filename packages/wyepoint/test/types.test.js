@@ -77,7 +77,7 @@ test('an instance holds notes: indented lines under it, a document of its own, n
   assert.deepStrictEqual(it.nodes.map(n => [n.text, n.notes]), [['Flaky', 'Why it matters.\n\n- first\n- second']]);
   assert.strictEqual(it.ships, 'A thing'); assert.strictEqual(it.description, 'Intro');
   const after = s.update(it.id, { ships: 'Another' });
-  assert.match(after.body, /- risk:p\.t\.1 Flaky #open \(severity: high\)\n {2}Why it matters\.\n {2}\n {2}- first\n {2}- second/);   // the notes stay with their instance
+  assert.match(after.body, /- risk:p\.t\.1 Flaky #open \(severity: high, key: RISK-1\)\n {2}Why it matters\.\n {2}\n {2}- first\n {2}- second/);   // the notes stay with their instance
   assert.strictEqual(after.nodes[0].notes, 'Why it matters.\n\n- first\n- second');
 });
 
@@ -114,4 +114,37 @@ test('Wye itself reads it: wye check is clean and the graph has the edges and th
   assert.match(lee, /champions → project:customer-platform\.billing-page-rewrite/); assert.match(lee, /involved-in → project:/); assert.match(lee, /responsible by risk:customer-platform\.billing-page-rewrite\.1/);
   assert.match(wye('graph', 'get', 'cycle:0', '--root', dir).stdout, /projects → project:/);
   assert.match(wye('graph', 'get', 'risk:customer-platform.billing-page-rewrite.1', '--root', dir).stdout, /Payments sandbox is flaky/);
+});
+
+test('every project, milestone and typed item has a global key: PREFIX-n, the prefix a property of its type', () => {
+  const dir = tmp(), s = new Store(dir); s.createProject({ title: 'P' });
+  const a = s.createInitiative({ project: 'p', title: 'A', body: 'Intro\n\n- task:new.1 First #todo\n- risk:new.1 Flaky #open (severity: high)\n' });
+  const b = s.createInitiative({ project: 'p', title: 'B', body: '- task:new.1 Other #todo\n' });
+  assert.deepStrictEqual([a.key, b.key], ['PROJ-1', 'PROJ-2']);
+  assert.deepStrictEqual([a.tasks[0].key, b.tasks[0].key, a.nodes[0].props.key], ['TASK-1', 'TASK-2', 'RISK-1']);
+  const t = s.createType({ name: 'Customer ask' });
+  assert.strictEqual(t.key, 'CUST'); assert.match(fs.readFileSync(path.join(dir, 'types/custom.md'), 'utf8'), /key: CUST\n/);
+  assert.match(fs.readFileSync(path.join(dir, 'types/ontology.md'), 'utf8'), /- id: type:project\n {2}extends: type:node\n {2}key: PROJ\n/);
+  assert.throws(() => s.createType({ name: 'Another', key: 'proj' }), /already used/);
+  assert.throws(() => s.createType({ name: 'Bad', key: '1x' }), /capital letters/);
+  assert.strictEqual(s.updateType('customer-ask', { name: 'Customer ask', key: 'ZZZ' }).key, 'CUST');           // the ids already given keep their prefix
+  // a page saved again (the editor does not know the keys) keeps them; an added line gets the next one
+  const bare = a.body.replace(/, key: TASK-1/, '').replace(', key: RISK-1', '') + '\n- task:p.a.9 Added #todo\n';
+  const again = s.update(a.id, { body: bare });
+  assert.deepStrictEqual(again.tasks.map(x => x.key), ['TASK-1', 'TASK-3']); assert.strictEqual(again.nodes[0].props.key, 'RISK-1'); assert.strictEqual(again.key, 'PROJ-1');
+  assert.strictEqual(s.createInitiative({ project: 'p', title: 'C' }).key, 'PROJ-3');
+  assert.strictEqual(new Store(dir).get(a.id).key, 'PROJ-1');                                                    // read back from the page
+});
+
+test('a vault from before keys is given them once, and the Slack link of a project is checked', () => {
+  const dir = tmp(), s = new Store(dir); s.createProject({ title: 'P' });
+  const a = s.createInitiative({ project: 'p', title: 'A', body: '- task:new.1 First #todo\n' });
+  const file = path.join(dir, 'areas/p/docs/a.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/key: PROJ-1\n/, '').replace(/, key: TASK-1/, ''));
+  fs.unlinkSync(path.join(dir, '_keys.json'));
+  const again = new Store(dir).get(a.id);
+  assert.deepStrictEqual([again.key, again.tasks[0].key], ['PROJ-1', 'TASK-1']);
+  assert.throws(() => s.update(a.id, { slack: 'not a link' }), /link/);
+  assert.strictEqual(s.update(a.id, { slack: 'https://acme.slack.com/archives/C123' }).slack, 'https://acme.slack.com/archives/C123');
+  assert.strictEqual(s.update(a.id, { slack: '' }).slack, '');
 });

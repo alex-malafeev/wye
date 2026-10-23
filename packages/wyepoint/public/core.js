@@ -55,6 +55,7 @@ export async function load() { S.data = await api('GET', '/state'); render(); }
 // ---- routing: #/<view>?i=<project>/<slug>
 export function route() {
   const [p, q] = location.hash.replace(/^#\/?/, '').split('?');
+  const byKey = /^k\/([A-Za-z][A-Za-z0-9]*-\d+)$/.exec(p); if (byKey) return { view: 'key', key: byKey[1].toUpperCase(), open: null, project: null };
   const full = /^(i|p)\/(.+)$/.exec(p);                 // a full view: #/i/<project>/<slug> or #/p/<project>
   if (full) return { view: 'full', full: { kind: full[1] === 'i' ? 'initiative' : 'project', id: decodeURIComponent(full[2]) }, open: null, project: null };
   const sp = new URLSearchParams(q || '');
@@ -84,3 +85,16 @@ export const range = c => `${fmtDate(c.start)} – ${fmtDate(c.end)}`;
 export const stClass = label => ({ 'On Track': 's-on', 'At Risk': 's-risk', 'Off Track': 's-off', 'Not Started': 's-ns', Shipped: 's-ship' }[label] || 's-none');
 export const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 export const cycleChip = c => chip({ closed: 's-ns', active: 's-on', released: 's-ship', planned: 's-none' }[c.status] || 's-none', cap(c.status));
+
+// Every project, milestone and typed item has a global key (PROJ-12, TASK-5, RISK-2). It names the item wherever it is
+// written, and #/k/<KEY> opens it: a project in its full view, anything inside one in the project it belongs to.
+export function findKey(k) {
+  const key = String(k || '').trim().toUpperCase();
+  for (const i of items()) {
+    if (i.key === key) return { id: i.id, what: 'project', title: i.title };
+    const t = i.tasks.find(x => x.key === key); if (t) return { id: i.id, what: 'milestone', title: t.title };
+    const n = (i.nodes || []).find(x => (x.props || {}).key === key); if (n) return { id: i.id, what: n.kind, title: n.text };
+  }
+  return null;
+}
+export const KEY_PATTERN = /^[A-Za-z][A-Za-z0-9]*-\d+$/;

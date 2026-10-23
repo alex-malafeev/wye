@@ -38,7 +38,7 @@ test('initiative round-trips through Markdown and is a goal node', () => {
   assert.strictEqual(got.description, 'Line one\n\nline two');
   const md = fs.readFileSync(path.join(dir, 'areas/web/docs/onboarding-v2.md'), 'utf8');
   assert.match(md, /^---\nnode: project:web\.onboarding-v2\n/);
-  assert.match(md, /\n- task:web\.onboarding-v2\.1 Checklist #todo \(owner: Lee, part-of: project:web\.onboarding-v2\)\n/);
+  assert.match(md, /\n- task:web\.onboarding-v2\.1 Checklist #todo \(owner: Lee, part-of: project:web\.onboarding-v2, key: TASK-1\)\n/);
   assert.match(md, /\n- \[Spec v2\]\(https:\/\/example\.com\/a\(b%29\) · link · manual\n/);
 });
 

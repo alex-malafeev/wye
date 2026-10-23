@@ -40,6 +40,7 @@ export function drawer(id) {
       i.cycle == null ? prop('Bucket', sel(BUCKETS, i.bucket, v => upd({ bucket: v }), 'Backlog bucket')) : null,
       prop('Mission', txt(i.mission, v => upd({ mission: v }), 'Mission', 'No mission')),
       prop('Target', txt(i.target, v => upd({ target: v }), 'Target date', 'YYYY-MM-DD')),
+      prop('Slack', h('div', { class: 'stack', style: 'gap:2px' }, txt(i.slack, v => upd({ slack: v }), 'Slack channel link', 'https://…slack.com/archives/…'), i.slack ? h('a', { class: 'small', href: safeUrl(i.slack), target: '_blank', rel: 'noopener noreferrer' }, 'Open the channel ↗') : null)),
       prop('Progress', h('div', {}, h('div', { class: 'hrow between small', style: 'flex-wrap:nowrap' }, h('span', { class: 'muted' }, i.progressBasis), h('b', {}, i.progress + '%')), bar(i.progress, i.hot))),
       i.contributors.length || i.owner ? prop('People', h('div', { class: 'hrow' }, ...[i.owner, ...i.contributors].filter(Boolean).map(n => h('button', { class: 'pill', onClick: () => openPerson(n) }, n)))) : null),
 
@@ -110,9 +111,9 @@ function personModal(m) {
 // A type a person defines: a name, its statuses and its fields. It becomes a Wye type card in the vault, and an
 // instance of it is a block anywhere in a page.
 function typeModal(m) {
-  const kinds = D().fieldKinds, v = m.v || (m.v = { name: '', plural: '', purpose: '', statuses: 'open, done', fields: [] });
+  const kinds = D().fieldKinds, v = m.v || (m.v = { key: '', name: '', plural: '', purpose: '', statuses: 'open, done', fields: [] });
   const close = () => { S.modal = null; S.err = ''; render(); };
-  const payload = () => ({ name: v.name, plural: v.plural, purpose: v.purpose, statuses: v.statuses, fields: v.fields.filter(f => f.name.trim()).map(f => ({ ...f, options: f.kind === 'choice' ? f.options : undefined })) });
+  const payload = () => ({ key: v.key, name: v.name, plural: v.plural, purpose: v.purpose, statuses: v.statuses, fields: v.fields.filter(f => f.name.trim()).map(f => ({ ...f, options: f.kind === 'choice' ? f.options : undefined })) });
   const submit = () => act(async () => { await api(m.slug ? 'PUT' : 'POST', m.slug ? `/types/${m.slug}` : '/types', payload()); S.modal = null; });
   const field = (name, key, ph, extra = {}) => h('label', { class: 'f' }, h('span', { class: 'lbl' }, name), h('input', { class: 'field', value: v[key], placeholder: ph, onInput: e => { v[key] = e.target.value; }, ...extra }));
   return h('div', { class: 'modal' }, h('form', { class: 'card', onSubmit: e => { e.preventDefault(); submit(); } },
@@ -120,6 +121,7 @@ function typeModal(m) {
     muted('A type is a kind of thing you keep in pages. Once it exists, "/" offers it, and each one you add is a node Wye can query.', 'small'),
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, h('div', { style: 'flex:1 1 200px' }, field('Name', 'name', 'e.g. Risk', { autofocus: !m.slug, disabled: !!m.slug })), h('div', { style: 'flex:1 1 200px' }, field('Plural', 'plural', 'e.g. Risks'))),
+    field('Key', 'key', 'ids look like ASK-12; leave empty to derive it from the name', { disabled: !!m.slug, maxlength: 6, style: 'text-transform:uppercase' }),
     field('What it is', 'purpose', 'e.g. Something that could go wrong'),
     field('Statuses', 'statuses', 'open, mitigated, closed (the first is the one a new one starts in)'),
     h('div', { class: 'stack' }, h('div', { class: 'lbl' }, 'Fields'),

@@ -1,5 +1,5 @@
 // Overview, Projects, Backlog, People and the status-agent card. (Plan, History and Settings are in plan.js.)
-import { S, h, chip, bar, muted, label, opts, api, act, render, go, route, openIt, openPerson, openProject, safeUrl, items, cyc, D, fmtDate, range } from './core.js';
+import { S, h, chip, bar, muted, label, opts, api, act, render, go, route, openIt, findKey, KEY_PATTERN, openPerson, openProject, safeUrl, items, cyc, D, fmtDate, range } from './core.js';
 import { newInitiativePage } from './drawer.js';
 
 const TIER_ORDER = { cycle: 0, plan: 1, next: 2, later: 3, icebox: 4, proposed: 5, carry: 6, done: 7 };
@@ -19,7 +19,7 @@ export function itemRow(i, sub, selected) {
   // the layout of a project card's list: name and detail on the left; status, progress and its percentage on the right
   return h('button', { class: 'mini ranked' + (selected ? ' sel' : ''), onClick: () => openIt(i.id) },
     h('span', { class: 'mini-rank' }, i.rank == null ? '' : i.rank),   // the column is always there, so titles line up
-    h('span', { class: 'mini-main' }, h('span', { class: 'mini-title' }, i.title), h('span', { class: 'mini-sub' }, sub || `${i.projectTitle} · ${i.owner || 'No champion'} · ${i.tierLabel}${i.effort ? ' · ' + i.effort : ''}`)),
+    h('span', { class: 'mini-main' }, h('span', { class: 'mini-title' }, i.title, i.key ? h('span', { class: 'mini-key' }, i.key) : null), h('span', { class: 'mini-sub' }, sub || `${i.projectTitle} · ${i.owner || 'No champion'} · ${i.tierLabel}${i.effort ? ' · ' + i.effort : ''}`)),
     h('span', { class: 'mini-chips' }, i.flags.length ? chip('s-off', `${i.flags.length} flag${i.flags.length > 1 ? 's' : ''}`) : null, chip(i.statusClass, i.statusLabel)),
     h('span', { class: 'mini-progress' }, bar(i.progress, i.hot), h('span', {}, i.progress + '%')));
 }
@@ -141,7 +141,7 @@ export function backlog() {
   const f = S.f, q = f.q.trim().toLowerCase(), all = items();
   const sortKey = it => ({ title: it.title.toLowerCase(), status: STATUS_ORDER[it.status] ?? 9, project: it.projectTitle.toLowerCase(), effort: EFFORT_ORDER[it.effort] || 9, date: it.target ? new Date(it.target).getTime() : 9e15, champion: (it.owner || '~').toLowerCase() }[S.sortKey] ?? (TIER_ORDER[it.tier] * 1000 + (it.rank ?? 999)));
   const shown = all.filter(it => (!f.project || it.project === f.project) && (!f.status || it.statusLabel === f.status) && (!f.mission || (it.mission || 'No mission') === f.mission) && (!f.tier || it.tier === f.tier) && (!f.effort || (it.effort || 'Unsized') === f.effort) && (!f.champion || it.owner === f.champion)
-    && (!q || [it.title, it.projectTitle, it.owner, it.contributors.join(' '), it.ships, it.risks, it.description].join(' ').toLowerCase().includes(q)))
+    && (!q || [it.title, it.key, it.projectTitle, it.owner, it.contributors.join(' '), it.ships, it.risks, it.description, ...it.tasks.map(t => `${t.key} ${t.title}`), ...(it.nodes || []).map(n => `${(n.props || {}).key || ''} ${n.text}`)].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => { const x = sortKey(a), y = sortKey(b); return (x < y ? -1 : x > y ? 1 : a.id.localeCompare(b.id)) * S.sortDir; });
   const groupMap = dim => { const m = {}, order = []; shown.forEach(it => dimVals(it, dim).forEach(k => { if (!m[k]) { m[k] = []; order.push(k); } m[k].push(it); })); return { m, order }; };
   const sortKeys = (keys, dim) => dim === 'status' ? keys.sort((a, b) => STATUS_LABELS.indexOf(a) - STATUS_LABELS.indexOf(b)) : dim === 'effort' ? keys.sort((a, b) => (EFFORT_ORDER[a] || 9) - (EFFORT_ORDER[b] || 9)) : keys.sort();
@@ -175,7 +175,8 @@ export function backlog() {
   const active = Object.values(f).filter(Boolean).length;
   const filters = h('div', { class: 'filterbar' },
     h('div', { class: 'fb-row' },
-      h('input', { class: 'fb-search', type: 'search', 'data-k': 'q', value: f.q, placeholder: 'Search projects, people, tasks, keys', 'aria-label': 'Search', onInput: e => { f.q = e.target.value; render(); } }),
+      h('input', { class: 'fb-search', type: 'search', 'data-k': 'q', value: f.q, placeholder: 'Search projects, people, tasks, keys', 'aria-label': 'Search', onInput: e => { f.q = e.target.value; render(); },
+        onKeyDown: e => { if (e.key === 'Enter' && KEY_PATTERN.test(e.target.value.trim())) { const hit = findKey(e.target.value); if (hit) { f.q = ''; location.hash = `#/i/${hit.id}`; } } } }),
       pill('f-project', 'Area', D().projects.map(p => [p.slug, p.title]), f.project, v => { f.project = v; }),
       pill('f-status', 'Status', STATUS_LABELS.map(x => [x, x]), f.status, v => { f.status = v; }),
       pill('f-mission', 'Mission', uniq(all.map(i => i.mission || 'No mission')).map(m => [m, m]), f.mission, v => { f.mission = v; }),

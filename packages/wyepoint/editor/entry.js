@@ -56,11 +56,12 @@ function PersonField({ value, onCommit, label, slugs = false, className = 'tb-sm
 }
 
 const Milestone = createReactBlockSpec(
-  { type: 'milestone', propSchema: { mid: { default: '' }, status: { default: 'todo' }, owner: { default: '' }, due: { default: '' } }, content: 'inline' },
+  { type: 'milestone', propSchema: { mid: { default: '' }, key: { default: '' }, status: { default: 'todo' }, owner: { default: '' }, due: { default: '' } }, content: 'inline' },
   { render: ({ block, editor, contentRef }) => {
     const p = block.props, set = patch => editor.updateBlock(block, { props: patch });
     return e('div', { className: `tb tb-milestone st-${p.status}` },
       e('select', { className: 'tb-status', value: p.status, contentEditable: false, 'aria-label': 'Milestone status', onChange: ev => set({ status: ev.target.value }) }, STATUSES.map(([v, l]) => e('option', { key: v, value: v }, l))),
+      p.key ? e('span', { className: 'tb-key', contentEditable: false, title: 'Global id: #/k/' + p.key }, p.key) : null,
       e('div', { className: 'tb-title', ref: contentRef }),
       e(PersonField, { value: p.owner, onCommit: v => set({ owner: v }), label: 'Owner' }),
       field('tb-small tb-date', p.due, 'due YYYY-MM-DD', v => set({ due: v }), 'Due date'));
@@ -128,7 +129,7 @@ function TypedDrawer({ block, editor, t, data, title, onClose }) {
   const p = block.props;
   return createPortal(e('div', { className: 'tb-overlay', onMouseDown: ev => { if (ev.target === ev.currentTarget) onClose(); } },
     e('aside', { className: 'tb-drawer', role: 'dialog', 'aria-label': t.name },
-      e('div', { className: 'tb-drawer-head' }, e('span', { className: `tb-tag tb-kind tone-${tone(t, p.status)}` }, t.name), e('span', { className: 'tb-id' }, p.tid), e('button', { className: 'tb-x', 'aria-label': 'Close', onClick: onClose }, '✕')),
+      e('div', { className: 'tb-drawer-head' }, e('span', { className: `tb-tag tb-kind tone-${tone(t, p.status)}` }, t.name), e('span', { className: 'tb-id' }, data.key ? `${data.key} · ${p.tid}` : p.tid), e('button', { className: 'tb-x', 'aria-label': 'Close', onClick: onClose }, '✕')),
       e('h3', { className: 'tb-drawer-title' }, title || 'Untitled'),
       e('div', { className: 'tb-drawer-note' }, t.purpose, ' · edit the text on the page'),
       t.statuses.length ? e('label', { className: 'tb-drow' }, e('span', {}, 'Status'),
@@ -147,6 +148,7 @@ function TypedView({ block, editor, contentRef }) {
   return e('div', { className: `tb tb-typed tone-${tn}` },
     e('div', { className: 'tb-typed-head' },
       e('span', { className: `tb-tag tb-kind tone-${tn}`, contentEditable: false, title: t.purpose }, t.name),
+      data.key ? e('span', { className: 'tb-key', contentEditable: false, title: 'Global id: #/k/' + data.key }, data.key) : null,
       e('div', { className: 'tb-title', ref: contentRef }),
       p.status ? e('span', { className: `tb-state tone-${tn}`, contentEditable: false, ...opener, title: 'Open' }, p.status.replace(/-/g, ' ')) : null,
       e('button', { className: 'tb-open-btn', contentEditable: false, 'aria-label': `Open ${t.name}`, title: 'Open', onClick: () => setOpen(true) }, '⤢')),
@@ -235,7 +237,7 @@ async function toBlocks(editor, md) {
     const line = lines[i], x = L.parseLine(line);
     if (!x) { buf.push(line); continue; }
     await flush();
-    if (x.type === 'task') out.push({ type: 'milestone', props: { mid: x.id, status: x.status, owner: x.owner, due: x.due }, content: text(x.title) });
+    if (x.type === 'task') out.push({ type: 'milestone', props: { mid: x.id, key: x.key, status: x.status, owner: x.owner, due: x.due }, content: text(x.title) });
     else if (x.type === 'log') out.push({ type: 'update', props: { ts: x.ts, source: x.source }, content: text(x.text) });
     else if (x.type === 'node') out.push({ type: 'typed', props: { kind: x.kind, tid: x.id.slice(x.kind.length + 1), status: x.status, data: JSON.stringify(x.props), notes: (() => { const n = []; while (i + 1 < lines.length && /^ {2}/.test(lines[i + 1])) n.push(lines[++i].slice(2)); return n.join('\n').trim(); })() }, content: text(x.text) });
     else if (x.type === 'drawing') out.push({ type: 'drawing', props: { src: x.src, title: x.title || 'Drawing' } });
@@ -255,7 +257,7 @@ async function fromBlocks(editor, o) {
     if (!ITEM.has(b.type)) { group.push(b); continue; }
     await flush();
     const title = plainText(b.content), p = b.props;
-    if (b.type === 'milestone') parts.push({ line: L.taskLine({ id: p.mid || `${o.idPrefix || 'task:new.'}${++n}`, title: title || 'Untitled milestone', status: p.status, owner: p.owner, due: p.due }, o.node || 'project:TBD') });
+    if (b.type === 'milestone') parts.push({ line: L.taskLine({ id: p.mid || `${o.idPrefix || 'task:new.'}${++n}`, title: title || 'Untitled milestone', status: p.status, owner: p.owner, due: p.due, key: p.key }, o.node || 'project:TBD') });
     else if (b.type === 'ref') parts.push({ line: L.refLine({ type: p.kind, label: title, url: p.url || 'https://', meta: p.meta || (p.kind === 'pr' ? today() : 'manual') }) });
     else if (b.type === 'typed') { let data = {}; try { data = JSON.parse(p.data); } catch { /* none */ } parts.push({ line: L.nodeLine({ id: `${p.kind}:${p.tid || `${CTX.scope}.1`}`, text: title, status: p.status, props: data }) + (p.notes && p.notes.trim() ? '\n' + p.notes.trim().split('\n').map(l => ('  ' + l).replace(/\s+$/, l.trim() ? '' : '  ')).join('\n') : '') }); }
     else if (b.type === 'drawing') parts.push({ line: L.drawingLine({ title: p.title, src: p.src }) });

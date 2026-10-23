@@ -22,7 +22,7 @@ function parseLine(line) {
   let m = TASK.exec(line);
   if (m) {
     const props = Object.fromEntries((m[4] || '').split(',').map(x => { const i = x.indexOf(':'); return i > 0 ? [x.slice(0, i).trim(), x.slice(i + 1).trim()] : null; }).filter(Boolean));
-    return { type: 'task', id: m[1], title: m[2], status: m[3], owner: props.owner || '', due: props.due || '' };
+    return { type: 'task', id: m[1], title: m[2], status: m[3], owner: props.owner || '', due: props.due || '', key: props.key || '' };
   }
   if ((m = REF.exec(line))) return { type: m[3], label: m[1], url: m[2], meta: m[4] };
   if ((m = LOG.exec(line))) return { type: 'log', ts: m[1], source: m[2], text: m[3] };
@@ -30,12 +30,15 @@ function parseLine(line) {
   if ((m = NODE.exec(line)) && kinds.has(m[1])) return { type: 'node', kind: m[1], id: `${m[1]}:${m[2]}`, text: m[3], status: m[4] || '', props: parseProps(m[5]) };
   return null;
 }
-const taskLine = (t, node) => `- ${t.id} ${one(t.title)} #${t.status} (${[t.owner && `owner: ${prop(t.owner)}`, t.due && `due: ${prop(t.due)}`, node && `part-of: ${node}`].filter(Boolean).join(', ')})`;
+const taskLine = (t, node) => `- ${t.id} ${one(t.title)} #${t.status} (${[t.owner && `owner: ${prop(t.owner)}`, t.due && `due: ${prop(t.due)}`, node && `part-of: ${node}`, t.key && `key: ${prop(t.key)}`].filter(Boolean).join(', ')})`;
 const refLine = r => `- [${one(r.label).replace(/[[\]]/g, '') || r.url}](${String(r.url).trim().replace(/[)\s]/g, c => (c === ')' ? '%29' : '%20'))}) · ${r.type} · ${one(r.meta) || (r.type === 'pr' ? '' : 'manual')}`;
 const logLine = l => `- ${l.ts} · ${one(l.source).replace(/\s/g, '-') || 'manual'} · ${one(l.text)}`;
 const nodeLine = n => `- ${n.id} ${one(n.text) || 'Untitled'}${n.status ? ` #${n.status}` : ''}${Object.entries(n.props || {}).filter(([, v]) => one(v)).length ? ` (${Object.entries(n.props).filter(([, v]) => one(v)).map(([k, v]) => `${k}: ${prop(v)}`).join(', ')})` : ''}`;
 const drawingLine = d => `![${one(d.title).replace(/[[\]]/g, '')}](${d.src})`;
 const isItem = line => parseLine(line) !== null;
+// the key (PROJ-12) an item line carries, and the same line with one added where it has none
+const keyOfLine = line => { const x = parseLine(line); return x ? (x.type === 'task' ? x.key : x.type === 'node' ? x.props.key || '' : '') : ''; };
+const withKey = (line, key) => (/\(([^()]*)\)\s*$/.test(line) ? line.replace(/\)\s*$/, `, key: ${key})`) : `${line.replace(/\s+$/, '')} (key: ${key})`);
 
 // The notes of an instance: the lines indented two spaces under its list line (a Markdown list item's own content), so a
 // risk can hold a whole document. noteMask marks them; splitNotes reads them out; they are not prose of the page.
@@ -46,4 +49,4 @@ function noteMask(lines) {
 const withoutItems = lines => { const m = noteMask(lines); return lines.filter((l, i) => !m[i] && !parseLine(l)); };          // the prose of a page
 const itemsOnly = lines => { const m = noteMask(lines); return lines.filter((l, i) => m[i] || isItem(l)); };                    // its items, notes with them
 
-module.exports = { noteMask, withoutItems, itemsOnly, parseLine, taskLine, refLine, logLine, nodeLine, drawingLine, isItem, setKinds, one };
+module.exports = { keyOfLine, withKey, noteMask, withoutItems, itemsOnly, parseLine, taskLine, refLine, logLine, nodeLine, drawingLine, isItem, setKinds, one };
