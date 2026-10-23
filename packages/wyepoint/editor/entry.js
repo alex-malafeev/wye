@@ -115,8 +115,8 @@ function Chips({ t, data, onOpen }) {
 function Notes({ value, onChange }) {
   const editor = useCreateBlockNote({ uploadFile, resolveFileUrl });
   const ready = useRef(false), timer = useRef(0);
-  useEffect(() => { let live = true; (async () => { if (value.trim()) { const b = await editor.tryParseMarkdownToBlocks(value); if (live) editor.replaceBlocks(editor.document, b); } ready.current = true; })(); return () => { live = false; clearTimeout(timer.current); }; }, []);
-  const save = () => { clearTimeout(timer.current); timer.current = setTimeout(async () => { if (!ready.current) return; const md = (await editor.blocksToMarkdownLossy(editor.document)).trim(); if (md !== value.trim()) onChange(md); }, 600); };
+  useEffect(() => { let live = true; (async () => { if (value.trim()) { const b = await parseMd(editor, value); if (live) editor.replaceBlocks(editor.document, b); } ready.current = true; })(); return () => { live = false; clearTimeout(timer.current); }; }, []);
+  const save = () => { clearTimeout(timer.current); timer.current = setTimeout(async () => { if (!ready.current) return; const md = await toMd(editor, editor.document); if (md !== value.trim()) onChange(md); }, 600); };
   return e('div', { className: 'tb-notes' }, e('div', { className: 'tb-notes-label' }, 'Notes'),
     e(BlockNoteView, { editor, theme: 'light', onChange: save, sideMenu: false }));
 }
@@ -228,10 +228,20 @@ async function uploadFile(file) {
 }
 const resolveFileUrl = async url => (/^images\//.test(url) && CTX.project ? `/api/images/${encodeURIComponent(CTX.project)}/${url.slice(7)}` : url);
 
+// ---- a picture's size: the editor keeps it as `previewWidth`, Markdown has nowhere for it, so it goes in the alt text,
+// ![caption|640](images/x.png) (as Obsidian writes it). Plain Markdown readers still show the picture and a caption.
+const WIDTH = /!\[([^\]]*?)\|(\d{2,4})\]\(([^)\s]+)\)/g;
+const readWidths = md => { const widths = {}; return { md: md.replace(WIDTH, (_, alt, n, url) => { widths[url] = +n; return `![${alt}](${url})`; }), widths }; };
+const applyWidths = (blocks, widths) => { for (const b of blocks) { if (b.type === 'image' && widths[b.props.url]) b.props.previewWidth = widths[b.props.url]; if (b.children) applyWidths(b.children, widths); } return blocks; };
+const pictures = (blocks, out = []) => { for (const b of blocks) { if (b.type === 'image' && b.props.url && Number(b.props.previewWidth) > 0) out.push([b.props.url, Math.round(b.props.previewWidth)]); if (b.children) pictures(b.children, out); } return out; };
+const writeWidths = (md, blocks) => pictures(blocks).reduce((m, [url, w]) => m.replace(new RegExp(`!\\[([^\\]]*)\\]\\(${url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'), (all, alt) => (/\|\d+$/.test(alt) ? all : `![${alt}|${w}](${url})`)), md);
+const parseMd = async (editor, md) => { const r = readWidths(md); return applyWidths(await editor.tryParseMarkdownToBlocks(r.md), r.widths); };
+const toMd = async (editor, blocks) => writeWidths((await editor.blocksToMarkdownLossy(blocks)).trim(), blocks);
+
 // ---- Markdown → blocks: prose between the item lines is parsed by BlockNote, each item line becomes its block
 async function toBlocks(editor, md) {
   const out = []; let buf = [];
-  const flush = async () => { const t = buf.join('\n').trim(); buf = []; if (t) out.push(...await editor.tryParseMarkdownToBlocks(t)); };
+  const flush = async () => { const t = buf.join('\n').trim(); buf = []; if (t) out.push(...await parseMd(editor, t)); };
   const lines = md.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i], x = L.parseLine(line);
@@ -252,7 +262,7 @@ async function toBlocks(editor, md) {
 async function fromBlocks(editor, o) {
   const parts = []; let group = [];
   let n = 0; for (const b of editor.document) if (b.type === 'milestone') n = Math.max(n, +(/\.(\d+)$/.exec(b.props.mid) || [0, 0])[1]);
-  const flush = async () => { if (group.length) { const md = (await editor.blocksToMarkdownLossy(group)).trim(); if (md) parts.push({ md }); } group = []; };
+  const flush = async () => { if (group.length) { const md = await toMd(editor, group); if (md) parts.push({ md }); } group = []; };
   for (const b of editor.document) {
     if (!ITEM.has(b.type)) { group.push(b); continue; }
     await flush();
