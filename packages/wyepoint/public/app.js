@@ -46,6 +46,19 @@ function cyclePill(d, A) {
 const GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z\"/></svg>';
 function gear() { const s = document.createElement('span'); s.style.display = 'inline-flex'; s.innerHTML = GEAR; return s; }
 
+const footnote = d => muted(`Stored in a Wye vault: every initiative and project is a Markdown page. Cycles are ${d.config.weeks} weeks${d.config.cooldown ? ` plus ${d.config.cooldown} days cooldown` : ''}.`, 'small');
+
+// The overview is two floating panels: the numbers, the timeline and the people; and what needs attention beside them.
+function overviewPage(d, A) {
+  const ov = VIEWS.overview(), main = ov.querySelector('.ov-main'), side = ov.querySelector('.sidepanel');
+  side.className = 'panel fside ov-side';
+  return h('main', { class: 'wrap' }, h('div', { class: 'fwrap' },
+    h('div', { class: 'panel' },
+      h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Overview'), h('div', { class: 'muted' }, subtitle('overview', d, A))), cyclePill(d, A)),
+      h('div', { class: 'main' }, S.err && !S.modal ? h('div', { class: 'err' }, S.err) : null, main, footnote(d))),
+    side));
+}
+
 function header(view, d, A) {
   return h('header', { class: 'top' }, h('div', { class: 'wrap topbar' },
     h('a', { class: 'brand', href: '#/overview', 'aria-label': 'WyePoint home' }, h('img', { class: 'brand-logo', src: '/wyepoint-logo.svg', alt: d.config.title })),
@@ -75,11 +88,10 @@ function draw() {
   document.title = `${d.config.title} · ${isFull ? 'Full view' : TABS.find(t => t[0] === view)[1]}`;
   app.replaceChildren(...[
     header(view, d, A),
-    isFull ? fullView(full) : h('main', { class: 'wrap' }, h('div', { class: 'panel' },
+    isFull ? fullView(full) : view === 'overview' ? overviewPage(d, A) : h('main', { class: 'wrap' }, h('div', { class: 'panel' },
       h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, TABS.find(t => t[0] === view)[1]), h('div', { class: 'muted' }, subtitle(view, d, A))),
-        view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New initiative') : view === 'overview' ? cyclePill(d, A) : null),
-      h('div', { class: 'main' }, S.err && !open && !project && !person && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](),
-        muted(`Stored in a Wye vault: every initiative and project is a Markdown page. Cycles are ${d.config.weeks} weeks${d.config.cooldown ? ` plus ${d.config.cooldown} days cooldown` : ''}.`, 'small')))),
+        view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New initiative') : null),
+      h('div', { class: 'main' }, S.err && !open && !project && !person && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](), footnote(d)))),
     !isFull && open ? drawer(open) : !isFull && project ? projectDrawer(project) : !isFull && person ? personDrawer(person) : null, modal(), simulateModal(),
   ].filter(Boolean));
   const dr = app.querySelector('.drawer'); if (dr) dr.scrollTop = scroll;

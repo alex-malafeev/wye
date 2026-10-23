@@ -440,3 +440,6 @@ main.wrap{padding:8px 12px 0}
 .agent-text p{margin:0 0 10px}
 .agent-text ul{margin:0 0 10px;padding-left:20px}
 .agent-text li{margin:0 0 5px}
+
+.panel.ov-side .card-h{font-size:20px;margin-bottom:6px}
+.panel.ov-side .card.step{padding:14px 0 16px}
