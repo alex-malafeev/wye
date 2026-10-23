@@ -64,6 +64,16 @@ export function overview() {
   ];
 }
 
+// A project's open initiatives as a compact list: name, who and when under it, status and progress at the right.
+// The whole row opens the initiative; what does not fit goes behind "+ n more".
+function miniList(list, more, max = 5) {
+  const row = i => h('button', { class: 'mini', onClick: () => openIt(i.id) },
+    h('span', { class: 'mini-main' }, h('span', { class: 'mini-title' }, i.title), h('span', { class: 'mini-sub' }, `${i.owner || 'No champion'} · ${i.cycle == null ? i.tierLabel : 'Cycle ' + i.cycle}`)),
+    chip(i.statusClass, i.statusLabel),
+    h('span', { class: 'mini-progress' }, bar(i.progress, i.hot), h('span', {}, i.progress + '%')));
+  return h('div', { class: 'mini-list' }, ...list.slice(0, max).map(row), list.length > max ? h('button', { class: 'mini-more', onClick: more }, `+ ${list.length - max} more`) : null, list.length ? null : muted('Nothing open.', 'small'));
+}
+
 // ---- projects (the planner's workstreams)
 export function projects() {
   const d = D();
@@ -83,7 +93,7 @@ export function projects() {
         h('div', {}, h('div', { class: 'hrow between small' }, h('span', { class: 'muted' }, 'Average progress'), h('b', {}, avg + '%')), bar(avg, cy.some(i => i.status === 'off-track'))),
         h('div', { class: 'hrow' }, STATUS_LABELS.filter(l => mix[l]).map(l => chip(statusClassOf(l), `${mix[l]} ${l.toLowerCase()}`))),
         muted('People: ' + top, 'small'),
-        h('div', { class: 'stack', style: 'gap:4px' }, cy.filter(i => i.status !== 'complete').slice(0, 4).map(pill)),
+        miniList(all.filter(i => i.status !== 'complete' && i.tier !== 'done').sort((a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || (a.rank ?? 999) - (b.rank ?? 999)), () => openProject(p.slug)),
         h('div', { class: 'hrow' }, h('button', { class: 'btn', onClick: () => { Object.assign(S.f, { q: '', project: p.slug, status: '', tier: '' }); go('backlog'); } }, 'Open in backlog'), h('button', { class: 'btn', onClick: () => { S.modal = { kind: 'initiative', project: p.slug }; S.err = ''; render(); } }, 'New initiative')));
     })),
     d.projects.length ? null : muted('No projects yet. Create one to start adding initiatives.'),

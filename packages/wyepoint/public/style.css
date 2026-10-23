@@ -185,5 +185,18 @@ main.wrap{padding:8px 12px 0}
 /* square corners on cards, tiles, rows and tinted boxes */
 .card,.tiles .card,.tiles .card + .card,.main > .card,.cols > .card,.grid > .card,.row,.row.sel,.agent,.tb,.rich,.code,.logline{border-radius:0}
 .modal .card{border-radius:0}
+/* the open initiatives inside a project: a list, not a stack of boxes */
+.mini-list{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.mini{display:grid;grid-template-columns:minmax(0,1fr) auto 84px;align-items:center;gap:12px;width:100%;padding:9px 6px;background:transparent;border:0;border-bottom:1px solid var(--line);text-align:left;cursor:pointer;font:inherit}
+.mini:hover{background:#f5f7fb}
+.mini-main{display:flex;flex-direction:column;min-width:0}
+.mini-title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini-sub{font-size:12px;color:var(--muted)}
+.mini-progress{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600}
+.mini-progress .bar{flex:1 1 auto}
+.mini-progress > span{width:30px;text-align:right}
+.mini-more{background:transparent;border:0;border-bottom:1px solid var(--line);padding:9px 6px;text-align:left;color:var(--link);cursor:pointer;font:inherit;font-size:13px}
+.mini-more:hover{background:#f5f7fb}
+.grid{grid-template-columns:repeat(auto-fit,minmax(440px,1fr))}
 /* a project is a block of its own: a full border */
 .grid > .card{background:#fff;border:1px solid var(--line2);padding:18px 20px}
