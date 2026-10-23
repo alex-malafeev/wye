@@ -36,7 +36,7 @@ function header(view, d, A) {
   const search = h('input', { class: 'search', type: 'search', 'data-k': 'gsearch', placeholder: 'Search', 'aria-label': 'Search initiatives', value: S.f.q,
     onKeyDown: e => { if (e.key === 'Enter') { S.f.q = e.target.value; go('backlog'); e.target.blur(); } } });
   return h('header', { class: 'top' }, h('div', { class: 'wrap topbar' },
-    h('a', { class: 'brand', href: '#/overview', 'aria-label': 'WyePoint home' }, h('span', { class: 'logo-mark', 'aria-hidden': 'true' }), h('span', { class: 'brand-name' }, d.config.title)),
+    h('a', { class: 'brand', href: '#/overview', 'aria-label': 'WyePoint home' }, h('img', { class: 'brand-logo', src: '/wyepoint-logo.svg', alt: d.config.title })),
     h('nav', { class: 'tabs', 'aria-label': 'Pages' }, TABS.map(([k, l]) => h('button', { class: 'tab' + (k === view ? ' on' : ''), 'aria-current': k === view ? 'page' : null, onClick: () => go(k) }, l))),
     h('div', { class: 'top-right' },
       h('div', { class: 'cycle-pill', title: `${A.name}: ${range(A)}` }, h('span', {}, h('b', {}, A.name), ` · week ${cp.week} of ${d.config.weeks}`), h('span', { class: 'cycle-bar' }, h('i', { style: `width:${cp.pct}%` }))),
