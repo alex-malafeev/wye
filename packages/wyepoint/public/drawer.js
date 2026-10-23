@@ -13,8 +13,8 @@ const TEMPLATE = '## What ships\n\n## Milestones\n\n## Updates\n';   // what a n
 export const section = (name, ...kids) => h('div', { class: 'stack' }, h('div', { class: 'lbl' }, name), ...kids);
 export const prop = (name, el) => h('div', { class: 'prop' }, h('div', { class: 'prop-name' }, name), h('div', { class: 'prop-val' }, el));
 // a project's goal: a choice among the goals, with a way to its page
-export const goalSel = (i, upd) => h('div', { class: 'stack', style: 'gap:2px' }, sel([['', 'No goal'], ...(D().goals || []).map(g => [g.slug, g.title])], i.goal || '', v => upd({ goal: v }), 'Goal'),
-  i.goal ? h('button', { class: 'link-btn small', style: 'text-align:left', onClick: () => openFull('goal', i.goal) }, 'Open the goal ↗') : null);
+export const goalSel = (i, upd) => h('div', { class: 'hrow', style: 'gap:6px;flex-wrap:nowrap;align-items:center' }, sel([['', 'No goal'], ...(D().goals || []).map(g => [g.slug, g.title])], i.goal || '', v => upd({ goal: v }), 'Goal'),
+  i.goal ? h('button', { class: 'btn sm', style: 'padding:2px 7px', title: 'Open the goal', 'aria-label': 'Open the goal', onClick: () => openFull('goal', i.goal) }, '↗') : null);
 export const sel = (list, value, onChange, label, o = {}) => dropdown(list.map(([v, l]) => [String(v), l]), String(value == null ? '' : value), onChange, label, { tag: true, ...o });
 export const txt = (value, onChange, label, ph = 'Empty') => h('input', { class: 'pfield', value, 'aria-label': label, placeholder: ph, onChange: e => onChange(e.target.value) });
 
