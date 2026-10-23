@@ -51,6 +51,9 @@ function fullInitiative(id) {
         i.approved && POOL.includes(i.tier) && !locked ? h('button', { class: 'btn sm pri', onClick: () => upd({ cycle: nx.n, rank: items().filter(x => x.cycle === nx.n).length + 1 }) }, `Add to ${nx.name}`) : null,
         i.tier === 'plan' && i.cycle === nx.n && !locked ? h('button', { class: 'btn sm', onClick: () => upd({ cycle: null, rank: null }) }, 'Remove from plan') : null)))
     )),
+        sideCard(`History (${i.log.length})`, h('div', { class: 'history' }, ...i.log.slice(0, 30).map(l => h('button', { class: 'hist-row', onClick: () => { S.modal = { kind: 'update', entry: l, item: i }; render(); } },
+          h('span', { class: 'hist-dot', 'aria-hidden': 'true' }), h('span', { class: 'hist-main' }, h('span', { class: 'hist-text' }, l.text), h('span', { class: 'muted small' }, `${l.source || 'manual'} · ${l.ts.replace('T', ' ').replace('Z', '')}`)))),
+          i.log.length ? null : muted('Nothing logged yet. Updates that come in from other systems, or that you add to the page, are listed here.', 'small'))),
         agent ? sideCard('Status agent', h('div', { class: 'agent' }, agent)) : null))));
 }
 

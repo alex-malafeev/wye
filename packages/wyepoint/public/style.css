@@ -412,3 +412,13 @@ main.wrap{padding:8px 12px 0}
 .fside .fval-line{display:flex;align-items:baseline;gap:8px}
 .fside .fval-line b{font-size:15px}
 .fside .fval .check{color:var(--bad,#b3261e);font-size:13px}
+
+.history{display:flex;flex-direction:column}
+.hist-row{display:flex;gap:10px;align-items:flex-start;text-align:left;width:100%;border:0;background:transparent;border-radius:6px;padding:7px 6px;margin:0 -6px;font:inherit;cursor:pointer;color:var(--ink)}
+.hist-row:hover{background:#f3f5f8}
+.hist-dot{flex:none;width:8px;height:8px;margin-top:6px;border-radius:50%;background:#feae0f}
+.hist-main{display:flex;flex-direction:column;gap:1px;min-width:0}
+.hist-text{font-size:13px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.upd-text{font-size:16px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.info{gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.info-row{display:grid;grid-template-columns:96px minmax(0,1fr);gap:8px;align-items:baseline;font-size:13px}

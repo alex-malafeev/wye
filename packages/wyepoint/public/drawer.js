@@ -4,6 +4,7 @@ import { runItemAgent } from './views.js';
 import { rich, prune } from './rich.js';
 import { openSimulation, canSimulate } from './simulate.js';
 import { personPicker } from './picker.js';
+import { safeUrl } from './core.js';
 
 export const BUCKETS = [['proposed', 'Proposed'], ['next', 'Next cycle'], ['later', 'Later'], ['icebox', 'Icebox']];
 export const POOL = ['carry', 'next', 'later', 'icebox', 'proposed'];
@@ -61,6 +62,7 @@ export function modal() {
   const m = S.modal; if (!m) { prune(k => !k.startsWith('modal:')); return null; }
   if (m.kind === 'person') return personModal(m);
   if (m.kind === 'type') return typeModal(m);
+  if (m.kind === 'update') return updateDrawer(m);
   const d = D(), v = m.v || (m.v = { title: '', description: '', owner: '', effort: '', mission: '', body: TEMPLATE, project: m.project || (d.projects[0] && d.projects[0].slug) || '', newProject: '' });   // kept on the dialog: it is rebuilt after every change
   const close = () => { S.modal = null; S.err = ''; render(); };
   const submit = () => act(async () => {
@@ -129,4 +131,21 @@ function typeModal(m) {
         h('button', { class: 'btn sm', type: 'button', 'aria-label': 'Remove field', onClick: () => { v.fields.splice(k, 1); render(); } }, '✕'))),
       h('div', {}, h('button', { class: 'btn sm', type: 'button', onClick: () => { v.fields.push({ name: '', kind: 'text', options: '' }); render(); } }, '+ Add field'))),
     h('button', { class: 'btn pri', type: 'submit' }, m.slug ? 'Save' : 'Create type')));
+}
+
+// One entry of an initiative's history: what came in, who or what sent it, when, and where it belongs.
+const stamped = ts => String(ts || '').replace('T', ' ').replace('Z', ' UTC');
+const linked = text => String(text).split(/(https?:\/\/[^\s)]+)/g).map((p, k) => (k % 2 ? h('a', { href: safeUrl(p), target: '_blank', rel: 'noopener noreferrer' }, p) : p));
+function updateDrawer(m) {
+  const l = m.entry, close = () => { S.modal = null; render(); };
+  const row = (k, v) => h('div', { class: 'info-row' }, h('div', { class: 'prop-name' }, k), h('div', {}, v));
+  return h('div', { class: 'scrim' }, h('button', { class: 'back', 'aria-label': 'Close', onClick: close }),
+    h('aside', { class: 'drawer', role: 'dialog', 'aria-label': 'Update' },
+      h('div', { class: 'hrow between' }, h('div', { class: 'hrow' }, chip('s-none', 'Update'), chip('s-ns', l.source || 'manual')), h('button', { class: 'btn', 'aria-label': 'Close', onClick: close }, '✕ Close')),
+      h('div', { class: 'muted small' }, stamped(l.ts)),
+      h('div', { class: 'upd-text' }, ...linked(l.text)),
+      h('div', { class: 'stack info' },
+        row('Source', l.source || 'manual'), row('Received', stamped(l.ts)),
+        row('Initiative', h('button', { class: 'link-btn', onClick: () => { S.modal = null; openIt(m.item.id); } }, m.item.title)),
+        row('Project', m.item.projectTitle))));
 }
