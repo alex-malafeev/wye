@@ -36,18 +36,24 @@ function cycleProgress(d, A) {
 // a new initiative goes in the first project; with no project yet, the dialog starts with a project
 const newInitiative = d => () => { const p = d.projects[0]; S.modal = p ? { kind: 'initiative', project: p.slug } : { kind: 'project' }; S.err = ''; render(); };
 
-function header(view, d, A) {
+// where the cycle is: shown on the overview only
+function cyclePill(d, A) {
   const cp = cycleProgress(d, A);
-  const search = h('input', { class: 'search', type: 'search', 'data-k': 'gsearch', placeholder: 'Search', 'aria-label': 'Search initiatives', value: S.f.q,
-    onKeyDown: e => { if (e.key === 'Enter') { S.f.q = e.target.value; go('backlog'); e.target.blur(); } } });
+  return h('div', { class: 'cycle-pill', title: `${A.name}: ${range(A)}` }, h('span', {}, h('b', {}, A.name), ` · week ${cp.week} of ${d.config.weeks}`), h('span', { class: 'cycle-bar' }, h('i', { style: `width:${cp.pct}%` })));
+}
+
+// the settings icon: an SVG built as markup (h() makes HTML elements)
+const GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z\"/></svg>';
+function gear() { const s = document.createElement('span'); s.style.display = 'inline-flex'; s.innerHTML = GEAR; return s; }
+
+function header(view, d, A) {
   return h('header', { class: 'top' }, h('div', { class: 'wrap topbar' },
     h('a', { class: 'brand', href: '#/overview', 'aria-label': 'WyePoint home' }, h('img', { class: 'brand-logo', src: '/wyepoint-logo.svg', alt: d.config.title })),
-    h('nav', { class: 'tabs', 'aria-label': 'Pages' }, TABS.map(([k, l]) => h('button', { class: 'tab' + (k === view ? ' on' : ''), 'aria-current': k === view ? 'page' : null, onClick: () => go(k) }, l))),
+    h('nav', { class: 'tabs', 'aria-label': 'Pages' }, TABS.filter(t => t[0] !== 'settings').map(([k, l]) => h('button', { class: 'tab' + (k === view ? ' on' : ''), 'aria-current': k === view ? 'page' : null, onClick: () => go(k) }, l))),
     h('div', { class: 'top-right' },
-      h('div', { class: 'cycle-pill', title: `${A.name}: ${range(A)}` }, h('span', {}, h('b', {}, A.name), ` · week ${cp.week} of ${d.config.weeks}`), h('span', { class: 'cycle-bar' }, h('i', { style: `width:${cp.pct}%` }))),
       h('button', { class: 'btn', onClick: runPortfolio }, '✦ Status agent'),
-      h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New initiative'),
-      h('div', { class: 'search-wrap' }, search, h('kbd', { class: 'kbd', 'aria-hidden': 'true' }, '/')))));
+      h('button', { class: 'icon-btn' + (view === 'settings' ? ' on' : ''), title: 'Settings', 'aria-label': 'Settings', 'aria-current': view === 'settings' ? 'page' : null, onClick: () => go('settings') },
+        gear()))));
 }
 
 // While someone types in a rich text field the page is not rebuilt under them (the save that follows would drop their
@@ -71,7 +77,7 @@ function draw() {
     header(view, d, A),
     isFull ? fullView(full) : h('main', { class: 'wrap' }, h('div', { class: 'panel' },
       h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, TABS.find(t => t[0] === view)[1]), h('div', { class: 'muted' }, subtitle(view, d, A))),
-        view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New initiative') : null),
+        view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New initiative') : view === 'overview' ? cyclePill(d, A) : null),
       h('div', { class: 'main' }, portfolioCard(), S.err && !open && !project && !person && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](),
         muted(`Stored in a Wye vault: every initiative and project is a Markdown page. Cycles are ${d.config.weeks} weeks${d.config.cooldown ? ` plus ${d.config.cooldown} days cooldown` : ''}.`, 'small')))),
     !isFull && open ? drawer(open) : !isFull && project ? projectDrawer(project) : !isFull && person ? personDrawer(person) : null, modal(), simulateModal(),
@@ -83,10 +89,4 @@ function draw() {
 setRenderer(draw);
 app.addEventListener('focusout', () => setTimeout(() => { if (pending && !inEditor(document.activeElement)) draw(); }, 50));
 window.addEventListener('hashchange', () => { S.err = ''; draw(); });
-// "/" jumps to the search box, as it does in Perch
-document.addEventListener('keydown', e => {
-  if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
-  const t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-  const el = app.querySelector('[data-k="gsearch"]'); if (el) { e.preventDefault(); el.focus(); }
-});
 load().catch(e => { S.err = e.message; draw(); });
