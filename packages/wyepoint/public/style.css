@@ -545,3 +545,12 @@ main.wrap{padding:8px 12px 0}
 .filterbar .dd{flex:none}
 .filterbar .dd-btn{width:auto;height:34px;padding:0 10px;border:1px solid var(--line2);background:#fff;border-radius:8px;font-size:14px}
 .filterbar .dd-btn .dd-caret{opacity:.6}
+
+/* a tag: one pill for a status, a cycle, an area, a key, a person; the status has a dot of its colour */
+.tag,.pchip{display:inline-flex;align-items:center;gap:6px;background:#eaeff7;border-radius:999px;padding:3px 11px;font-size:13px;font-weight:500;line-height:1.35;color:var(--ink);white-space:nowrap;border:0;max-width:100%}
+.pchip{padding-right:5px}
+.tdot{flex:none;width:8px;height:8px;border-radius:50%;background:#9aa4b2;display:inline-block}
+.tdot.s-on{background:#1f9d55}.tdot.s-risk{background:#e08a00}.tdot.s-off{background:#c4352b}.tdot.s-ship{background:#2f6fd6}.tdot.s-ns,.tdot.s-none{background:#9aa4b2}
+.dd-btn.tagged{width:auto;max-width:100%;gap:2px;padding:0 2px !important;height:auto !important;min-height:30px;background:transparent}
+.dd-btn.tagged:hover,.dd-btn.tagged[aria-expanded=true]{background:#fff !important}
+.fside .fprop .dd{display:flex}

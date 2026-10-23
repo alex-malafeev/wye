@@ -99,6 +99,8 @@ export function findKey(k) {
   const d = (S.data.docs || []).find(x => x.key === key); if (d) return { id: d.slug, href: `#/d/${d.slug}`, what: 'document', title: d.title };
   return null;
 }
+// a tag: the one pill the page uses for a status, a cycle, an area, a key; a status has a dot of its colour
+export const tag = (text, dot, title) => h('span', { class: 'tag', title }, dot ? h('i', { class: 'tdot ' + dot, 'aria-hidden': 'true' }) : null, text);
 export const KEY_PATTERN = /^[A-Za-z][A-Za-z0-9]*-\d+$/;
 
 // how a goal's status reads: [value, label, chip class]

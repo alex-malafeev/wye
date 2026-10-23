@@ -1,6 +1,6 @@
 // The full view of an initiative or a project: its properties across the top, the whole page as a wide editor on the
 // left, and cards that stay in view on the right (progress, checks, planning, milestones, links, updates).
-import { S, h, chip, bar, muted, safeUrl, GOAL_STATUS, goalStatus, api, act, render, go, openFull, openIt, openProject, openPerson, closeFull, items, cyc, D } from './core.js';
+import { S, h, chip, tag, bar, muted, safeUrl, GOAL_STATUS, goalStatus, api, act, render, go, openFull, openIt, openProject, openPerson, closeFull, items, cyc, D } from './core.js';
 import { rich, prune } from './rich.js';
 import { sel, txt, BUCKETS, POOL, newInitiativePage, goalSel } from './drawer.js';
 import { runItemAgent, itemRow, listFilters } from './views.js';
@@ -32,11 +32,11 @@ function fullInitiative(id) {
       [canSimulate(i) ? h('button', { class: 'btn', onClick: () => openSimulation(i) }, 'Simulate') : null, h('button', { class: 'btn', onClick: () => runItemAgent(i.id) }, owl(), 'Ask status agent')]),
     h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: i.title, 'aria-label': 'Title', onChange: e => upd({ title: e.target.value }) })),
     S.err ? h('div', { class: 'err' }, S.err) : null,
-    h('div', { class: 'hrow' }, i.key ? h('span', { class: 'key-chip', title: 'Global id: #/k/' + i.key }, i.key) : null, chip(i.statusClass, i.statusLabel), chip('s-none', i.tierLabel), chip('s-none', i.projectTitle), i.flags.length ? chip('s-off', `${i.flags.length} check${i.flags.length > 1 ? 's' : ''}`) : null),
+    h('div', { class: 'hrow' }, i.key ? tag(i.key, '', 'Global id: #/k/' + i.key) : null, tag(i.statusLabel, i.statusClass), tag(i.tierLabel), tag(i.projectTitle), i.flags.length ? tag(`${i.flags.length} check${i.flags.length > 1 ? 's' : ''}`, 's-off') : null),
     h('div', { class: 'fmain' }, page)),
       h('aside', { class: 'panel fside' },
         sideCard('Properties', h('div', { class: 'fprops' },
-      fprop('Status', sel([['', 'No status'], ...d.enums.statuses.map(s => [s, d.enums.labels[s]])], i.status, v => upd({ status: v }), 'Status')),
+      fprop('Status', sel([['', 'No status'], ...d.enums.statuses.map(s => [s, d.enums.labels[s]])], i.status, v => upd({ status: v }), 'Status', { dot: i.statusClass })),
       fprop('Champion', personPicker({ value: i.owner, onChange: v => upd({ owner: v }), placeholder: 'No champion', label: 'Champion' })),
       fprop('Contributors', personPicker({ value: i.contributors, multi: true, onChange: v => upd({ contributors: v }), placeholder: 'No contributors', label: 'Contributors' })),
       fprop('Effort', sel([['', 'Unsized'], ...d.enums.efforts.map(s => [s, s])], i.effort, v => upd({ effort: v }), 'Effort')),
@@ -47,7 +47,7 @@ function fullInitiative(id) {
       fprop('Slack', h('div', { class: 'fval' }, txt(i.slack, v => upd({ slack: v }), 'Slack channel link', 'https://…slack.com/archives/…'), i.slack ? h('a', { class: 'small', href: safeUrl(i.slack), target: '_blank', rel: 'noopener noreferrer' }, 'Open the channel ↗') : null)),
       fprop('Progress', h('div', { class: 'fval' }, h('div', { class: 'fval-line' }, h('b', {}, i.progress + '%'), h('span', { class: 'muted small' }, i.progressBasis)), bar(i.progress, i.hot))),
       fprop('Checks', h('div', { class: 'fval' }, ...i.flags.map(f => h('div', { class: 'check' }, '• ' + f)), i.flags.length ? null : muted(i.tier === 'cycle' ? 'No issues found.' : 'Run on items in the active cycle.', 'small'))),
-      fprop('Approval', sel([['draft', 'Draft'], ['approved', 'Approved']], i.approved ? 'approved' : 'draft', v => upd({ approved: v === 'approved' }), 'Approval')),
+      fprop('Approval', sel([['draft', 'Draft'], ['approved', 'Approved']], i.approved ? 'approved' : 'draft', v => upd({ approved: v === 'approved' }), 'Approval', { dot: i.approved ? 's-on' : 's-ns' })),
       fprop('Planning', h('div', { class: 'fval' }, muted(planLine, 'small'), h('div', { class: 'hrow' },
         i.approved && POOL.includes(i.tier) && !locked ? h('button', { class: 'btn sm pri', onClick: () => upd({ cycle: nx.n, rank: items().filter(x => x.cycle === nx.n).length + 1 }) }, `Add to ${nx.name}`) : null,
         i.tier === 'plan' && i.cycle === nx.n && !locked ? h('button', { class: 'btn sm', onClick: () => upd({ cycle: null, rank: null }) }, 'Remove from plan') : null)))
@@ -75,7 +75,7 @@ function fullProject(slug) {
       [h('button', { class: 'btn', onClick: () => newInitiativePage(p.slug) }, '+ New project')]),
     h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: p.title, 'aria-label': 'Area name', onChange: e => upd({ title: e.target.value }) })),
     S.err ? h('div', { class: 'err' }, S.err) : null,
-    h('div', { class: 'hrow' }, chip('s-none', `${mine.length} project${mine.length === 1 ? '' : 's'}`), chip('s-none', `${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => chip('s-none', `${n} ${l.toLowerCase()}`))),
+    h('div', { class: 'hrow' }, tag(`${mine.length} project${mine.length === 1 ? '' : 's'}`), tag(`${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => tag(`${n} ${l.toLowerCase()}`))),
     h('div', { class: 'fmain' }, page,
       h('div', { class: 'fsec' }, h('div', { class: 'fsec-h hrow between' }, flt.active ? `Projects (${flt.shown.length} of ${mine.length})` : `Projects (${mine.length})`, flt.icon), flt.panel,
         h('div', { class: 'mini-list' }, ...flt.shown.map(it => itemRow(it, `${it.owner || 'No champion'} · ${it.cycle == null ? it.tierLabel : 'Cycle ' + it.cycle}${it.effort ? ' · ' + it.effort : ''}`)), mine.length ? (flt.shown.length ? null : muted('Nothing matches these filters.', 'small')) : muted('No projects yet. Use + New project.', 'small'))))),
@@ -99,13 +99,13 @@ function fullGoal(slug) {
     crumbs([h('button', { class: 'link-btn', onClick: () => go('goals') }, 'Goals'), h('span', {}, g.title)], [h('button', { class: 'btn', onClick: remove }, 'Delete goal')]),
     h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: g.title, 'aria-label': 'Goal title', onChange: e => upd({ title: e.target.value }) })),
     S.err ? h('div', { class: 'err' }, S.err) : null,
-    h('div', { class: 'hrow' }, h('span', { class: 'key-chip', title: 'Global id: #/k/' + g.key }, g.key), chip(cls, label), chip('s-none', `${mine.length} project${mine.length === 1 ? '' : 's'}`)),
+    h('div', { class: 'hrow' }, tag(g.key, '', 'Global id: #/k/' + g.key), tag(label, cls), tag(`${mine.length} project${mine.length === 1 ? '' : 's'}`)),
     h('div', { class: 'fmain' }, page,
       h('div', { class: 'fsec' }, h('div', { class: 'fsec-h hrow between' }, flt.active ? `Projects (${flt.shown.length} of ${mine.length})` : `Projects (${mine.length})`, flt.icon), flt.panel,
         h('div', { class: 'mini-list' }, ...flt.shown.map(it => itemRow(it)), mine.length ? (flt.shown.length ? null : muted('Nothing matches these filters.', 'small')) : muted('No projects under this goal yet. Set the Goal on a project to put it here.', 'small'))))),
     h('aside', { class: 'panel fside' },
       sideCard('Properties', h('div', { class: 'fprops' },
-        fprop('Status', sel(GOAL_STATUS.map(x => [x[0], x[1]]), g.status, v => upd({ status: v }), 'Status')),
+        fprop('Status', sel(GOAL_STATUS.map(x => [x[0], x[1]]), g.status, v => upd({ status: v }), 'Status', { dot: cls })),
         fprop('Owner', personPicker({ value: g.owner, onChange: v => upd({ owner: v }), placeholder: 'No owner', label: 'Owner' })),
         fprop('Target', txt(g.target, v => upd({ target: v }), 'Target date', 'YYYY-MM-DD')),
         fprop('Slack', h('div', { class: 'fval' }, txt(g.slack, v => upd({ slack: v }), 'Slack channel link', 'https://…slack.com/archives/…'), g.slack ? h('a', { class: 'small', href: safeUrl(g.slack), target: '_blank', rel: 'noopener noreferrer' }, 'Open the channel ↗') : null)),
@@ -132,7 +132,7 @@ function fullDoc(slug) {
     crumbs([h('button', { class: 'link-btn', onClick: () => go('library') }, 'Library'), h('span', {}, doc.title)], [h('button', { class: 'btn', onClick: remove }, 'Delete')]),
     h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: doc.title, 'aria-label': 'Title', onChange: e => upd({ title: e.target.value }) })),
     S.err ? h('div', { class: 'err' }, S.err) : null,
-    h('div', { class: 'hrow' }, h('span', { class: 'key-chip', title: 'Global id: #/k/' + doc.key }, doc.key), doc.category ? chip('s-none', doc.category) : null),
+    h('div', { class: 'hrow' }, tag(doc.key, '', 'Global id: #/k/' + doc.key), doc.category ? tag(doc.category) : null),
     h('div', { class: 'fmain' }, page)),
     h('aside', { class: 'panel fside' },
       sideCard('Properties', h('div', { class: 'fprops' },

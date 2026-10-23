@@ -9,12 +9,12 @@ document.addEventListener('mousedown', e => { if (open && !open.root.contains(e.
 window.addEventListener('resize', () => open && open.close());
 document.addEventListener('scroll', e => { if (open && !open.menu.contains(e.target)) open.close(); }, true);
 
-export function dropdown(list, value, onChange, label, { compact = false, search = false, placeholder = '' } = {}) {
+export function dropdown(list, value, onChange, label, { compact = false, search = false, placeholder = '', tag = false, dot = '' } = {}) {
   const same = (a, b) => String(a) === String(b);
   const cur = list.find(x => same(x[0], value));
   let shown = list, at = Math.max(0, list.findIndex(x => same(x[0], value)));
-  const btn = h('button', { type: 'button', class: 'pfield dd-btn' + (compact ? ' compact' : ''), 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-label': label, title: label },
-    h('span', { class: 'dd-val' + (!cur && placeholder ? ' dd-ph' : '') }, cur ? cur[1] : placeholder), h('span', { class: 'dd-caret', 'aria-hidden': 'true' }, '⌄'));
+  const btn = h('button', { type: 'button', class: 'pfield dd-btn' + (compact ? ' compact' : '') + (tag ? ' tagged' : ''), 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-label': label, title: label },
+    tag && cur ? h('span', { class: 'tag' }, dot ? h('i', { class: 'tdot ' + dot, 'aria-hidden': 'true' }) : null, cur[1]) : h('span', { class: 'dd-val' + (!cur && placeholder ? ' dd-ph' : '') }, cur ? cur[1] : placeholder), h('span', { class: 'dd-caret', 'aria-hidden': 'true' }, '⌄'));
   const box = search ? h('input', { class: 'dd-search', type: 'search', placeholder: 'Search…', 'aria-label': `Search ${label.toLowerCase()}`, autocomplete: 'off' }) : null;
   const items = h('div', { class: 'dd-items' });
   const menu = h('div', { class: 'dd-menu', role: 'listbox', 'aria-label': label }, ...(box ? [box] : []), items); menu.hidden = true;
