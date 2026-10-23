@@ -28,21 +28,15 @@ export const smallRow = (i, why, onClick) => h('button', { class: 'row', onClick
 export const list = rows => { const r = [rows].flat(Infinity).filter(Boolean); return r.length ? h('div', { class: 'list' }, ...r) : null; };
 const personRow = p => h('button', { class: 'row', onClick: () => openPerson(p.n) }, h('div', { style: 'flex:1 1 auto;font-weight:600' }, p.n), h('div', { class: 'muted', style: 'font-size:12px' }, `Load ${p.load.score} · ${p.load.c} champion, ${p.load.k} contributor`), chip(p.tagClass, p.tag));
 
-// ---- the status agent's portfolio briefing, on any tab
-export function portfolioCard() {
-  const p = S.portfolio; if (!p.show) return null;
-  const flagged = items().filter(i => i.tier === 'cycle' && i.flags.length).length;
-  return h('div', { class: 'card' }, h('div', { class: 'hrow between' }, h('div', { class: 'lbl' }, 'Portfolio status agent'), h('button', { class: 'btn sm', onClick: () => { p.show = false; render(); } }, 'Close')),
-    h('div', { class: 'muted small' }, `Deterministic checks ran on ${flagged} flagged items. The briefing below is written by Claude from those flags.`), h('div', { class: 'agent' }, p.text));
-}
+// ---- the status agent: its answer opens in a drawer of its own (drawer.js), whatever page it was asked from
 export async function runPortfolio() {
-  const p = S.portfolio; p.show = true; p.text = 'Thinking…'; render();
-  try { p.text = (await api('POST', '/agent/portfolio', {})).text; } catch (e) { p.text = e.message; }
+  const p = S.portfolio; p.show = true; p.text = 'Thinking…'; S.modal = { kind: 'agent', portfolio: true }; render();
+  try { p.text = (await api('POST', '/agent/portfolio', {})).text; } catch (err) { p.text = err.message; }
   render();
 }
 export async function runItemAgent(id) {
-  S.agents[id] = 'Thinking…'; render();
-  try { S.agents[id] = (await api('POST', '/agent/item', { id })).text; } catch (e) { S.agents[id] = e.message; }
+  S.agents[id] = 'Thinking…'; S.modal = { kind: 'agent', id }; render();
+  try { S.agents[id] = (await api('POST', '/agent/item', { id })).text; } catch (err) { S.agents[id] = err.message; }
   render();
 }
 

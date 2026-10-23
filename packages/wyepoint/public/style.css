@@ -425,8 +425,18 @@ main.wrap{padding:8px 12px 0}
 
 /* the full view: the page and its properties are two rounded panels, side by side on the page background */
 .fwrap{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;align-items:start}
-.panel.fside{position:sticky;top:84px;min-height:0;max-height:calc(100vh - 100px);overflow-y:auto;padding:22px 24px;gap:0}
+.panel.fside{position:sticky;top:66px;min-height:0;max-height:calc(100vh - 82px);overflow-y:auto;padding:22px 24px;gap:0}
 .panel.fside .card{border:0;border-radius:0;box-shadow:none;background:transparent;padding:0 0 18px;margin-bottom:18px;border-bottom:1px solid var(--line)}
 .panel.fside .card:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
 .fmain{margin-top:22px}
 @media (max-width:1000px){.fwrap{grid-template-columns:1fr}.panel.fside{position:static;max-height:none;overflow:visible}}
+
+.crumbs{display:flex;align-items:center;gap:8px}
+.crumb-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn-owl{height:17px;width:auto;margin-right:6px;vertical-align:-3px}
+.btn:has(.btn-owl){display:inline-flex;align-items:center}
+
+.agent-text{font-size:14.5px;line-height:1.55}
+.agent-text p{margin:0 0 10px}
+.agent-text ul{margin:0 0 10px;padding-left:20px}
+.agent-text li{margin:0 0 5px}

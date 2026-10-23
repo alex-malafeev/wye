@@ -9,7 +9,8 @@ import { personPicker } from './picker.js';
 
 const fprop = (name, el) => h('div', { class: 'fprop' }, h('div', { class: 'prop-name' }, name), el);
 const sideCard = (title, ...kids) => h('div', { class: 'card' }, h('div', { class: 'card-h' }, title), ...kids);
-const crumbs = (...parts) => h('div', { class: 'crumbs' }, h('button', { class: 'link-btn', onClick: closeFull }, '← Back'), ...parts.flatMap(p => [h('span', { class: 'muted' }, '/'), p]));
+const crumbs = (parts = [], actions) => h('div', { class: 'crumbs' }, h('button', { class: 'link-btn', onClick: closeFull }, '← Back'), ...parts.flatMap(p => [h('span', { class: 'muted' }, '/'), p]), actions ? h('div', { class: 'crumb-actions' }, ...actions) : null);
+const owl = () => h('img', { class: 'btn-owl', src: '/owl.svg', alt: '' });
 const missing = what => h('main', { class: 'wrap' }, h('div', { class: 'panel full' }, crumbs(), h('h1', {}, `${what} not found`), muted('It may have been renamed or removed.')));
 
 export function fullView({ kind, id }) { return kind === 'initiative' ? fullInitiative(id) : fullProject(id); }
@@ -25,11 +26,10 @@ function fullInitiative(id) {
   const key = `${i.id}:body`;
   prune(k => k.startsWith(i.id + ':') || k.startsWith('modal:'));
   const page = rich(key, i.body, (md, base) => upd({ body: md, base }), { minHeight: 520, node: i.node, idPrefix: `task:${i.project}.${i.slug}.`, scope: `${i.project}.${i.slug}`, project: i.project });
-  const agent = S.agents[i.id];
   return h('main', { class: 'wrap' }, h('div', { class: 'fwrap' }, h('div', { class: 'panel full' },
-    crumbs(h('button', { class: 'link-btn', onClick: () => openFull('project', i.project) }, i.projectTitle), h('span', {}, i.title)),
-    h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: i.title, 'aria-label': 'Title', onChange: e => upd({ title: e.target.value }) }),
-      h('div', { class: 'hrow', style: 'flex-wrap:nowrap' }, canSimulate(i) ? h('button', { class: 'btn', onClick: () => openSimulation(i) }, 'Simulate') : null, h('button', { class: 'btn', onClick: () => runItemAgent(i.id) }, '✦ Ask status agent'), h('button', { class: 'btn', 'aria-label': 'Close full view', onClick: closeFull }, '✕ Close'))),
+    crumbs([h('button', { class: 'link-btn', onClick: () => openFull('project', i.project) }, i.projectTitle), h('span', {}, i.title)],
+      [canSimulate(i) ? h('button', { class: 'btn', onClick: () => openSimulation(i) }, 'Simulate') : null, h('button', { class: 'btn', onClick: () => runItemAgent(i.id) }, owl(), 'Ask status agent')]),
+    h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: i.title, 'aria-label': 'Title', onChange: e => upd({ title: e.target.value }) })),
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip(i.statusClass, i.statusLabel), chip('s-none', i.tierLabel), chip('s-none', i.projectTitle), i.flags.length ? chip('s-off', `${i.flags.length} check${i.flags.length > 1 ? 's' : ''}`) : null),
     h('div', { class: 'fmain' }, page)),
@@ -52,8 +52,7 @@ function fullInitiative(id) {
     )),
         sideCard(`History (${i.log.length})`, h('div', { class: 'history' }, ...i.log.slice(0, 30).map(l => h('button', { class: 'hist-row', onClick: () => { S.modal = { kind: 'update', entry: l, item: i }; render(); } },
           h('span', { class: 'hist-dot', 'aria-hidden': 'true' }), h('span', { class: 'hist-main' }, h('span', { class: 'hist-text' }, l.text), h('span', { class: 'muted small' }, `${l.source || 'manual'} · ${l.ts.replace('T', ' ').replace('Z', '')}`)))),
-          i.log.length ? null : muted('Nothing logged yet. Updates that come in from other systems, or that you add to the page, are listed here.', 'small'))),
-        agent ? sideCard('Status agent', h('div', { class: 'agent' }, agent)) : null)));
+          i.log.length ? null : muted('Nothing logged yet. Updates that come in from other systems, or that you add to the page, are listed here.', 'small'))),)));
 }
 
 // ---- a project
@@ -69,9 +68,9 @@ function fullProject(slug) {
   prune(k => k.startsWith(`project:${p.slug}:`) || k.startsWith('modal:'));
   const page = rich(key, p.body, (md, base) => upd({ body: md, base }), { minHeight: 520, kinds: ['link', 'update'], scope: `${p.slug}`, project: p.slug });
   return h('main', { class: 'wrap' }, h('div', { class: 'fwrap' }, h('div', { class: 'panel full' },
-    crumbs(h('button', { class: 'link-btn', onClick: () => go('projects') }, 'Initiatives'), h('span', {}, p.title)),
-    h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: p.title, 'aria-label': 'Project name', onChange: e => upd({ title: e.target.value }) }),
-      h('div', { class: 'hrow', style: 'flex-wrap:nowrap' }, h('button', { class: 'btn', onClick: () => { S.modal = { kind: 'initiative', project: p.slug }; S.err = ''; render(); } }, '+ New initiative'), h('button', { class: 'btn', 'aria-label': 'Close full view', onClick: closeFull }, '✕ Close'))),
+    crumbs([h('button', { class: 'link-btn', onClick: () => go('projects') }, 'Initiatives'), h('span', {}, p.title)],
+      [h('button', { class: 'btn', onClick: () => { S.modal = { kind: 'initiative', project: p.slug }; S.err = ''; render(); } }, '+ New initiative')]),
+    h('div', { class: 'full-head' }, h('input', { class: 'full-title', value: p.title, 'aria-label': 'Project name', onChange: e => upd({ title: e.target.value }) })),
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip('s-none', `${mine.length} initiative${mine.length === 1 ? '' : 's'}`), chip('s-none', `${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => chip('s-none', `${n} ${l.toLowerCase()}`))),
     h('div', { class: 'fmain' }, page)),

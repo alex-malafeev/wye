@@ -1,6 +1,6 @@
 // The initiative drawer — a property sheet over one page, like a Notion or Wye page — and the two "new" dialogs.
 import { S, h, chip, bar, muted, opts, api, act, render, go, route, openIt, openFull, openPerson, items, cyc, D } from './core.js';
-import { runItemAgent } from './views.js';
+import { runItemAgent, runPortfolio } from './views.js';
 import { rich, prune } from './rich.js';
 import { openSimulation, canSimulate } from './simulate.js';
 import { personPicker } from './picker.js';
@@ -24,7 +24,6 @@ export function drawer(id) {
   const cycleOpts = [['', 'Backlog (no cycle)'], ...d.cycles.filter(c => c.status !== 'closed' || c.n === i.cycle).map(c => [String(c.n), `${c.name} (${c.status})`])];
   const key = `${i.id}:body`;
   prune(k => k.startsWith(i.id + ':') || k.startsWith('modal:'));   // the editors of any other initiative are taken down
-  const agent = S.agents[i.id];
   const page = rich(key, i.body, (md, base) => upd({ body: md, base }), { minHeight: 280, node: i.node, idPrefix: `task:${i.project}.${i.slug}.`, scope: `${i.project}.${i.slug}`, project: i.project });
   return shell(
     h('div', { class: 'hrow between drawer-head', style: 'align-items:flex-start;flex-wrap:nowrap' }, h('h2', { class: 'drawer-title' }, i.title),
@@ -54,7 +53,6 @@ export function drawer(id) {
         i.tier === 'plan' && i.cycle === nx.n && !locked ? h('button', { class: 'btn', onClick: () => upd({ cycle: null, rank: null }) }, 'Remove from cycle plan') : null)),
     h('div', { class: 'hrow' }, h('button', { class: 'btn pri', onClick: () => runItemAgent(i.id) }, 'Ask status agent'),
       canSimulate(i) ? h('button', { class: 'btn', onClick: () => openSimulation(i) }, 'Simulate') : null),
-    agent ? h('div', { class: 'agent' }, agent) : null,
     h('div', { class: 'muted small' }, 'Stored in the vault as ', h('code', {}, `projects/${i.project}/docs/${i.slug}.md`), ' (', h('code', {}, i.node), ').'));
 }
 
@@ -63,6 +61,7 @@ export function modal() {
   if (m.kind === 'person') return personModal(m);
   if (m.kind === 'type') return typeModal(m);
   if (m.kind === 'update') return updateDrawer(m);
+  if (m.kind === 'agent') return agentDrawer(m);
   const d = D(), v = m.v || (m.v = { title: '', description: '', owner: '', effort: '', mission: '', body: TEMPLATE, project: m.project || (d.projects[0] && d.projects[0].slug) || '', newProject: '' });   // kept on the dialog: it is rebuilt after every change
   const close = () => { S.modal = null; S.err = ''; render(); };
   const submit = () => act(async () => {
@@ -148,4 +147,27 @@ function updateDrawer(m) {
         row('Source', l.source || 'manual'), row('Received', stamped(l.ts)),
         row('Initiative', h('button', { class: 'link-btn', onClick: () => { S.modal = null; openIt(m.item.id); } }, m.item.title)),
         row('Project', m.item.projectTitle))));
+}
+
+// The status agent's answer: its own drawer, with the light Markdown it writes (bold, bullets) shown as such.
+const inline = t => String(t).split(/(\*\*[^*]+\*\*)/g).map(p => (/^\*\*[^*]+\*\*$/.test(p) ? h('b', {}, p.slice(2, -2)) : p));
+function mdLite(text) {
+  const out = []; let list = null;
+  for (const line of String(text).split('\n')) {
+    const li = /^\s*[-*] (.*)$/.exec(line);
+    if (li) { if (!list) out.push(list = h('ul', {})); list.append(h('li', {}, ...inline(li[1]))); continue; }
+    list = null;
+    if (line.trim()) out.push(h('p', {}, ...inline(line)));
+  }
+  return out;
+}
+function agentDrawer(m) {
+  const i = m.id ? items().find(x => x.id === m.id) : null, text = m.portfolio ? S.portfolio.text : S.agents[m.id] || '', close = () => { S.modal = null; render(); };
+  const busy = text === 'Thinking…';
+  return h('div', { class: 'scrim' }, h('button', { class: 'back', 'aria-label': 'Close', onClick: close }),
+    h('aside', { class: 'drawer', role: 'dialog', 'aria-label': 'Status agent' },
+      h('div', { class: 'hrow between' }, h('div', { class: 'hrow' }, h('img', { class: 'btn-owl', src: '/owl.svg', alt: '' }), h('b', {}, m.portfolio ? 'Portfolio status agent' : 'Status agent')), h('button', { class: 'btn', 'aria-label': 'Close', onClick: close }, '✕ Close')),
+      i ? h('div', { class: 'stack' }, h('h2', { class: 'drawer-title' }, i.title), h('div', { class: 'muted small' }, `${i.projectTitle} · ${i.statusLabel}`)) : h('div', { class: 'muted small' }, `Deterministic checks ran on ${items().filter(x => x.tier === 'cycle' && x.flags.length).length} flagged items. The briefing is written by Claude from those flags.`),
+      busy ? h('div', { class: 'muted' }, 'Thinking…') : h('div', { class: 'agent-text' }, ...mdLite(text)),
+      h('div', { class: 'hrow' }, h('button', { class: 'btn', disabled: busy, onClick: () => (m.portfolio ? runPortfolio() : runItemAgent(m.id)) }, 'Ask again'))));
 }

@@ -1,6 +1,6 @@
 // The page shell: the header, the page title, the active view, the detail drawers and the dialogs.
 import { S, TABS, h, muted, load, route, go, render, setRenderer, cyc, items, range, fmtDate } from './core.js';
-import { overview, projects, backlog, people, portfolioCard, runPortfolio } from './views.js';
+import { overview, projects, backlog, people, runPortfolio } from './views.js';
 import { plan, history, settings } from './plan.js';
 import { drawer, modal } from './drawer.js';
 import { projectDrawer } from './project.js';
@@ -51,7 +51,7 @@ function header(view, d, A) {
     h('a', { class: 'brand', href: '#/overview', 'aria-label': 'WyePoint home' }, h('img', { class: 'brand-logo', src: '/wyepoint-logo.svg', alt: d.config.title })),
     h('nav', { class: 'tabs', 'aria-label': 'Pages' }, TABS.filter(t => t[0] !== 'settings').map(([k, l]) => h('button', { class: 'tab' + (k === view ? ' on' : ''), 'aria-current': k === view ? 'page' : null, onClick: () => go(k) }, l))),
     h('div', { class: 'top-right' },
-      h('button', { class: 'btn', onClick: runPortfolio }, '✦ Status agent'),
+      h('button', { class: 'btn', onClick: runPortfolio }, h('img', { class: 'btn-owl', src: '/owl.svg', alt: '' }), 'Status agent'),
       h('button', { class: 'icon-btn' + (view === 'settings' ? ' on' : ''), title: 'Settings', 'aria-label': 'Settings', 'aria-current': view === 'settings' ? 'page' : null, onClick: () => go('settings') },
         gear()))));
 }
@@ -78,7 +78,7 @@ function draw() {
     isFull ? fullView(full) : h('main', { class: 'wrap' }, h('div', { class: 'panel' },
       h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, TABS.find(t => t[0] === view)[1]), h('div', { class: 'muted' }, subtitle(view, d, A))),
         view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New initiative') : view === 'overview' ? cyclePill(d, A) : null),
-      h('div', { class: 'main' }, portfolioCard(), S.err && !open && !project && !person && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](),
+      h('div', { class: 'main' }, S.err && !open && !project && !person && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](),
         muted(`Stored in a Wye vault: every initiative and project is a Markdown page. Cycles are ${d.config.weeks} weeks${d.config.cooldown ? ` plus ${d.config.cooldown} days cooldown` : ''}.`, 'small')))),
     !isFull && open ? drawer(open) : !isFull && project ? projectDrawer(project) : !isFull && person ? personDrawer(person) : null, modal(), simulateModal(),
   ].filter(Boolean));
