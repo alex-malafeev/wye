@@ -74,7 +74,7 @@ function fullProject(slug) {
     S.err ? h('div', { class: 'err' }, S.err) : null,
     h('div', { class: 'hrow' }, chip('s-none', `${mine.length} initiative${mine.length === 1 ? '' : 's'}`), chip('s-none', `${cy.length} in the active cycle`), ...Object.entries(mix).map(([l, n]) => chip('s-none', `${n} ${l.toLowerCase()}`))),
     h('div', { class: 'fmain' }, page,
-      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h' }, `Initiatives (${mine.length})`, h('span', { class: 'muted small' }, ' click one to open it')),
+      h('div', { class: 'fsec' }, h('div', { class: 'fsec-h' }, `Initiatives (${mine.length})`),
         h('div', { class: 'mini-list' }, ...mine.map(it => itemRow(it, `${it.owner || 'No champion'} · ${it.cycle == null ? it.tierLabel : 'Cycle ' + it.cycle}${it.effort ? ' · ' + it.effort : ''}`)), mine.length ? null : muted('No initiatives yet. Use + New initiative.', 'small'))))),
       h('aside', { class: 'panel fside' },
         sideCard('Properties', h('div', { class: 'fprops' }, fprop('Owner', personPicker({ value: p.owner, onChange: v => upd({ owner: v }), placeholder: 'No owner', label: 'Owner' })),
