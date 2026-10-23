@@ -90,12 +90,12 @@ function setSection(body, name, text) {
     from = at + 1;
   }
   for (let i = from; i < lines.length; i++) if (head(i)) { to = i; break; }
-  const items = lines.slice(from, to).filter(l => L.isItem(l));
+  const items = L.itemsOnly(lines.slice(from, to));
   lines.splice(from, to - from, ...(text.trim() ? [...text.trim().split('\n'), ''] : []), ...items, ...(to < lines.length ? [''] : []));
   return lines.join('\n');
 }
 // the first paragraph of the prose before the first heading, items left out
-function introOf(body) { return proseSections(body.split('\n').filter(l => !L.isItem(l)).join('\n'))._intro.trim().split(/\n\s*\n/)[0]; }
+function introOf(body) { return proseSections(L.withoutItems(body.split('\n')).join('\n'))._intro.trim().split(/\n\s*\n/)[0]; }
 function proseSections(prose) {
   const out = { _intro: '' }; let cur = '_intro';
   for (const line of prose.split('\n')) {
@@ -206,6 +206,25 @@ class Store {
     write(at('md'), `# Drawing ${base.slug}\n\n${String(description).trim() || '(no text in the drawing)'}\n`);
   }
 
+  // ---- pictures: a pasted or dropped image is a file in <project>/docs/images; the page holds `![caption](images/<file>)`
+  imageFile(project, file) {
+    if (!/^[a-z0-9][a-z0-9._-]*\.(png|jpe?g|gif|webp)$/i.test(String(file || ''))) throw bad('that is not a picture file');
+    if (!this.projects().some(p => p.slug === project)) throw notFound('project');
+    return path.join(this.projectsDir(), project, 'docs', 'images', file);
+  }
+  readImage(project, file) {
+    const f = this.imageFile(project, file); if (!fs.existsSync(f)) return null;
+    return { buf: fs.readFileSync(f), type: { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' }[f.split('.').pop().toLowerCase()] };
+  }
+  saveImage(project, buf) {
+    const kind = buf.length > 12 && (buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ? 'png' : buf[0] === 0xff && buf[1] === 0xd8 ? 'jpg'
+      : buf.subarray(0, 4).toString('latin1') === 'GIF8' ? 'gif' : buf.subarray(0, 4).toString('latin1') === 'RIFF' && buf.subarray(8, 12).toString('latin1') === 'WEBP' ? 'webp' : '');
+    if (!kind) throw bad('that is not a PNG, JPEG, GIF or WebP picture');
+    const file = `image-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}.${kind}`, full = this.imageFile(project, file);
+    fs.mkdirSync(path.dirname(full), { recursive: true }); fs.writeFileSync(full + '.tmp', buf); fs.renameSync(full + '.tmp', full);
+    return { url: `images/${file}` };
+  }
+
   // ---- types: WyePoint's entities are Wye types (lib/types.js). types/ontology.md declares the app's own, types/custom.md the
   // ones a person defines; an instance of a custom type is a list line in a page (lib/lines.js).
   customFile() { return path.join(this.dir, 'types', 'custom.md'); }
@@ -233,15 +252,18 @@ class Store {
     }
   }
   loadKinds() { L.setKinds(this.types().map(t => t.slug)); }
-  types() { return T.parseCustom(read(this.customFile())); }
+  customTypes() { return T.parseCustom(read(this.customFile())).filter(t => !T.BUILTIN.some(b => b.slug === t.slug)); }   // a risk once defined in Settings is now built in
+  types() { return [...T.BUILTIN, ...this.customTypes()]; }
   saveTypes(list) { write(this.customFile(), T.renderCustom(list)); this.loadKinds(); }
-  createType(input) { const list = this.types(), t = T.normalise(input, { taken: new Set(list.map(x => x.slug)) }); list.push(t); this.saveTypes(list); return t; }
+  createType(input) { const list = this.customTypes(), t = T.normalise(input, { taken: new Set(list.map(x => x.slug)) }); list.push(t); this.saveTypes(list); return t; }
   updateType(slug, input) {
-    const list = this.types(), i = list.findIndex(x => x.slug === slug); if (i < 0) throw notFound('type');
+    if (T.BUILTIN.some(b => b.slug === slug)) throw bad('a built-in type cannot be changed');
+    const list = this.customTypes(), i = list.findIndex(x => x.slug === slug); if (i < 0) throw notFound('type');
     list[i] = T.normalise({ ...input, slug }); this.saveTypes(list); return list[i];
   }
   deleteType(slug) {
-    const list = this.types(); if (!list.some(x => x.slug === slug)) throw notFound('type');
+    if (T.BUILTIN.some(b => b.slug === slug)) throw bad('a built-in type cannot be deleted');
+    const list = this.customTypes(); if (!list.some(x => x.slug === slug)) throw notFound('type');
     const used = this.typeUsage(slug);
     if (used) throw Object.assign(new Error(`${used} instance${used > 1 ? 's' : ''} of it ${used > 1 ? 'are' : 'is'} still in pages; remove ${used > 1 ? 'them' : 'it'} first`), { status: 409 });
     this.saveTypes(list.filter(x => x.slug !== slug));
@@ -354,13 +376,15 @@ class Store {
     const node = fm.node.replace(/^goal:/, 'initiative:');
     const body = upgrade(raw.replace(/^\s*# .*\n?/, '')).split(fm.node).join(node).trim();   // a goal's milestones are part of the initiative now
     const tasks = [], links = [], prs = [], log = [], nodes = [], drawings = [], prose = [];
-    for (const line of body.split('\n')) {
+    const all = body.split('\n'), noteAt = L.noteMask(all);
+    for (const [at, line] of all.entries()) {
+      if (noteAt[at]) { nodes[nodes.length - 1].notes = (nodes[nodes.length - 1].notes ? nodes[nodes.length - 1].notes + '\n' : '') + line.slice(2); continue; }
       const x = L.parseLine(line);
       if (!x) prose.push(line);
       else if (x.type === 'task') tasks.push({ id: x.id, title: x.title, status: x.status, owner: x.owner, due: x.due });
       else if (x.type === 'link') links.push({ label: x.label, url: x.url, source: x.meta });
       else if (x.type === 'pr') prs.push({ title: x.label, url: x.url, ts: x.meta });
-      else if (x.type === 'node') nodes.push({ id: x.id, kind: x.kind, text: x.text, status: x.status, props: x.props });
+      else if (x.type === 'node') nodes.push({ id: x.id, kind: x.kind, text: x.text, status: x.status, props: x.props, notes: '' });
       else if (x.type === 'drawing') drawings.push({ title: x.title, src: x.src });
       else log.push({ ts: x.ts, source: x.source, text: x.text });
     }
@@ -371,7 +395,7 @@ class Store {
       id: `${project}/${slug}`, project, slug, node, title: fm.title || slug, status: fm.status || '', owner: fm.owner || '',
       contributors: names(fm.contributors), mission: fm.mission || '', effort: fm.effort || '', cycle: num(String(fm.cycle || '').replace(/^cycle:/, '')), rank: num(fm.rank),
       approved: fm.approved === 'true', bucket: fm.bucket || 'proposed', target: fm.target || '',
-      body, description: ps._intro.trim(), ships: pick(/^what ships$/), risks: pick(/^(dependencies\s*\/\s*)?risks?$|^dependencies/),
+      body, description: ps._intro.trim(), ships: pick(/^what ships$/), risks: [pick(/^(dependencies\s*\/\s*)?risks?$|^dependencies/), ...nodes.filter(n => n.kind === 'risk' && !/^(closed|mitigated)$/.test(n.status)).map(n => n.text)].filter(Boolean).join('; '),
       tasks, links, prs, log, nodes, drawings, updated: fm.updated || '',
     };
   }
@@ -395,7 +419,7 @@ class Store {
     const slug = this.uniqueSlug(slugify(title), s => fs.existsSync(this.docFile(`${project}/${s}`)));
     const node = `initiative:${project}.${slug}`;
     // a page from the dialog may hold milestones and typed blocks numbered before the page had an id (task:new.1, risk:new.1, part-of initiative:TBD)
-    const body = (o.body !== undefined ? String(o.body) : `${String(o.description || '').trim()}\n\n## What ships\n${String(o.ships || '').trim()}\n\n## Risks\n${String(o.risks || '').trim()}\n\n## Milestones\n\n## Updates\n`)
+    const body = (o.body !== undefined ? String(o.body) : `${String(o.description || '').trim()}\n\n## What ships\n${String(o.ships || '').trim()}\n${String(o.risks || '').trim() ? `\n## Risks\n${String(o.risks).trim()}\n` : ''}\n## Milestones\n\n## Updates\n`)
       .replace(/\b([a-z][a-z0-9-]*):new\.(\d+)/g, `$1:${project}.${slug}.$2`).replace(/\b(goal|initiative):TBD/g, node);
     const it = { id: `${project}/${slug}`, slug, project, node, title, status: '', owner: '', contributors: [], mission: '', effort: '', cycle: null, rank: null, approved: false, bucket: 'proposed', target: '', body };
     this.apply(it, { ...o, body: undefined, description: undefined, ships: undefined, risks: undefined });

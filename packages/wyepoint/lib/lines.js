@@ -37,4 +37,13 @@ const nodeLine = n => `- ${n.id} ${one(n.text) || 'Untitled'}${n.status ? ` #${n
 const drawingLine = d => `![${one(d.title).replace(/[[\]]/g, '')}](${d.src})`;
 const isItem = line => parseLine(line) !== null;
 
-module.exports = { parseLine, taskLine, refLine, logLine, nodeLine, drawingLine, isItem, setKinds, one };
+// The notes of an instance: the lines indented two spaces under its list line (a Markdown list item's own content), so a
+// risk can hold a whole document. noteMask marks them; splitNotes reads them out; they are not prose of the page.
+function noteMask(lines) {
+  let on = false;
+  return lines.map(l => { const x = parseLine(l); if (x) { on = x.type === 'node'; return false; } if (on && /^ {2}/.test(l)) return true; on = false; return false; });
+}
+const withoutItems = lines => { const m = noteMask(lines); return lines.filter((l, i) => !m[i] && !parseLine(l)); };          // the prose of a page
+const itemsOnly = lines => { const m = noteMask(lines); return lines.filter((l, i) => m[i] || isItem(l)); };                    // its items, notes with them
+
+module.exports = { noteMask, withoutItems, itemsOnly, parseLine, taskLine, refLine, logLine, nodeLine, drawingLine, isItem, setKinds, one };

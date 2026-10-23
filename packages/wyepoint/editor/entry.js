@@ -92,20 +92,71 @@ const control = (f, value, commit) => {
   if (f.kind === 'person') return e(PersonField, { key, value, onCommit: commit, label: f.name, slugs: true, className: 'tb-fval' });
   return field('tb-fval', value, '–', commit, f.name, f.kind === 'number' ? 'number' : f.kind === 'date' ? 'date' : 'text');
 };
+// how a status reads: where the thing stands, as a colour (the first status is where a new one starts)
+const tone = (t, status) => /^(closed|done|mitigated|resolved|complete|shipped|accepted)$/.test(status) ? (status === 'accepted' ? 'mute' : 'ok') : status === (t.statuses[0] || '') ? 'warn' : 'info';
+const textOf = content => (content || []).map(c => c.text || '').join('');
+const personName = v => (CTX.people.find(p => `person:${p.slug}` === v) || {}).name || v;
+
+// the facts of an instance, as chips: a person is a name, a choice is coloured by its option, the rest reads "name value"
+function Chips({ t, data, onOpen }) {
+  const out = [];
+  for (const f of t.fields) {
+    const v = data[f.name]; if (!v) continue;
+    if (f.kind === 'person') out.push(e('span', { key: f.name, className: 'tb-chip tb-who', title: f.name }, e('i', {}, personName(v).slice(0, 1)), personName(v)));
+    else if (f.kind === 'choice') out.push(e('span', { key: f.name, className: `tb-chip tb-opt-${f.options.indexOf(v) < 0 ? 'x' : ['low', 'mid', 'high'][Math.min(2, Math.round(f.options.indexOf(v) * 2 / Math.max(1, f.options.length - 1)))]}`, title: f.name }, v));
+    else if (f.kind === 'bool') out.push(e('span', { key: f.name, className: 'tb-chip' }, f.name.replace(/-/g, ' ')));
+    else out.push(e('span', { key: f.name, className: 'tb-chip', title: f.name }, e('b', {}, f.name.replace(/-/g, ' ')), ' ', v.length > 48 ? v.slice(0, 47) + '…' : v));
+  }
+  return out.length ? e('div', { className: 'tb-chips', contentEditable: false, onClick: onOpen }, out) : null;
+}
+
+// the notes of an instance: a small document of its own (the same editor), kept as Markdown in the block
+function Notes({ value, onChange }) {
+  const editor = useCreateBlockNote({ uploadFile, resolveFileUrl });
+  const ready = useRef(false), timer = useRef(0);
+  useEffect(() => { let live = true; (async () => { if (value.trim()) { const b = await editor.tryParseMarkdownToBlocks(value); if (live) editor.replaceBlocks(editor.document, b); } ready.current = true; })(); return () => { live = false; clearTimeout(timer.current); }; }, []);
+  const save = () => { clearTimeout(timer.current); timer.current = setTimeout(async () => { if (!ready.current) return; const md = (await editor.blocksToMarkdownLossy(editor.document)).trim(); if (md !== value.trim()) onChange(md); }, 600); };
+  return e('div', { className: 'tb-notes' }, e('div', { className: 'tb-notes-label' }, 'Notes'),
+    e(BlockNoteView, { editor, theme: 'light', onChange: save, sideMenu: false }));
+}
+
+// the context of one instance: everything about it, in a panel beside the page
+function TypedDrawer({ block, editor, t, data, title, onClose }) {
+  useEffect(() => { const k = ev => { if (ev.key === 'Escape') onClose(); }; document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, []);
+  const set = patch => editor.updateBlock(block, { props: patch });
+  const setData = (k, v) => set({ data: JSON.stringify({ ...data, [k]: v }) });
+  const p = block.props;
+  return createPortal(e('div', { className: 'tb-overlay', onMouseDown: ev => { if (ev.target === ev.currentTarget) onClose(); } },
+    e('aside', { className: 'tb-drawer', role: 'dialog', 'aria-label': t.name },
+      e('div', { className: 'tb-drawer-head' }, e('span', { className: `tb-tag tb-kind tone-${tone(t, p.status)}` }, t.name), e('span', { className: 'tb-id' }, p.tid), e('button', { className: 'tb-x', 'aria-label': 'Close', onClick: onClose }, '✕')),
+      e('h3', { className: 'tb-drawer-title' }, title || 'Untitled'),
+      e('div', { className: 'tb-drawer-note' }, t.purpose, ' · edit the text on the page'),
+      t.statuses.length ? e('label', { className: 'tb-drow' }, e('span', {}, 'Status'),
+        e('select', { value: p.status, 'aria-label': 'Status', onChange: ev => set({ status: ev.target.value }) }, t.statuses.map(s => e('option', { key: s, value: s }, s.replace(/-/g, ' '))))) : null,
+      t.fields.map(f => e('label', { key: f.name, className: 'tb-drow' }, e('span', {}, f.name.replace(/-/g, ' ')), control(f, data[f.name] || '', v => setData(f.name, v)))),
+      e(Notes, { value: p.notes || '', onChange: md => set({ notes: md }) }),
+      e('div', { className: 'tb-drawer-foot' }, 'Saved with the page. In the vault it is the line ', e('code', {}, `${p.kind}:${p.tid}`), '.'))), document.body);
+}
+
+function TypedView({ block, editor, contentRef }) {
+  const [open, setOpen] = useState(false);
+  const p = block.props, t = typeOf(p.kind);
+  let data = {}; try { data = JSON.parse(p.data); } catch { /* an empty block */ }
+  if (!t) return e('div', { className: 'tb tb-typed' }, e('span', { className: 'tb-tag', contentEditable: false }, p.kind), e('div', { className: 'tb-title', ref: contentRef }));   // its type was removed
+  const tn = tone(t, p.status), opener = { onClick: () => setOpen(true), role: 'button', tabIndex: 0, onKeyDown: ev => { if (ev.key === 'Enter') setOpen(true); } };
+  return e('div', { className: `tb tb-typed tone-${tn}` },
+    e('div', { className: 'tb-typed-head' },
+      e('span', { className: `tb-tag tb-kind tone-${tn}`, contentEditable: false, title: t.purpose }, t.name),
+      e('div', { className: 'tb-title', ref: contentRef }),
+      p.status ? e('span', { className: `tb-state tone-${tn}`, contentEditable: false, ...opener, title: 'Open' }, p.status.replace(/-/g, ' ')) : null,
+      e('button', { className: 'tb-open-btn', contentEditable: false, 'aria-label': `Open ${t.name}`, title: 'Open', onClick: () => setOpen(true) }, '⤢')),
+    e(Chips, { t, data, onOpen: () => setOpen(true) }),
+    p.notes && p.notes.trim() ? e('div', { className: 'tb-snippet', contentEditable: false, ...opener }, p.notes.replace(/[#*_`>\[\]-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 140)) : null,
+    open ? e(TypedDrawer, { block, editor, t, data, title: textOf(block.content), onClose: () => setOpen(false) }) : null);
+}
 const Typed = createReactBlockSpec(
-  { type: 'typed', propSchema: { kind: { default: '' }, tid: { default: '' }, status: { default: '' }, data: { default: '{}' } }, content: 'inline' },
-  { render: ({ block, editor, contentRef }) => {
-    const p = block.props, t = typeOf(p.kind);
-    let data = {}; try { data = JSON.parse(p.data); } catch { /* an empty block */ }
-    const setData = (k, v) => editor.updateBlock(block, { props: { data: JSON.stringify({ ...data, [k]: v }) } });
-    if (!t) return e('div', { className: 'tb tb-typed' }, e('span', { className: 'tb-tag', contentEditable: false }, p.kind), e('div', { className: 'tb-title', ref: contentRef }));   // its type was removed
-    return e('div', { className: 'tb tb-typed' },
-      e('div', { className: 'tb-typed-head' },
-        e('span', { className: 'tb-tag tb-kind', contentEditable: false, title: t.purpose }, t.name),
-        t.statuses.length ? e('select', { className: 'tb-status-sel', value: p.status, contentEditable: false, 'aria-label': 'Status', onChange: ev => editor.updateBlock(block, { props: { status: ev.target.value } }) }, t.statuses.map(s => e('option', { key: s, value: s }, s))) : null,
-        e('div', { className: 'tb-title', ref: contentRef })),
-      t.fields.length ? e('div', { className: 'tb-fields', contentEditable: false }, t.fields.map(f => e('label', { key: f.name, className: 'tb-field' }, e('span', {}, f.name.replace(/-/g, ' ')), control(f, data[f.name] || '', v => setData(f.name, v))))) : null);
-  } },
+  { type: 'typed', propSchema: { kind: { default: '' }, tid: { default: '' }, status: { default: '' }, data: { default: '{}' }, notes: { default: '' } }, content: 'inline' },
+  { render: props => e(TypedView, props) },
 );
 
 // ---- a drawing: Excalidraw, opened full-screen on demand (and only then loaded). The page holds an image link, as Wye
@@ -156,24 +207,37 @@ function DrawingView({ block, editor }) {
 const Drawing = createReactBlockSpec({ type: 'drawing', propSchema: { src: { default: '' }, title: { default: 'Drawing' }, v: { default: '0' } }, content: 'none' }, { render: ({ block, editor }) => e(DrawingView, { block, editor }) });
 
 // the blocks a Markdown page can hold: no images, audio, video or files, which it cannot
-const { audio, file, image, video, toggleListItem, divider, ...plain } = defaultBlockSpecs;   // eslint-disable-line no-unused-vars
+const { audio, file, video, toggleListItem, divider, ...plain } = defaultBlockSpecs;   // eslint-disable-line no-unused-vars
 const schema = BlockNoteSchema.create({ blockSpecs: { ...plain, milestone: Milestone(), ref: Ref(), update: Update(), typed: Typed(), drawing: Drawing() } });
 const ITEM = new Set(['milestone', 'ref', 'update', 'typed', 'drawing']);
 
 const text = s => [{ type: 'text', text: s, styles: {} }];
 const plainText = content => (Array.isArray(content) ? content.map(c => (c.type === 'link' ? plainText(c.content) : c.text || '')).join('') : '').replace(/\s+/g, ' ').trim();
 
+// ---- pictures: pasted or dropped, uploaded to the project, kept in the page as images/<file>
+async function uploadFile(file) {
+  if (!CTX.project) throw new Error('Create the initiative first; a picture is kept with its project');
+  const token = localStorage.getItem('wyepoint_token') || '';
+  const send = async tok => fetch(`/api/images/${encodeURIComponent(CTX.project)}`, { method: 'POST', headers: { 'content-type': file.type || 'application/octet-stream', ...(tok ? { authorization: 'Bearer ' + tok } : {}) }, body: file });
+  let r = await send(token);
+  if (r.status === 401) { const t = window.prompt('This server needs its write token to save changes:'); if (t) { localStorage.setItem('wyepoint_token', t.trim()); r = await send(t.trim()); } }
+  const j = await r.json().catch(() => ({})); if (!r.ok) { window.alert(j.error || `could not save the picture (${r.status})`); throw new Error(j.error || 'upload failed'); }
+  return j.url;
+}
+const resolveFileUrl = async url => (/^images\//.test(url) && CTX.project ? `/api/images/${encodeURIComponent(CTX.project)}/${url.slice(7)}` : url);
+
 // ---- Markdown → blocks: prose between the item lines is parsed by BlockNote, each item line becomes its block
 async function toBlocks(editor, md) {
   const out = []; let buf = [];
   const flush = async () => { const t = buf.join('\n').trim(); buf = []; if (t) out.push(...await editor.tryParseMarkdownToBlocks(t)); };
-  for (const line of md.split('\n')) {
-    const x = L.parseLine(line);
+  const lines = md.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i], x = L.parseLine(line);
     if (!x) { buf.push(line); continue; }
     await flush();
     if (x.type === 'task') out.push({ type: 'milestone', props: { mid: x.id, status: x.status, owner: x.owner, due: x.due }, content: text(x.title) });
     else if (x.type === 'log') out.push({ type: 'update', props: { ts: x.ts, source: x.source }, content: text(x.text) });
-    else if (x.type === 'node') out.push({ type: 'typed', props: { kind: x.kind, tid: x.id.slice(x.kind.length + 1), status: x.status, data: JSON.stringify(x.props) }, content: text(x.text) });
+    else if (x.type === 'node') out.push({ type: 'typed', props: { kind: x.kind, tid: x.id.slice(x.kind.length + 1), status: x.status, data: JSON.stringify(x.props), notes: (() => { const n = []; while (i + 1 < lines.length && /^ {2}/.test(lines[i + 1])) n.push(lines[++i].slice(2)); return n.join('\n').trim(); })() }, content: text(x.text) });
     else if (x.type === 'drawing') out.push({ type: 'drawing', props: { src: x.src, title: x.title || 'Drawing' } });
     else out.push({ type: 'ref', props: { kind: x.type, url: x.url === 'https://' ? '' : x.url, meta: x.meta }, content: text(x.label) });
   }
@@ -193,7 +257,7 @@ async function fromBlocks(editor, o) {
     const title = plainText(b.content), p = b.props;
     if (b.type === 'milestone') parts.push({ line: L.taskLine({ id: p.mid || `${o.idPrefix || 'task:new.'}${++n}`, title: title || 'Untitled milestone', status: p.status, owner: p.owner, due: p.due }, o.node || 'initiative:TBD') });
     else if (b.type === 'ref') parts.push({ line: L.refLine({ type: p.kind, label: title, url: p.url || 'https://', meta: p.meta || (p.kind === 'pr' ? today() : 'manual') }) });
-    else if (b.type === 'typed') { let data = {}; try { data = JSON.parse(p.data); } catch { /* none */ } parts.push({ line: L.nodeLine({ id: `${p.kind}:${p.tid || `${CTX.scope}.1`}`, text: title, status: p.status, props: data }) }); }
+    else if (b.type === 'typed') { let data = {}; try { data = JSON.parse(p.data); } catch { /* none */ } parts.push({ line: L.nodeLine({ id: `${p.kind}:${p.tid || `${CTX.scope}.1`}`, text: title, status: p.status, props: data }) + (p.notes && p.notes.trim() ? '\n' + p.notes.trim().split('\n').map(l => ('  ' + l).replace(/\s+$/, l.trim() ? '' : '  ')).join('\n') : '') }); }
     else if (b.type === 'drawing') parts.push({ line: L.drawingLine({ title: p.title, src: p.src }) });
     else parts.push({ line: L.logLine({ ts: p.ts || stamp(), source: p.source || 'manual', text: title || '(empty update)' }) });
   }
@@ -201,7 +265,7 @@ async function fromBlocks(editor, o) {
   return parts.reduce((s, part, i) => (i === 0 ? '' : s + (part.line && parts[i - 1].line && !/^!\[/.test(part.line) && !/^!\[/.test(parts[i - 1].line) ? '\n' : '\n\n')) + (part.md ?? part.line), '').trim();
 }
 
-const NOT_ON_A_PAGE = new Set(['Image', 'Video', 'Audio', 'File', 'Emoji', 'Toggle List', 'Toggle Heading 1', 'Toggle Heading 2', 'Toggle Heading 3', 'Divider']);
+const NOT_ON_A_PAGE = new Set(['Video', 'Audio', 'File', 'Emoji', 'Toggle List', 'Toggle Heading 1', 'Toggle Heading 2', 'Toggle Heading 3', 'Divider']);
 const newDrawing = () => ({ type: 'drawing', props: { src: `drawings/drawing-${Date.now().toString(36)}.excalidraw`, title: 'Drawing', v: '0' } });
 const itemMenu = (editor, kinds) => [
   { kind: 'milestone', title: 'Milestone', subtext: 'A deliverable with a status, an owner and a due date', group: 'WyePoint', aliases: ['task', 'todo', 'milestone'], onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'milestone' }) },
@@ -217,7 +281,7 @@ const HEADINGS = { milestone: 'Milestones', link: 'Links', pr: 'Pull requests', 
 const INSERT = { milestone: { type: 'milestone' }, link: { type: 'ref', props: { kind: 'link', meta: 'manual' } }, pr: { type: 'ref', props: { kind: 'pr', meta: today() } }, update: { type: 'update', props: { ts: stamp(), source: 'manual' } } };
 
 function Editor({ markdown, opts, onReady, onChange }) {
-  const editor = useCreateBlockNote({ schema });
+  const editor = useCreateBlockNote({ schema, uploadFile, resolveFileUrl });
   const loading = useRef(true), timer = useRef(0), last = useRef(markdown);
   const read = () => fromBlocks(editor, opts);
   const flush = async () => { clearTimeout(timer.current); if (loading.current) return; const md = await read(); if (md !== last.current) { last.current = md; onChange(md); } };

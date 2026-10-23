@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const VERSION = 2;
+const VERSION = 3;
 
 // the core types, as Wye cards. Props are optional (`?`) so a page without one is not a warning.
 const CORE = `- id: type:person
@@ -49,15 +49,19 @@ const CORE = `- id: type:person
     rank: number?
     updated: string?`;
 
+// the types WyePoint ships beyond its entities: usable on any page, not editable in Settings
+const BUILTIN = [{ slug: 'risk', name: 'Risk', plural: 'Risks', purpose: 'Something that could go wrong, and who is on it', statuses: ['open', 'mitigated', 'accepted', 'closed'], builtin: true,
+  fields: [{ name: 'severity', kind: 'choice', options: ['low', 'medium', 'high'] }, { name: 'responsible', kind: 'person' }, { name: 'next-step', kind: 'text' }] }];
+
 function coreDocument() {
-  return `---\ntitle: WyePoint types\n---\n<!-- wyepoint-types v${VERSION}: written by WyePoint; edit custom.md for your own types -->\n# WyePoint types\n\nThe types WyePoint is built on. Your own are in custom.md.\n\n\`\`\`yaml\n${CORE}\n\`\`\`\n`;
+  return `---\ntitle: WyePoint types\n---\n<!-- wyepoint-types v${VERSION}: written by WyePoint; edit custom.md for your own types -->\n# WyePoint types\n\nThe types WyePoint is built on. Your own are in custom.md.\n\n\`\`\`yaml\n${CORE}\n${BUILTIN.map(card).join('\n')}\n\`\`\`\n`;
 }
 
 // ---- what a custom type may not be called, or have as a field: Wye's own
 function baseKinds() {
   let md = ''; try { md = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'schema', 'base-ontology.md'), 'utf8'); } catch { /* not beside the repo */ }
   const kinds = new Set([...md.matchAll(/^- id: type:([\w-]+)/gm)].map(m => m[1]));
-  ['person', 'cycle', 'initiative', 'project', 'milestone', 'link', 'update', 'drawing', 'pr', 'task', 'goal'].forEach(k => kinds.add(k));
+  ['person', 'cycle', 'initiative', 'risk', 'project', 'milestone', 'link', 'update', 'drawing', 'pr', 'task', 'goal'].forEach(k => kinds.add(k));
   return kinds;
 }
 const RESERVED_PROPS = new Set(['title', 'status', 'owner', 'text', 'icon', 'cover', 'tags', 'since', 'until', 'by', 'session', 'evidence', 'supersedes', 'content', 'related-to', 'mentions', 'part-of', 'depends-on', 'contradicts', 'see', 'resolves', 'produced', 'id', 'type', 'kind', 'node', 'target', 'progress', 'due', 'worker', 'priority', 'blocked-by', 'change', 'ready']);
@@ -101,9 +105,10 @@ function normalise(input, { taken = new Set() } = {}) {
 }
 
 // ---- custom.md: the cards, written and read in one fixed shape
+const card = t => [`- id: type:${t.slug}`, `  extends: type:node`, `  purpose: ${t.purpose}`, `  plural: ${t.plural}`, `  title: ${t.name}`, `  statuses: [${t.statuses.join(', ')}]`,
+    ...(t.fields.length ? ['  props:', ...t.fields.map(f => `    ${f.name}: ${toWye(f)}?`)] : [])].join('\n');
 function renderCustom(types) {
-  const cards = types.map(t => [`- id: type:${t.slug}`, `  extends: type:node`, `  purpose: ${t.purpose}`, `  plural: ${t.plural}`, `  title: ${t.name}`, `  statuses: [${t.statuses.join(', ')}]`,
-    ...(t.fields.length ? ['  props:', ...t.fields.map(f => `    ${f.name}: ${toWye(f)}?`)] : [])].join('\n'));
+  const cards = types.map(card);
   return `---\ntitle: Custom types\n---\n# Custom types\n\nTypes defined in WyePoint's Settings. An instance is a list line in any page: \`- ${types[0] ? types[0].slug : 'risk'}:project.page.1 What it is #status (field: value)\`.\n\n\`\`\`yaml\n${cards.join('\n')}\n\`\`\`\n`;
 }
 function parseCustom(md) {
@@ -116,4 +121,4 @@ function parseCustom(md) {
   });
 }
 
-module.exports = { VERSION, coreDocument, normalise, renderCustom, parseCustom, baseKinds, FIELD_KINDS, RESERVED_PROPS };
+module.exports = { BUILTIN, VERSION, coreDocument, normalise, renderCustom, parseCustom, baseKinds, FIELD_KINDS, RESERVED_PROPS };

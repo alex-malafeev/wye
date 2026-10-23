@@ -119,6 +119,12 @@ async function api(req, res, url) {
     return res.end(d.buf);
   }
 
+  if (method === 'GET' && a === 'images') {                  // /api/images/<project>/<file>
+    const d = store.readImage(b, c); if (!d) return json(res, 404, { error: 'no such picture' });
+    res.writeHead(200, { 'content-type': d.type, 'cache-control': 'no-cache', 'content-security-policy': "default-src 'none'", 'x-content-type-options': 'nosniff' });
+    return res.end(d.buf);
+  }
+
   // GitHub signs its own deliveries; everything else that changes something needs the token
   if (method === 'POST' && a === 'ingest' && b === 'github') {
     const raw = await readBody(req);
@@ -128,6 +134,7 @@ async function api(req, res, url) {
   }
   const readOnly = method === 'POST' && a === 'simulate';     // works out who an idea touches; changes nothing
   if (method !== 'GET' && !readOnly && !mayWrite(req)) return json(res, 401, { error: 'a token is needed to change anything' });
+  if (a === 'images' && method === 'POST') return json(res, 200, store.saveImage(b, await readBody(req, 15 << 20)));   // the picture itself is the body
   const body = method === 'GET' || method === 'DELETE' ? {} : parseJson(await readBody(req, a === 'drawings' ? 30 << 20 : undefined));
 
   if (a === 'config' && method === 'PATCH') return json(res, 200, store.setConfig(body));

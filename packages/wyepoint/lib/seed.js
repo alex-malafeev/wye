@@ -20,22 +20,21 @@ module.exports = function seed(store) {
     for (const l of o.links || []) store.addLink(it.id, l);
     for (const p of o.prs || []) store.addPr(it.id, p);
     for (const l of o.log || []) store.addLog(it.id, l);
+    // the risks are blocks of the built-in Risk type, in the page
+    if (o.riskLines) store.update(it.id, { body: store.get(it.id).body.replace('## Milestones', o.riskLines.map((r, k) => `- risk:${it.project}.${it.slug}.${k + 1} ${r}`).join('\n') + '\n\n## Milestones') });
     return it;
   };
-  mk(web.slug, 'Self-serve onboarding', { owner: 'Dana', contributors: ['Lee', 'Jo'], mission: 'Growth', effort: 'L', status: 'on-track', cycle: 0, rank: 1, approved: true, target: ahead(20),
-    description: 'New accounts reach their first dashboard without talking to anyone.', ships: 'Onboarding checklist, teammate invites and an activation metric. Success: 70% of trials activate within a day.', risks: 'Depends on the analytics events from Data foundations.',
+  mk(web.slug, 'Self-serve onboarding', { riskLines: ['Depends on the analytics events from Data foundations #open (severity: medium, responsible: person:dana, next-step: agree the event list with Data foundations)'], owner: 'Dana', contributors: ['Lee', 'Jo'], mission: 'Growth', effort: 'L', status: 'on-track', cycle: 0, rank: 1, approved: true, target: ahead(20),
+    description: 'New accounts reach their first dashboard without talking to anyone.', ships: 'Onboarding checklist, teammate invites and an activation metric. Success: 70% of trials activate within a day.',
     tasks: [{ title: 'Onboarding checklist UI', status: 'done', owner: 'Dana', due: ago(3) }, { title: 'Invite teammates step', status: 'in-progress', owner: 'Lee', due: ahead(7) }, { title: 'Activation metric in analytics', status: 'todo', due: ahead(14) }],
     links: [{ label: 'Design spec', url: 'https://example.com/specs/onboarding', source: 'figma' }], prs: [{ title: 'Checklist component', url: 'https://github.com/example/app/pull/101' }], log: [{ text: 'Checklist shipped to 10% of trials' }] });
-  store.createType({ name: 'Risk', plural: 'Risks', purpose: 'Something that could go wrong, and who is on it', statuses: 'open, mitigated, accepted, closed',
-    fields: [{ name: 'severity', kind: 'choice', options: 'low, medium, high' }, { name: 'responsible', kind: 'person' }, { name: 'next-step', kind: 'text' }] });
-  const billing = mk(web.slug, 'Billing page rewrite', { owner: 'Lee', contributors: ['Dana'], mission: 'Reliability', effort: 'M', status: 'at-risk', cycle: 0, rank: 2, approved: true, target: ago(2),
-    description: 'Replace the legacy billing page; keep invoices and plan changes in one place.', ships: 'New invoice list and plan change flow.', risks: 'Payments provider sandbox is flaky; plan change flow is blocked on it.',
+  const billing = mk(web.slug, 'Billing page rewrite', { riskLines: ['Payments sandbox is flaky; the plan change flow is blocked on it #open (severity: high, responsible: person:lee, next-step: ask the provider for a stable sandbox)'], owner: 'Lee', contributors: ['Dana'], mission: 'Reliability', effort: 'M', status: 'at-risk', cycle: 0, rank: 2, approved: true, target: ago(2),
+    description: 'Replace the legacy billing page; keep invoices and plan changes in one place.', ships: 'New invoice list and plan change flow.',
     tasks: [{ title: 'Invoice list', status: 'review', owner: 'Lee' }, { title: 'Plan change flow', status: 'blocked', owner: 'Lee' }] });
-  store.update(billing.id, { body: store.get(billing.id).body.replace('## Milestones', `- risk:${billing.project}.${billing.slug}.1 Payments sandbox is flaky #open (severity: high, responsible: person:lee, next-step: ask the provider for a stable sandbox)\n\n## Milestones`) });
   mk(web.slug, 'Public API v2', { owner: 'Dana', mission: 'New bets', effort: 'XL', approved: true, bucket: 'next', description: 'A versioned public API with scoped tokens.', ships: 'v2 endpoints, scoped tokens, a migration guide.' });
   mk(web.slug, 'Dark mode', { owner: '', mission: 'Growth', effort: 'S', bucket: 'later', description: 'Customers keep asking for it.' });
-  mk(data.slug, 'Warehouse migration', { owner: 'Sam', contributors: ['Priya', 'Mika'], mission: 'Reliability', effort: 'XL', status: 'on-track', cycle: 0, rank: 3, approved: true, target: ahead(25),
-    description: 'Move the nightly pipelines to the new warehouse and retire the old one.', ships: 'All nightly jobs on the new warehouse; the old one switched off.', risks: 'Two years of history to backfill; cost of running both in parallel.',
+  mk(data.slug, 'Warehouse migration', { riskLines: ['Two years of history to backfill; running both warehouses in parallel costs money #open (severity: medium, responsible: person:sam)'], owner: 'Sam', contributors: ['Priya', 'Mika'], mission: 'Reliability', effort: 'XL', status: 'on-track', cycle: 0, rank: 3, approved: true, target: ahead(25),
+    description: 'Move the nightly pipelines to the new warehouse and retire the old one.', ships: 'All nightly jobs on the new warehouse; the old one switched off.',
     tasks: [{ title: 'Port ingestion jobs', status: 'in-progress', owner: 'Sam', due: ahead(10) }, { title: 'Backfill 2 years of history', status: 'todo', owner: 'Mika', due: ahead(21) }] });
   mk(data.slug, 'Metric definitions registry', { owner: 'Priya', contributors: ['Sam'], mission: 'Growth', effort: 'M', status: '', cycle: 1, rank: 1, approved: true, description: 'One place that defines every company metric.', ships: 'A registry page and a review process.', tasks: [{ title: 'Inventory existing metrics', status: 'todo', owner: 'Priya' }] });
   mk(data.slug, 'Anomaly alerts', { owner: 'Priya', mission: 'New bets', effort: 'M', bucket: 'next', description: 'Alert when a daily metric moves outside its normal range.', ships: 'Alerts to Slack for the ten core metrics.' });
