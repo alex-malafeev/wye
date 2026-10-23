@@ -15,12 +15,12 @@ const uniq = a => [...new Set(a)].sort();
 export const pill = i => h('button', { class: 'pill', onClick: () => openIt(i.id) }, h('span', { class: 'chip ' + i.statusClass, style: 'margin-right:6px' }, i.statusLabel), i.title);
 const personPill = n => h('button', { class: 'pill', onClick: () => openPerson(n) }, n);
 export function itemRow(i, sub, selected) {
-  return h('button', { class: 'row' + (selected ? ' sel' : ''), onClick: () => openIt(i.id) },
-    h('div', { style: 'width:34px;font-weight:700;color:var(--muted);flex:none' }, i.rank == null ? '' : i.rank),
-    h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, i.title), h('div', { class: 'muted small' }, sub || `${i.projectTitle} · ${i.mission || 'No mission'} · ${i.owner || 'No champion'}`)),
-    h('div', { style: 'display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex:none' },
-      h('div', { class: 'hrow', style: 'flex-wrap:nowrap;justify-content:flex-end' }, i.flags.length ? chip('s-off', `${i.flags.length} flag`) : null, chip('s-none', i.tierLabel), chip('s-none', i.effort || 'Unsized'), chip(i.statusClass, i.statusLabel)),
-      h('div', { class: 'hrow', style: 'flex-wrap:nowrap;justify-content:flex-end;width:100%' }, h('div', { style: 'width:130px' }, bar(i.progress, i.hot)), h('div', { style: 'font-size:12px;font-weight:600;width:36px;text-align:right' }, i.progress + '%'))));
+  // the layout of a project card's list: name and detail on the left; status, progress and its percentage on the right
+  return h('button', { class: 'mini ranked' + (selected ? ' sel' : ''), onClick: () => openIt(i.id) },
+    h('span', { class: 'mini-rank' }, i.rank == null ? '' : i.rank),   // the column is always there, so titles line up
+    h('span', { class: 'mini-main' }, h('span', { class: 'mini-title' }, i.title), h('span', { class: 'mini-sub' }, sub || `${i.projectTitle} · ${i.owner || 'No champion'} · ${i.tierLabel}${i.effort ? ' · ' + i.effort : ''}`)),
+    h('span', { class: 'mini-chips' }, i.flags.length ? chip('s-off', `${i.flags.length} flag${i.flags.length > 1 ? 's' : ''}`) : null, chip(i.statusClass, i.statusLabel)),
+    h('span', { class: 'mini-progress' }, bar(i.progress, i.hot), h('span', {}, i.progress + '%')));
 }
 export const smallRow = (i, why, onClick) => h('button', { class: 'row', onClick: onClick || (() => openIt(i.id)) },
   h('div', { style: 'flex:1 1 auto;min-width:0' }, h('div', { style: 'font-weight:600' }, i.title), h('div', { class: 'muted small' }, `${i.projectTitle} · ${i.owner || 'No champion'}${why ? ' · ' + why : ''}`)), chip(i.statusClass, i.statusLabel));
