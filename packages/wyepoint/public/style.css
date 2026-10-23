@@ -405,3 +405,10 @@ main.wrap{padding:8px 12px 0}
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--ink);cursor:pointer}
 .icon-btn:hover{background:rgba(255,255,255,.7)}
 .icon-btn.on{background:#fff;border-color:var(--line2)}
+
+.fside .fprop{align-items:start}
+.fside .fprop .prop-name{padding-top:7px}
+.fside .fval{display:flex;flex-direction:column;gap:6px;padding:4px 0;min-width:0;font-size:13px}
+.fside .fval-line{display:flex;align-items:baseline;gap:8px}
+.fside .fval-line b{font-size:15px}
+.fside .fval .check{color:var(--bad,#b3261e);font-size:13px}
