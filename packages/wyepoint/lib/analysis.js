@@ -84,6 +84,23 @@ function peopleOf(items, directory) {
   }).sort((a, b) => b.load.score - a.load.score || a.n.localeCompare(b.n));
 }
 
+// What else a person is linked to: milestones they own, risks they are responsible for, goals they own, and a history of
+// where they took part (closed cycles, and updates that name them). These are the same references the pages hold for Wye
+// (owner on a milestone, `responsible: person:<slug>` on a risk, the owner of a goal), read from the pages.
+function linksOf(p, items, goals, recs) {
+  const me = p.n.toLowerCase(), ref = p.slug ? `person:${p.slug}` : '';
+  const mine = v => !!v && (String(v).toLowerCase() === me || (!!ref && v === ref));
+  const milestones = [], risks = [], history = [];
+  for (const it of items) {
+    for (const t of it.tasks) if (mine(t.owner)) milestones.push({ key: t.key || '', title: t.title, status: t.status, due: t.due || '', project: it.id, projectTitle: it.title });
+    for (const n of it.nodes || []) { const pr = n.props || {}; if (mine(pr.responsible)) risks.push({ key: pr.key || '', kind: n.kind, title: n.text, status: n.status, severity: pr.severity || '', project: it.id, projectTitle: it.title }); }
+    for (const l of it.log) if (l.text.toLowerCase().includes(me)) history.push({ kind: 'update', ts: l.ts, text: l.text, source: l.source, project: it.id, projectTitle: it.title });
+  }
+  for (const r of Object.values(recs || {})) for (const s of r.snap || []) if (String(s.champion).toLowerCase() === me) history.push({ kind: 'cycle', ts: r.closedAt || r.end || '', cycle: r.n, title: s.title, status: s.status, pct: s.pct, project: s.id });
+  history.sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+  return { milestones, risks, goals: goals.filter(g => String(g.owner).toLowerCase() === me).map(g => ({ slug: g.slug, key: g.key, title: g.title, status: g.status })), history: history.slice(0, 40) };
+}
+
 // ---- the plan being built for the next cycle
 function planChecks(planned, people, nxN) {
   const out = [], perProject = {};
@@ -104,7 +121,7 @@ function planChecks(planned, people, nxN) {
 function analyze(store, today) {
   const ctx = context(store, today), items = store.initiatives().map(i => decorate(i, ctx));
   const planned = items.filter(i => i.tier === 'plan').sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9));
-  const people = peopleOf(items, ctx.directory), nx = ctx.nx;
+  const goals = store.goals(), people = peopleOf(items, ctx.directory).map(p => ({ ...p, links: linksOf(p, items, goals, ctx.recs) })), nx = ctx.nx;
   const cycles = [];
   for (let n = 0; n <= Math.max(ctx.active + ctx.cfg.horizon, 3); n++) cycles.push(ctx.cyc(n));
   const inPlan = planned.filter(i => i.cycle === nx.n);

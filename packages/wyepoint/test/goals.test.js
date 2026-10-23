@@ -66,3 +66,17 @@ test('cycles ahead are defined in the settings: how many, and each one its theme
   assert.strictEqual(moved.cycle, 3);
   assert.strictEqual(s.update(it.id, { cycle: null, rank: null }).cycle, null);
 });
+
+test('a person is linked to what they own and are responsible for, and to the history they took part in', () => {
+  const analysis = require('../lib/analysis');
+  const s = new Store(tmp()); s.createProject({ title: 'P' }); s.createPerson({ name: 'Lee', role: 'Engineer' });
+  s.createGoal({ title: 'Reliability', owner: 'Lee' });
+  const it = s.createInitiative({ project: 'p', title: 'Billing', owner: 'Dana', goal: 'reliability', body: '- task:new.1 Invoice list #in-progress (owner: Lee)\n- risk:new.1 Sandbox flaky #open (severity: high, responsible: person:lee)\n' });
+  s.addLog(it.id, { text: 'Lee confirmed the provider fix', source: 'slack' });
+  const lee = analysis.analyze(s).people.find(p => p.n === 'Lee').links;
+  assert.deepStrictEqual(lee.milestones.map(m => [m.key, m.title, m.projectTitle]), [['TASK-1', 'Invoice list', 'Billing']]);
+  assert.deepStrictEqual(lee.risks.map(r => [r.key, r.title, r.severity]), [['RISK-1', 'Sandbox flaky', 'high']]);
+  assert.deepStrictEqual(lee.goals.map(g => g.key), ['GOAL-1']);
+  assert.deepStrictEqual(lee.history.map(h => [h.kind, h.source]), [['update', 'slack']]);
+  assert.deepStrictEqual(analysis.analyze(s).people.find(p => p.n === 'Dana').links.milestones, []);
+});
