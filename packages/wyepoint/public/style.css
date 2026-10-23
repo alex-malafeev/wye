@@ -144,3 +144,22 @@ main.wrap{padding:8px 12px 0}
 @media (max-width:900px){.top-right{margin-left:0;width:100%}.search{width:100%}.search-wrap{flex:1 1 200px}}
 /* one row at normal widths: the brand, the tabs, then the actions and search pushed right */
 @media (min-width:1180px){.top .wrap.topbar{flex-wrap:nowrap;gap:6px 14px}.top-right{flex-wrap:nowrap;gap:6px}.tabs{flex-wrap:nowrap;flex:0 0 auto}.tab{font-size:14.5px;padding-left:9px;padding-right:9px;white-space:nowrap}.search{width:150px}.cycle-pill{min-width:128px}.btn{white-space:nowrap}}
+
+/* ---- flat: no boxed cards; whitespace and hairlines separate things, a tint marks the selected row ---- */
+.main{gap:30px}
+.card{background:transparent;border:0;border-radius:0;padding:0;gap:12px}
+.main > .card,.cols > .card,.grid > .card{border-top:1px solid var(--line);padding-top:18px}
+.tiles{gap:0;border-top:1px solid var(--line)}
+.tiles .card{background:transparent;border:0;border-radius:0;padding:18px 20px 6px 0;gap:4px}
+.tiles .card + .card{padding-left:20px;border-left:1px solid var(--line)}
+.tiles{row-gap:12px}
+.row{background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 10px}
+.row:last-child{border-bottom:0}
+.row:hover,button.row:hover{background:#f6f8fc;border-color:var(--line)}
+.row.sel{background:#f3f6fd;border-color:var(--line);box-shadow:inset 3px 0 0 var(--accent)}
+.row[style*="cursor:default"]:hover{background:transparent}
+.agent{background:#f6f8fc;border:0;border-radius:10px}
+.cycle-pill{background:transparent}
+/* a dialog is a surface of its own over the page */
+.modal .card{background:#fff;border:0;border-radius:18px;padding:22px;box-shadow:0 18px 50px rgba(16,32,52,.28)}
+.modal .card .row{border-radius:0}
