@@ -51,7 +51,7 @@ number is the next one for that prefix, counted in `_keys.json`, so one is never
 | Projects | One card per area with its links, progress, status mix and open projects. **Edit** opens the area's own page. |
 | Backlog | Search (names, people, tasks and keys) and filters as searchable lookups (area, status, goal, tier, effort, champion), group rows and columns, sort. Every row has a **cycle** to choose; a click opens the project full-page. |
 | People | The directory of people who can be champions and contributors (**+ New person**), with load. A person's drawer lists what they carry, the goals they own, the milestones they own, the risks they are responsible for, and a history: the cycles they championed and the updates that name them. |
-| Library | Documents that are product context: a customer, the product, research, how you work. Each has a category, an owner and an optional list of the goals and projects it is about (a searchable picker), and a page of its own with pictures. Search by words or filter by category. |
+| Library | Documents that are product context: a customer, the product, research, how you work. Folders are a tree on the left (nested as far as you like; **+ Folder**, rename and delete on hover), and the open folder's subfolders are rows in the list; a document is moved from its **Folder** property. Each has a category, an owner and an optional list of the goals and projects it is about (a searchable picker), and a page of its own with pictures. Search by words or filter by category. |
 | Plan | The next cycle: pool, approve, ranked plan, plan checks, release (locks), reopen, close the active cycle and start it |
 | History | Every cycle; a closed one shows the snapshot taken when it closed |
 | Settings | Workspace and cycle length; **Cycles** (a theme and own dates for each, and how many are ahead); **Types**; pushing data in; the write token |
@@ -94,7 +94,7 @@ stdout). The prompts are built on the server from the vault; the page cannot sen
 | Area | `areas/<a>/_area.md`: details in the front matter, then a free body |
 | Project | `areas/<a>/docs/<slug>.md`, a `project:<a>.<slug>` node: `key`, `goal: goal:<slug>`, `champion`, `involves`, `cycle: cycle:<n>`, `slack`, … |
 | Page body | free Markdown after the title. Items are lines, wherever they are: `- task:<a>.<slug>.<n> Title #status (owner: …, due: …, part-of: project:…, key: TASK-5)`, `- risk:<a>.<slug>.<n> Text #open (severity: high, responsible: person:lee, key: RISK-2)`, `- [label](url) · link · source`, `- [title](url) · pr · date`, `- 2026-10-22T10:27Z · source · text` |
-| A library document | `library/<slug>.md`, a `doc:<slug>` node (Wye's own page type): `key` (DOC-n), `title`, `category`, `owner`, `related-to: goal:…, project:<area>.<slug>`, then a free page. Pictures in `library/images/` |
+| A library document | `library/<folder>/<slug>.md` (folders are real folders and an empty one stays; `images` is the pictures' folder), a `doc:<slug>` node (Wye's own page type): `key` (DOC-n), `title`, `category`, `owner`, `related-to: goal:…, project:<area>.<slug>`, then a free page. Pictures in `library/images/` |
 | Types | `types/ontology.md` (person, cycle, project, risk) and `types/custom.md` (yours), as Wye type cards with a `key:` |
 | Drawings, pictures | `areas/<a>/docs/drawings/`, `areas/<a>/docs/images/` |
 

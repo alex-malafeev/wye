@@ -356,35 +356,52 @@ class Store {
     }
   }
 
-  // ---- the library: documents that are product context (a customer, a product, research, a process). library/<slug>.md is a
-  // `doc:<slug>` node, Wye's own page type; `related-to` points it at goals and projects, so what is known about a customer
-  // is found from the work it affects.
+  // ---- the library: documents that are product context (a customer, a product, research, a process). A document is
+  // library/<folder>/<slug>.md, a `doc:<slug>` node, Wye's own page type; the folders are real folders of the vault, nested as
+  // far as you like (an empty one stays). `related-to` points a document at goals and projects, so what is known about a
+  // customer is found from the work it affects.
   libraryDir() { return path.join(this.dir, 'library'); }
-  libFile(slug) { return path.join(this.libraryDir(), String(slug).replace(/[^\w-]/g, '') + '.md'); }
-  docs() {
-    let files = []; try { files = fs.readdirSync(this.libraryDir()).filter(f => f.endsWith('.md') && !f.startsWith('_')); } catch { /* none yet */ }
-    return files.sort().map(f => this.readDoc(f.slice(0, -3)));
+  // everything in the library: its documents with the folder each is in, and all its folders
+  libWalk(rel = '') {
+    const base = path.join(this.libraryDir(), rel), out = { docs: [], folders: [] };
+    let ents = []; try { ents = fs.readdirSync(base, { withFileTypes: true }); } catch { return out; }
+    for (const e of ents.sort((x, y) => x.name.localeCompare(y.name))) {
+      if (e.name.startsWith('_') || e.name.startsWith('.')) continue;
+      if (e.isDirectory()) {
+        if (!rel && e.name === 'images') continue;                                        // the pictures of the library, not a folder of documents
+        const sub = rel ? `${rel}/${e.name}` : e.name, r = this.libWalk(sub); out.folders.push(sub, ...r.folders); out.docs.push(...r.docs);
+      } else if (e.name.endsWith('.md')) out.docs.push({ slug: e.name.slice(0, -3), file: path.join(base, e.name), folder: rel });
+    }
+    return out;
   }
-  readDoc(slug) {
-    const file = this.libFile(slug); if (!fs.existsSync(file)) throw notFound('document');
-    const { fm, body: raw } = splitFm(read(file)), body = raw.replace(/^\s*# .*\n?/, '').trim();
-    return { slug, id: slug, node: `doc:${slug}`, key: fm.key || '', title: fm.title || slug, category: fm.category || '', owner: fm.owner || '', related: names(fm['related-to']), body, description: oneLine(introOf(body)), updated: fm.updated || '' };
+  libFile(slug) { const d = this.libWalk().docs.find(x => x.slug === slug); return d ? d.file : path.join(this.libraryDir(), String(slug).replace(/[^\w-]/g, '') + '.md'); }
+  docs() { return this.libWalk().docs.map(e => this.readDoc(e.slug, e)); }
+  libraryFolders() { return this.libWalk().folders; }
+  readDoc(slug, entry) {
+    const e = entry || this.libWalk().docs.find(x => x.slug === slug); if (!e) throw notFound('document');
+    const { fm, body: raw } = splitFm(read(e.file)), body = raw.replace(/^\s*# .*\n?/, '').trim();
+    const text = body.split('\n').map(l => l.trim()).find(l => l && !/^#{1,6}\s/.test(l) && !/^_Imported from/.test(l)) || '';
+    return { slug, id: slug, node: `doc:${slug}`, key: fm.key || '', title: fm.title || slug, category: fm.category || '', owner: fm.owner || '', folder: e.folder, related: names(fm['related-to']), body,
+      description: oneLine(text.replace(/^([-*+]|\d+[.)])\s+/, '').replace(/[*_`]/g, '')).slice(0, 220), updated: fm.updated || '' };
   }
   saveDoc(d) {
     if (!d.key) d.key = this.nextKey('doc');
-    write(this.libFile(d.slug), joinFm({ node: `doc:${d.slug}`, key: d.key, title: d.title, category: d.category, owner: d.owner, 'related-to': d.related.join(', '), updated: now() }, `# ${d.title}\n\n${d.body.trim()}\n`));
+    const was = this.libWalk().docs.find(x => x.slug === d.slug), dir = path.join(this.libraryDir(), d.folder || ''), file = path.join(dir, d.slug + '.md');
+    write(file, joinFm({ node: `doc:${d.slug}`, key: d.key, title: d.title, category: d.category, owner: d.owner, 'related-to': d.related.join(', '), updated: now() }, `# ${d.title}\n\n${d.body.trim()}\n`));
+    if (was && was.file !== file) fs.unlinkSync(was.file);                                // moved to another folder
     return this.readDoc(d.slug);
   }
   createDoc(o) {
     const title = oneLine(o.title); if (!title) throw bad('title is required');
-    const slug = this.uniqueSlug(slugify(title), s => fs.existsSync(this.libFile(s)));
-    return this.saveDoc(this.applyDoc({ slug, key: '', title, category: '', owner: '', related: [], body: '' }, { ...o, title: undefined }));
+    const taken = new Set(this.libWalk().docs.map(x => x.slug)), slug = this.uniqueSlug(slugify(title), s => taken.has(s));
+    return this.saveDoc(this.applyDoc({ slug, key: '', title, category: '', owner: '', related: [], body: '', folder: '' }, { ...o, title: undefined }));
   }
   applyDoc(d, patch) {
     if (patch.title !== undefined) { d.title = oneLine(patch.title); if (!d.title) throw bad('title is required'); }
     if (patch.category !== undefined) d.category = oneLine(patch.category).slice(0, 60);
     if (patch.owner !== undefined) d.owner = oneLine(patch.owner);
     if (patch.body !== undefined) d.body = String(patch.body).trim();
+    if (patch.folder !== undefined) { const f = this.folderPath(patch.folder); if (f && !fs.existsSync(path.join(this.libraryDir(), f))) throw notFound('folder'); d.folder = f; }
     if (patch.related !== undefined) {
       d.related = names(patch.related).map(r => {
         const g = /^goal:([\w-]+)$/.exec(r), p = /^project:([\w-]+)\.([\w-]+)$/.exec(r);
@@ -397,6 +414,26 @@ class Store {
   }
   updateDoc(slug, patch) { return this.saveDoc(this.applyDoc(this.readDoc(slug), patch)); }
   deleteDoc(slug) { this.readDoc(slug); fs.unlinkSync(this.libFile(slug)); }
+  // folders: a path of names, a name having no slash and no leading dot; the pictures' folder is not one
+  folderPath(p) {
+    const segs = String(p || '').split('/').map(x => oneLine(x)).filter(Boolean);
+    for (const x of segs) if (/[\\\x00-\x1f]/.test(x) || x.startsWith('.') || x.startsWith('_') || x.length > 60) throw bad(`"${x}" cannot be a folder name`);
+    if (segs[0] && segs[0].toLowerCase() === 'images') throw bad('"images" is where the library keeps its pictures; pick another name');
+    return segs.join('/');
+  }
+  createFolder(p) { const f = this.folderPath(p); if (!f) throw bad('a folder needs a name'); if (fs.existsSync(path.join(this.libraryDir(), f))) throw Object.assign(new Error(`${f} already exists`), { status: 409 }); fs.mkdirSync(path.join(this.libraryDir(), f), { recursive: true }); return f; }
+  renameFolder(p, name) {
+    const from = this.folderPath(p), leaf = this.folderPath(name); if (!from || !leaf || leaf.includes('/')) throw bad('a folder is renamed to a single name');
+    if (!fs.existsSync(path.join(this.libraryDir(), from))) throw notFound('folder');
+    const to = [...from.split('/').slice(0, -1), leaf].join('/');
+    if (to !== from && fs.existsSync(path.join(this.libraryDir(), to))) throw Object.assign(new Error(`${to} already exists`), { status: 409 });
+    fs.renameSync(path.join(this.libraryDir(), from), path.join(this.libraryDir(), to)); return to;
+  }
+  deleteFolder(p) {
+    const f = this.folderPath(p), dir = path.join(this.libraryDir(), f); if (!f || !fs.existsSync(dir)) throw notFound('folder');
+    if (fs.readdirSync(dir).length) throw Object.assign(new Error('the folder is not empty; move or delete what is in it first'), { status: 409 });
+    fs.rmdirSync(dir);
+  }
 
   // ---- keys: every goal, project and work item has a global id, PREFIX-n, the prefix being the `key` of its type. The numbers
   // come from a counter per prefix (_keys.json), so one is never given twice, not even after the item is deleted.

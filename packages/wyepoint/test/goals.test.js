@@ -105,3 +105,25 @@ test('a picture pasted into a library document is kept with the library', () => 
   assert.ok(fs.existsSync(path.join(dir, 'library/images', url.slice(7))));
   assert.deepStrictEqual(s.readImage('_library', url.slice(7)).type, 'image/png');
 });
+
+test('library folders are real folders: nested, kept when empty, renamed and removed, and a document moves between them', () => {
+  const dir = tmp(), s = new Store(dir);
+  assert.strictEqual(s.createFolder('Customers'), 'Customers'); s.createFolder('Customers/Acme');
+  assert.deepStrictEqual(s.libraryFolders(), ['Customers', 'Customers/Acme']);
+  assert.throws(() => s.createFolder('Customers'), /already exists/);
+  assert.throws(() => s.createFolder('images'), /pictures/);
+  assert.throws(() => s.createFolder('.hidden'), /cannot be a folder name/);
+  const d = s.createDoc({ title: 'Call notes', folder: 'Customers/Acme', body: '## Notes\nThey want it by March.\n\n- first' });
+  assert.ok(fs.existsSync(path.join(dir, 'library/Customers/Acme/call-notes.md')));
+  assert.deepStrictEqual([d.folder, d.description], ['Customers/Acme', 'They want it by March.']);   // the preview skips headings
+  assert.throws(() => s.createDoc({ title: 'X', folder: 'Nope' }), /folder not found/);
+  assert.throws(() => s.deleteFolder('Customers/Acme'), /not empty/);
+  assert.strictEqual(s.renameFolder('Customers/Acme', 'Acme Freight'), 'Customers/Acme Freight');
+  assert.strictEqual(s.readDoc('call-notes').folder, 'Customers/Acme Freight');                  // the document moved with it, and kept its slug and key
+  assert.strictEqual(s.readDoc('call-notes').key, 'DOC-1');
+  const moved = s.updateDoc('call-notes', { folder: '' });
+  assert.ok(moved.folder === '' && fs.existsSync(path.join(dir, 'library/call-notes.md')) && !fs.existsSync(path.join(dir, 'library/Customers/Acme Freight/call-notes.md')));
+  s.deleteFolder('Customers/Acme Freight'); assert.deepStrictEqual(s.libraryFolders(), ['Customers']);
+  assert.strictEqual(s.docs().length, 1);
+  assert.strictEqual(s.createDoc({ title: 'Call notes' }).slug, 'call-notes-2');                    // a slug is unique across folders
+});

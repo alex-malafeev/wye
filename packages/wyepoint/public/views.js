@@ -1,5 +1,5 @@
 // Overview, Projects, Backlog, People and the status-agent card. (Plan, History and Settings are in plan.js.)
-import { S, h, chip, bar, muted, label, opts, api, act, render, go, route, openIt, openFull, findKey, KEY_PATTERN, openPerson, openProject, safeUrl, items, cyc, D, fmtDate, range , goalStatus } from './core.js';
+import { S, h, chip, tag, bar, muted, label, opts, api, act, render, go, route, openIt, openFull, findKey, KEY_PATTERN, openPerson, openProject, safeUrl, items, cyc, D, fmtDate, range , goalStatus } from './core.js';
 import { newInitiativePage } from './drawer.js';
 import { dropdown } from './dropdown.js';
 
@@ -69,21 +69,71 @@ export function listFilters(key, rows) {
   return { icon, panel, shown, active };
 }
 
-// ---- the library: a list of documents, found by words or by category
+// ---- the library: folders on the left, and the documents of the chosen folder (its subfolders are rows in the list)
+const FOLDER_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+const icon = svg => { const s = document.createElement('span'); s.className = 'ico'; s.innerHTML = svg; return s; };
 export function library() {
-  const d = D(), docs = d.docs || [], f = (S.lib = S.lib || { q: '', cat: '' }), q = f.q.trim().toLowerCase();
+  const d = D(), docs = d.docs || [], folders = d.folders || [];
+  const f = (S.lib = S.lib || { q: '', cat: '', folder: null, edit: null }), q = f.q.trim().toLowerCase();
+  if (f.folder && !folders.includes(f.folder)) f.folder = null;                                  // the one that was chosen is gone
+  const inside = (p, x) => x.folder === p || x.folder.startsWith(p + '/'), leaf = p => p.split('/').pop(), parent = p => p.split('/').slice(0, -1).join('/');
+  const count = p => docs.filter(x => inside(p, x)).length;
   const cats = [...new Set(docs.map(x => x.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const shown = docs.filter(x => (!f.cat || x.category === f.cat) && (!q || [x.title, x.key, x.category, x.owner, x.body].join(' ').toLowerCase().includes(q))).sort((a, b) => String(b.updated).localeCompare(String(a.updated)) || a.title.localeCompare(b.title));
-  const bar_ = h('div', { class: 'filterbar' }, h('div', { class: 'fb-row' },
-    h('input', { class: 'fb-search', type: 'search', 'data-k': 'libq', value: f.q, placeholder: 'Search documents', 'aria-label': 'Search documents', onInput: e => { f.q = e.target.value; render(); } }),
+  const here = f.folder === null ? docs : docs.filter(x => (f.folder === '' ? x.folder === '' : x.folder === f.folder));      // null: everything; '': not in a folder
+  const shown = (q ? docs : here).filter(x => (!f.cat || x.category === f.cat) && (!q || [x.title, x.key, x.category, x.owner, x.folder, x.body].join(' ').toLowerCase().includes(q)))
+    .sort((a, b) => String(b.updated).localeCompare(String(a.updated)) || a.title.localeCompare(b.title));
+  const subfolders = !q && f.folder ? folders.filter(p => parent(p) === f.folder) : (!q && f.folder === '' ? [] : (!q && f.folder === null ? [] : []));
+  const rootFolders = !q && f.folder === null ? folders.filter(p => !p.includes('/')) : [];
+  const act_ = fn => () => act(fn);
+  // ---- the tree
+  const editing = f.edit;
+  const nameInput = (value, onDone) => {
+    const input = h('input', { class: 'tree-input', 'data-k': 'lib-edit', value, placeholder: 'Folder name', 'aria-label': 'Folder name',
+      onKeyDown: e => { if (e.key === 'Enter') { e.preventDefault(); onDone(e.target.value.trim()); } else if (e.key === 'Escape') { f.edit = null; render(); } }, onBlur: () => { if (f.edit) { f.edit = null; render(); } } });
+    setTimeout(() => { input.focus(); input.select(); }, 0); return input;
+  };
+  const createIn = async (parentPath, name) => { f.edit = null; if (!name) return render(); await act(async () => { const r = await api('POST', '/folders', { path: parentPath ? `${parentPath}/${name}` : name }); f.folder = r.path; }); };
+  const renameTo = async (p, name) => { f.edit = null; if (!name || name === leaf(p)) return render(); await act(async () => { const r = await api('PATCH', '/folders', { path: p, name }); if (f.folder && (f.folder === p || f.folder.startsWith(p + '/'))) f.folder = r.path + f.folder.slice(p.length); }); };
+  const removeFolder = p => { if (window.confirm(`Delete the folder "${p}"? It must be empty.`)) act(async () => { await api('DELETE', `/folders?path=${encodeURIComponent(p)}`); if (f.folder === p) f.folder = parent(p) || null; }); };
+  const treeRow = (p, depth) => {
+    const sel = f.folder === p;
+    return editing && editing.mode === 'rename' && editing.path === p
+      ? h('div', { class: 'tree-row', style: `padding-left:${10 + depth * 16}px` }, icon(FOLDER_ICON), nameInput(leaf(p), name => renameTo(p, name)))
+      : h('div', { class: 'tree-row' + (sel ? ' on' : ''), style: `padding-left:${10 + depth * 16}px` },
+        h('button', { class: 'tree-main', 'aria-current': sel ? 'true' : null, onClick: () => { f.folder = p; render(); } }, icon(FOLDER_ICON), h('span', { class: 'tree-name' }, leaf(p)), h('span', { class: 'tree-count' }, count(p))),
+        h('span', { class: 'tree-acts' },
+          h('button', { class: 'tree-act', title: 'New folder inside', 'aria-label': `New folder in ${p}`, onClick: () => { f.edit = { mode: 'new', parent: p }; render(); } }, '+'),
+          h('button', { class: 'tree-act', title: 'Rename', 'aria-label': `Rename ${p}`, onClick: () => { f.edit = { mode: 'rename', path: p }; render(); } }, '✎'),
+          h('button', { class: 'tree-act', title: 'Delete (when empty)', 'aria-label': `Delete ${p}`, onClick: () => removeFolder(p) }, '✕')));
+  };
+  const newRow = parentPath => h('div', { class: 'tree-row', style: `padding-left:${10 + (parentPath ? parentPath.split('/').length : 0) * 16}px` }, icon(FOLDER_ICON), nameInput('', name => createIn(parentPath, name)));
+  const tree = [];
+  tree.push(h('div', { class: 'tree-row' + (f.folder === null ? ' on' : '') }, h('button', { class: 'tree-main', onClick: () => { f.folder = null; render(); } }, h('span', { class: 'tree-name' }, 'All documents'), h('span', { class: 'tree-count' }, docs.length))));
+  if (editing && editing.mode === 'new' && !editing.parent) tree.push(newRow(''));
+  for (const p of folders) { tree.push(treeRow(p, p.split('/').length - 1)); if (editing && editing.mode === 'new' && editing.parent === p) tree.push(newRow(p)); }
+  const loose = docs.filter(x => x.folder === '').length;
+  if (folders.length || loose) tree.push(h('div', { class: 'tree-row' + (f.folder === '' ? ' on' : '') }, h('button', { class: 'tree-main', onClick: () => { f.folder = ''; render(); } }, h('span', { class: 'tree-name muted' }, 'No folder'), h('span', { class: 'tree-count' }, loose))));
+  const side = h('aside', { class: 'lib-tree', 'aria-label': 'Folders' },
+    h('div', { class: 'hrow between', style: 'padding:0 6px 6px' }, h('span', { class: 'lbl' }, 'Folders'),
+      h('button', { class: 'btn sm', onClick: () => { f.edit = { mode: 'new', parent: f.folder && f.folder !== '' ? f.folder : '' }; render(); } }, '+ Folder')), ...tree);
+  // ---- the list
+  const path = f.folder ? f.folder.split('/') : [];
+  const crumb = h('div', { class: 'lib-path' }, h('button', { class: 'link-btn', onClick: () => { f.folder = null; render(); } }, 'All documents'),
+    ...path.flatMap((seg, k) => [h('span', { class: 'muted' }, '/'), k === path.length - 1 ? h('b', {}, seg) : h('button', { class: 'link-btn', onClick: () => { f.folder = path.slice(0, k + 1).join('/'); render(); } }, seg)]),
+    f.folder === '' ? h('span', {}, ' · No folder') : null);
+  const bar_ = h('div', { class: 'fb-row' },
+    h('input', { class: 'fb-search', type: 'search', 'data-k': 'libq', value: f.q, placeholder: 'Search all documents', 'aria-label': 'Search documents', onInput: e => { f.q = e.target.value; render(); } }),
     cats.length ? dropdown([['', 'All categories'], ...cats.map(c => [c, c])], f.cat, v => { f.cat = v; render(); }, 'Category') : null,
     f.q || f.cat ? h('button', { class: 'fb-clear', onClick: () => { f.q = ''; f.cat = ''; render(); } }, 'Clear') : null,
-    h('span', { class: 'fb-count' }, `${shown.length} of ${docs.length} document${docs.length === 1 ? '' : 's'}`)));
-  return [docs.length ? bar_ : null,
-    shown.length ? h('div', { class: 'list' }, ...shown.map(x => h('button', { class: 'mini doc-row', onClick: () => openFull('doc', x.slug) },
-      h('span', { class: 'mini-main' }, h('span', { class: 'mini-title' }, x.title, h('span', { class: 'mini-key' }, x.key)), h('span', { class: 'mini-sub' }, x.description || 'Empty')),
-      h('span', { class: 'mini-chips' }, x.category ? chip('s-none', x.category) : null, x.owner ? h('span', { class: 'muted small' }, x.owner) : null, x.updated ? h('span', { class: 'muted small' }, fmtDate(x.updated.slice(0, 10))) : null))))
-      : muted(docs.length ? 'Nothing matches.' : 'No documents yet. Add a customer, the product, research, how you work: anything the work needs as context.')];
+    h('span', { class: 'fb-count' }, `${shown.length} document${shown.length === 1 ? '' : 's'}`));
+  const folderRow = p => h('button', { class: 'mini doc-row folder-row', onClick: () => { f.folder = p; render(); } },
+    h('span', { class: 'mini-main' }, h('span', { class: 'mini-title' }, icon(FOLDER_ICON), leaf(p)), h('span', { class: 'mini-sub' }, `${count(p)} document${count(p) === 1 ? '' : 's'}`)), h('span', { class: 'mini-chips' }));
+  const docRow = x => h('button', { class: 'mini doc-row', onClick: () => openFull('doc', x.slug) },
+    h('span', { class: 'mini-main' }, h('span', { class: 'mini-title' }, x.title, h('span', { class: 'mini-key' }, x.key)), h('span', { class: 'mini-sub' }, x.description || 'Empty')),
+    h('span', { class: 'mini-chips' }, f.folder === null && x.folder ? tag(x.folder) : null, x.category ? tag(x.category) : null, x.owner ? h('span', { class: 'muted small' }, x.owner) : null, x.updated ? h('span', { class: 'muted small' }, fmtDate(x.updated.slice(0, 10))) : null));
+  const rows = [...(f.folder ? subfolders.map(folderRow) : rootFolders.map(folderRow)), ...shown.map(docRow)];
+  const main = h('div', { class: 'lib-main' }, crumb, bar_, rows.length ? h('div', { class: 'list' }, ...rows) : muted(docs.length ? (q ? 'Nothing matches.' : 'This folder is empty. Add a document here, or put one in it from its page.') : 'No documents yet. Add a customer, the product, research, how you work: anything the work needs as context.'));
+  return h('div', { class: 'lib' }, side, main);
 }
 
 // ---- goals: a card each, with where it stands and the projects under it

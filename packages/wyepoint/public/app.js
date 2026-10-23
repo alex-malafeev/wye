@@ -93,7 +93,7 @@ function draw() {
     header(view, d, A),
     isFull ? fullView(full) : view === 'overview' ? overviewPage(d, A) : h('main', { class: 'wrap' }, h('div', { class: 'panel' },
       h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, TABS.find(t => t[0] === view)[1]), h('div', { class: 'muted' }, subtitle(view, d, A))),
-        view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New project') : view === 'library' ? h('button', { class: 'btn pri', onClick: () => newDocPage(S.lib && S.lib.cat) }, '+ New document') : view === 'goals' ? h('button', { class: 'btn pri', onClick: () => { S.modal = { kind: 'goal' }; S.err = ''; render(); } }, '+ New goal') : null),
+        view === 'projects' ? h('button', { class: 'btn pri', onClick: newInitiative(d) }, '+ New project') : view === 'library' ? h('button', { class: 'btn pri', onClick: () => newDocPage(S.lib && S.lib.folder) }, '+ New document') : view === 'goals' ? h('button', { class: 'btn pri', onClick: () => { S.modal = { kind: 'goal' }; S.err = ''; render(); } }, '+ New goal') : null),
       h('div', { class: 'main' }, S.err && !open && !project && !person && !S.modal && !['plan', 'settings'].includes(view) ? h('div', { class: 'err' }, S.err) : null, VIEWS[view](), footnote(d)))),
     h('button', { class: 'fab', title: 'Status agent: a briefing on the whole portfolio', 'aria-label': 'Status agent', onClick: runPortfolio }, h('img', { src: '/owl.svg', alt: '' })),
     !isFull && open ? drawer(open) : !isFull && project ? projectDrawer(project) : !isFull && person ? personDrawer(person) : null, modal(), simulateModal(),

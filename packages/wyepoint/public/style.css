@@ -554,3 +554,24 @@ main.wrap{padding:8px 12px 0}
 .dd-btn.tagged{width:auto;max-width:100%;gap:2px;padding:0 2px !important;height:auto !important;min-height:30px;background:transparent}
 .dd-btn.tagged:hover,.dd-btn.tagged[aria-expanded=true]{background:#fff !important}
 .fside .fprop .dd{display:flex}
+
+/* the library: folders on the left, documents on the right */
+.lib{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px;align-items:start}
+.lib-tree{position:sticky;top:76px;display:flex;flex-direction:column;gap:1px;padding-right:6px;border-right:1px solid var(--line);min-height:240px}
+.tree-row{position:relative;display:flex;align-items:center;gap:6px;min-height:32px;border-radius:7px;padding-right:4px}
+.tree-row:hover{background:#f3f5f8}
+.tree-row.on{background:#e8eefb}
+.tree-main{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;background:transparent;border:0;padding:6px 4px;font:inherit;font-size:14px;color:var(--ink);cursor:pointer;text-align:left}
+.tree-row.on .tree-main{font-weight:600}
+.tree-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tree-count{flex:none;font-size:12px;color:var(--muted)}
+.tree-acts{display:none;gap:1px}
+.tree-row:hover .tree-acts{display:flex}.tree-row:hover .tree-count{display:none}
+.tree-act{width:22px;height:22px;border:0;border-radius:5px;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;line-height:1}
+.tree-act:hover{background:#fff;color:var(--ink)}
+.tree-input{flex:1 1 auto;min-width:0;height:28px;border:1px solid var(--line2);border-radius:6px;padding:0 8px;font:inherit;font-size:14px;background:#fff}
+.ico{display:inline-flex;flex:none;color:var(--muted)}
+.lib-main{min-width:0;display:flex;flex-direction:column;gap:12px}
+.lib-path{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:14px}
+.folder-row .mini-title{display:inline-flex;align-items:center;gap:8px}
+@media (max-width:900px){.lib{grid-template-columns:1fr}.lib-tree{position:static;border-right:0;border-bottom:1px solid var(--line);padding-bottom:10px}}

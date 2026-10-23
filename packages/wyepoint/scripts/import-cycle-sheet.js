@@ -119,7 +119,8 @@ function docFromTab(rows) {
 function addDocs(store) {
   for (const [tab, [title, category]] of Object.entries(LIBRARY_TABS)) {
     if (!book[tab] || store.docs().some(d => d.title === title)) continue;
-    store.createDoc({ title, category, body: `${docFromTab(book[tab])}\n\n_Imported from ${SOURCE}, tab "${tab}"._` });
+    if (!store.libraryFolders().includes(category)) store.createFolder(category);                 // filed in a folder named for its category
+    store.createDoc({ title, category, folder: category, body: `${docFromTab(book[tab])}\n\n_Imported from ${SOURCE}, tab "${tab}"._` });
   }
 }
 

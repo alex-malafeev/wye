@@ -204,6 +204,6 @@ function goalModal(m) {
 }
 
 // A new document is a page from the start, like a new project: created at once and opened with its title ready to type over.
-export async function newDocPage(category) {
-  await act(async () => { const r = await api('POST', '/docs', { title: 'Untitled document', category: category || '' }); S.focusTitle = true; openFull('doc', r.slug); });
+export async function newDocPage(folder) {
+  await act(async () => { const r = await api('POST', '/docs', { title: 'Untitled document', folder: folder || '' }); S.focusTitle = true; openFull('doc', r.slug); });
 }
