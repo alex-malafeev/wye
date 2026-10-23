@@ -130,6 +130,24 @@ adds PRs and issues that carry `wyepoint:<area>/<slug>` in their title, branch o
 
 The server's routes keep their earlier names: `/api/initiatives` are projects and `/api/projects` are areas.
 
+## Importing a cycle planning workbook
+
+The "6W Cycle Planning Guide" workbook (a plan tab and a backlog tab for each team) can be imported into a new vault:
+
+```bash
+python3 -I scripts/xlsx-to-json.py "6W Cycle Planning Guide.xlsx" plan.json          # standard library only
+node scripts/import-cycle-sheet.js plan.json --vault ~/.wye/data/products/safety-cycle
+node server.js --vault ~/.wye/data/products/safety-cycle -p 4402
+```
+
+Each tab is a **goal**; each row is a **project** (the team column is its area). Rows above the plan's cut line are in
+the cycle named in the tab's header; rows below it, and everything on a backlog tab, are in the backlog (a tier of Next
+cycle, Later or Icebox becomes the bucket). A project's champion and contributors become people (initials like "D. Conde"
+and first names are matched to the full names in the sheet; names run together are split; what is not a name stays in
+the page as text), what is shipping, the definition of done, the success metric and the notes become sections of its
+page, and a dependency or risk becomes a Risk. The cycles' dates are the workbook's own timeline. The example tabs, the
+instructions and drafts ("… - Proposed") are left out. It refuses a vault that is not empty.
+
 ## Not built yet
 
 Pulling from sources on a schedule (today they push), users and per-person permissions, protection against two people
